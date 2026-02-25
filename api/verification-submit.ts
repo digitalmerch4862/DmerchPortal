@@ -137,10 +137,10 @@ export default async function handler(req: any, res: any) {
     }
 
     if (sequenceResponse.error || sequenceNo === null || isNaN(sequenceNo)) {
-      console.error('Sequence generation error:', sequenceResponse.error, 'Data:', seqData);
+      console.error('Sequence generation error:', JSON.stringify(sequenceResponse.error), 'Data:', JSON.stringify(seqData), 'Type:', typeof seqData);
       return res.status(500).json({
         ok: false,
-        error: 'Could not generate sequence. If the error persists, please check your Supabase project configuration.',
+        error: `Could not generate sequence. Debug: err=${JSON.stringify(sequenceResponse.error)}, data=${JSON.stringify(seqData)}, type=${typeof seqData}`,
       });
     }
     const now = new Date();
