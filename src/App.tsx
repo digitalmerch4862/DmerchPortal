@@ -8,8 +8,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ShieldCheck, CreditCard, Info, ExternalLink, CheckCircle2, AlertCircle, Facebook, Youtube, Instagram } from 'lucide-react';
 
 // Import local assets
-import gcashQr from './Robert Garcia Gcash.png';
-import gotymeQr from './Robert Garcia Gotyme.png';
+import gcashQr from './gcash-qr.png';
+import gotymeQr from './gotyme-qr.png';
 
 // Cyberpunk Theme Constants
 const COLORS = {
@@ -198,9 +198,9 @@ export default function App() {
                             <div className={`w-3 h-3 rounded-full ${selectedMethod === 'gcash' ? 'bg-white' : 'bg-black'} animate-pulse`} />
                           </div>
                           
-                          <div className={`bg-white p-4 w-full aspect-[3/5] flex items-center justify-center overflow-hidden border-x-4 border-b-4 ${selectedMethod === 'gcash' ? 'border-blue-600' : 'border-cyan-500'}`}>
+                          <div className={`${selectedMethod === 'gcash' ? 'bg-[#007dfe]' : 'bg-[#00e5ff]'} p-4 w-full aspect-[3/5] flex items-center justify-center overflow-hidden border-x-4 border-b-4 ${selectedMethod === 'gcash' ? 'border-blue-600' : 'border-cyan-500'}`}>
                             <img 
-                              src={selectedMethod === 'gcash' ? GCASH_QR : GOTYME_QR} 
+                              src={selectedMethod === 'gcash' ? gcashQr : gotymeQr} 
                               alt="Payment QR Code" 
                               className="w-full h-full object-contain"
                               referrerPolicy="no-referrer"
