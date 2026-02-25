@@ -5,7 +5,7 @@
 
 import { type ComponentType, type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, ExternalLink, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch } from 'lucide-react';
+import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft, Lock } from 'lucide-react';
 import gcashQr from './gcash-qr.png';
 import gotymeQr from './gotyme-qr.png';
 import { findProductByName, productCatalog, type ProductItem } from './data/products';
@@ -29,6 +29,8 @@ type VerificationApiResponse = {
   totalAmount?: number;
   error?: string;
 };
+
+type FlowStage = 1 | 2 | 3 | 4;
 
 function GlitchText({text, className = ''}: {text: string; className?: string}) {
   return (
@@ -121,7 +123,7 @@ function MethodCard({method, id, compact = false, selectedMethod, onSelectMethod
 }
 
 export default function App() {
-  const [step, setStep] = useState<'payment' | 'form'>('payment');
+  const [stage, setStage] = useState<FlowStage>(1);
   const [selectedMethod, setSelectedMethod] = useState<'gcash' | 'gotyme'>('gcash');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -161,6 +163,69 @@ export default function App() {
   const totalAmount = useMemo(() => {
     return selectedProducts.reduce((sum, item) => sum + item.amount, 0);
   }, [selectedProducts]);
+
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const isEmailValid = emailPattern.test(email.trim());
+
+  const canProceedFrom = (fromStage: FlowStage) => {
+    if (fromStage === 1) {
+      return selectedProducts.length > 0;
+    }
+
+    if (fromStage === 2) {
+      return username.trim().length > 0 && isEmailValid;
+    }
+
+    if (fromStage === 3) {
+      return Boolean(selectedMethod);
+    }
+
+    return true;
+  };
+
+  const stageErrorMessage: Record<FlowStage, string> = {
+    1: 'Add at least one product before proceeding to client details.',
+    2: 'Enter a valid username and email before proceeding to payment portal.',
+    3: 'Select a payment portal before proceeding to confirmation.',
+    4: '',
+  };
+
+  const goToNextStage = () => {
+    if (stage === 4) {
+      return;
+    }
+
+    if (!canProceedFrom(stage)) {
+      setSubmitError(stageErrorMessage[stage]);
+      return;
+    }
+
+    setSubmitError('');
+    setStage((current) => (current < 4 ? ((current + 1) as FlowStage) : current));
+  };
+
+  const goToPreviousStage = () => {
+    setSubmitError('');
+    setStage((current) => (current > 1 ? ((current - 1) as FlowStage) : current));
+  };
+
+  const handleSelectStage = (targetStage: FlowStage) => {
+    if (targetStage <= stage) {
+      setSubmitError('');
+      setStage(targetStage);
+      return;
+    }
+
+    for (let check = stage; check < targetStage; check += 1) {
+      if (!canProceedFrom(check as FlowStage)) {
+        setSubmitError(stageErrorMessage[check as FlowStage]);
+        return;
+      }
+    }
+
+    setSubmitError('');
+    setStage(targetStage);
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -317,6 +382,13 @@ export default function App() {
     }
   };
 
+  const stageItems: Array<{ id: FlowStage; code: string; title: string }> = [
+    { id: 1, code: '01', title: 'Order' },
+    { id: 2, code: '02', title: 'Client Details' },
+    { id: 3, code: '03', title: 'Payment Portal' },
+    { id: 4, code: '04', title: 'Confirmation' },
+  ];
+
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-cyan-500/30 overflow-x-hidden">
       {/* Background Grid & Effects */}
@@ -348,30 +420,212 @@ export default function App() {
           </motion.div>
         </header>
 
-        {/* Navigation Tabs */}
-        <div className="flex justify-center mb-12 gap-4">
-          <button
-            onClick={() => setStep('payment')}
-            className={`px-6 py-2 font-bold tracking-widest uppercase transition-all duration-300 border-b-2 ${
-              step === 'payment' ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-transparent text-gray-500 hover:text-gray-300'
-            }`}
-          >
-            01. PAYMENT
-          </button>
-          <button
-            onClick={() => setStep('form')}
-            className={`px-6 py-2 font-bold tracking-widest uppercase transition-all duration-300 border-b-2 ${
-              step === 'form' ? 'border-magenta-500 text-magenta-400 bg-magenta-500/10' : 'border-transparent text-gray-500 hover:text-gray-300'
-            }`}
-          >
-            02. VERIFICATION
-          </button>
+        <div className="mb-10 rounded-xl border border-cyan-500/30 bg-[#070a12]/70 p-4 shadow-[0_0_30px_rgba(0,243,255,0.12)]">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {stageItems.map((item) => {
+              const isActive = stage === item.id;
+              const isCompleted = item.id < stage;
+              const isLocked = item.id > stage + 1;
+
+              return (
+                <motion.button
+                  key={item.id}
+                  type="button"
+                  whileHover={!isLocked ? { scale: 1.03 } : undefined}
+                  whileTap={!isLocked ? { scale: 0.97 } : undefined}
+                  onClick={() => !isLocked && handleSelectStage(item.id)}
+                  disabled={isLocked}
+                  className={`cyber-stage-chip ${isActive ? 'cyber-stage-chip-active' : ''} ${isCompleted ? 'cyber-stage-chip-complete' : ''} ${isLocked ? 'cyber-stage-chip-locked' : ''}`}
+                >
+                  <span className="text-[10px] font-mono uppercase tracking-[0.3em]">{item.code}</span>
+                  <span className="mt-1 block text-xs sm:text-sm font-semibold uppercase tracking-[0.12em]">{item.title}</span>
+                  <span className="mt-2 inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.2em]">
+                    {isLocked ? <Lock size={11} /> : isCompleted ? <Check size={11} /> : <span className="h-2 w-2 rounded-full bg-current animate-pulse" />}
+                    {isLocked ? 'Locked' : isCompleted ? 'Complete' : 'Active'}
+                  </span>
+                </motion.button>
+              );
+            })}
+          </div>
         </div>
 
         <AnimatePresence mode="wait">
-          {step === 'payment' ? (
+          {stage === 1 ? (
             <motion.div
-              key="payment-step"
+              key="stage-1-order"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <CyberCard title="Order Selection" icon={PackageSearch} color="cyan">
+                <p className="mb-6 text-gray-300">
+                  Pick all products for this transaction. You can add multiple items before moving to client details.
+                </p>
+
+                <div ref={productPickerRef} className="relative z-10 rounded-xl border border-cyan-500/40 bg-[#0b111f]/80 p-4 shadow-[0_0_35px_rgba(0,195,255,0.1)]">
+                  <div className="pointer-events-none absolute left-2 top-2 h-5 w-5 border-l-2 border-t-2 border-cyan-400/70" />
+                  <div className="pointer-events-none absolute bottom-2 right-2 h-5 w-5 border-b-2 border-r-2 border-cyan-400/70" />
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-300">Product Purchased</span>
+                    <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-gray-400">Multi-Product Enabled</span>
+                  </div>
+
+                  <div className="relative">
+                    <div className="relative">
+                      <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cyan-300/70" />
+                      <input
+                        value={productQuery}
+                        onChange={(event) => {
+                          setProductQuery(event.target.value);
+                          setSelectedProductName('');
+                          setIsProductMenuOpen(true);
+                        }}
+                        onFocus={() => setIsProductMenuOpen(true)}
+                        className="w-full rounded-md border border-cyan-500/50 bg-black/50 pl-10 pr-4 py-3 text-sm text-gray-100 outline-none transition focus:border-cyan-300 focus:shadow-[0_0_18px_rgba(0,255,255,0.2)]"
+                        placeholder="Search product name"
+                      />
+                    </div>
+
+                    {isProductMenuOpen && (
+                      <div className="absolute z-30 mt-2 max-h-64 w-full overflow-auto rounded-md border border-cyan-500/40 bg-[#090d17] shadow-[0_0_28px_rgba(0,200,255,0.15)]">
+                        {filteredProducts.length > 0 ? (
+                          filteredProducts.map((product) => {
+                            const isSelected = selectedProductName === product.name;
+                            return (
+                              <button
+                                key={`${product.name}-${product.amount}`}
+                                type="button"
+                                onClick={() => handleSelectProduct(product.name)}
+                                className={`flex w-full items-center justify-between border-b border-white/5 px-4 py-3 text-left transition last:border-b-0 ${isSelected ? 'bg-cyan-500/20 text-cyan-100' : 'text-gray-300 hover:bg-white/5'}`}
+                              >
+                                <span className="pr-3 text-xs sm:text-sm">{product.name}</span>
+                                <span className="flex shrink-0 items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em]">
+                                  PHP {product.amount}
+                                  {isSelected ? <Check size={14} /> : null}
+                                </span>
+                              </button>
+                            );
+                          })
+                        ) : (
+                          <div className="px-4 py-4 text-xs font-mono uppercase tracking-[0.2em] text-gray-500">No matching product</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-3 flex flex-col sm:flex-row gap-3">
+                    <motion.button
+                      type="button"
+                      whileHover={!selectedProduct ? undefined : { scale: 1.02 }}
+                      whileTap={!selectedProduct ? undefined : { scale: 0.98 }}
+                      onClick={handleAddSelectedProduct}
+                      disabled={!selectedProduct}
+                      className="cyber-btn cyber-btn-secondary"
+                    >
+                      <Plus size={14} />
+                      Add Product
+                    </motion.button>
+                    <div className="rounded-md border border-cyan-500/40 bg-black/40 px-4 py-2 text-xs font-mono uppercase tracking-[0.2em] text-cyan-200">
+                      {selectedProduct ? `Ready: PHP ${selectedProduct.amount}` : 'Select from list'}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    {selectedProducts.length > 0 ? (
+                      selectedProducts.map((item) => (
+                        <div
+                          key={`${item.name}-${item.amount}`}
+                          className="flex items-start justify-between gap-3 rounded-md border border-cyan-500/30 bg-black/40 px-3 py-2"
+                        >
+                          <div>
+                            <p className="text-sm text-cyan-100">{item.name}</p>
+                            <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">PHP {item.amount}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeSelectedProduct(item.name)}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded border border-red-400/40 text-red-300 hover:bg-red-500/10"
+                            title="Remove product"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rounded-md border border-dashed border-cyan-500/30 px-4 py-4 text-center text-xs font-mono uppercase tracking-[0.2em] text-gray-500">
+                        No products added yet
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-4 py-3">
+                  <span className="text-xs font-mono uppercase tracking-[0.22em] text-cyan-200">
+                    Products: {selectedProducts.length} | Total: PHP {totalAmount}
+                  </span>
+                  <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
+                    Next: Client Details <ArrowRight size={15} />
+                  </motion.button>
+                </div>
+              </CyberCard>
+            </motion.div>
+          ) : stage === 2 ? (
+            <motion.div
+              key="stage-2-client"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+              className="w-full"
+            >
+              <CyberCard title="Client Details" icon={ShieldCheck} color="magenta">
+                <p className="mb-6 text-gray-300">
+                  Enter buyer credentials for verification and tracking updates.
+                </p>
+
+                <div className="relative z-20 rounded-xl border border-cyan-500/40 bg-[#031018]/80 p-4 shadow-[0_0_35px_rgba(0,195,255,0.12)]">
+                  <div className="pointer-events-none absolute left-2 top-2 h-5 w-5 border-l-2 border-t-2 border-cyan-400/70" />
+                  <div className="pointer-events-none absolute bottom-2 right-2 h-5 w-5 border-b-2 border-r-2 border-cyan-400/70" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <label className="block">
+                      <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-300">Username</span>
+                      <input
+                        value={username}
+                        onChange={(event) => setUsername(event.target.value)}
+                        required
+                        className="w-full rounded-md border border-cyan-500/50 bg-black/50 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-cyan-300 focus:shadow-[0_0_18px_rgba(0,255,255,0.2)]"
+                        placeholder="Enter your username"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-300">Email</span>
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                        required
+                        className="w-full rounded-md border border-cyan-500/50 bg-black/50 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-cyan-300 focus:shadow-[0_0_18px_rgba(0,255,255,0.2)]"
+                        placeholder="buyer@email.com"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
+                    <ArrowLeft size={15} /> Back
+                  </motion.button>
+                  <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
+                    Next: Payment Portal <ArrowRight size={15} />
+                  </motion.button>
+                </div>
+              </CyberCard>
+            </motion.div>
+          ) : stage === 3 ? (
+            <motion.div
+              key="stage-3-portal"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
@@ -379,11 +633,10 @@ export default function App() {
             >
               <div className="mb-8 text-center">
                 <p className="text-cyan-400/60 font-mono text-xs uppercase tracking-[0.3em]">
-                  Select Protocol & Decrypt Access Key
+                  Select Payment Portal & Scan Secure QR
                 </p>
               </div>
 
-              {/* Payment Layout */}
               <div className="mb-16 space-y-6">
                 <div className="flex justify-center gap-4 lg:hidden">
                   <MethodCard method="gcash" id="001" compact selectedMethod={selectedMethod} onSelectMethod={setSelectedMethod} />
@@ -395,65 +648,64 @@ export default function App() {
                     <MethodCard method="gcash" id="001" selectedMethod={selectedMethod} onSelectMethod={setSelectedMethod} />
                   </div>
 
-                  {/* Center: QR Terminal */}
                   <div className="w-full max-w-sm">
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={selectedMethod}
-                      initial={{ opacity: 0, scale: 0.9, rotateY: 90 }}
-                      animate={{ opacity: 1, scale: 1, rotateY: 0 }}
-                      exit={{ opacity: 0, scale: 0.9, rotateY: -90 }}
-                      transition={{ duration: 0.5, type: "spring", stiffness: 100 }}
-                      className="relative"
-                    >
-                      <div className="relative group">
-                        <div className={`absolute -inset-2 bg-gradient-to-r ${selectedMethod === 'gcash' ? 'from-blue-500 to-cyan-500' : 'from-cyan-400 to-emerald-400'} rounded-lg blur opacity-40 group-hover:opacity-60 transition duration-1000`}></div>
-                        <div className="relative bg-[#0a0a0a] rounded-lg p-6 border border-white/10 flex flex-col items-center shadow-2xl">
-                          <div className={`w-full ${selectedMethod === 'gcash' ? 'bg-[#007dfe]' : 'bg-[#00e5ff]'} py-3 px-6 rounded-t-md flex justify-between items-center shadow-lg`}>
-                            <span className={`font-black italic tracking-tighter uppercase text-sm ${selectedMethod === 'gcash' ? 'text-white' : 'text-black'}`}>
-                              {selectedMethod === 'gcash' ? 'GCash Terminal' : 'GoTyme Terminal'}
-                            </span>
-                            <div className="flex items-center gap-2">
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={selectedMethod}
+                        initial={{ opacity: 0, scale: 0.9, rotateY: 90 }}
+                        animate={{ opacity: 1, scale: 1, rotateY: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, rotateY: -90 }}
+                        transition={{ duration: 0.5, type: 'spring', stiffness: 100 }}
+                        className="relative"
+                      >
+                        <div className="relative group">
+                          <div className={`absolute -inset-2 bg-gradient-to-r ${selectedMethod === 'gcash' ? 'from-blue-500 to-cyan-500' : 'from-cyan-400 to-emerald-400'} rounded-lg blur opacity-40 group-hover:opacity-60 transition duration-1000`} />
+                          <div className="relative bg-[#0a0a0a] rounded-lg p-6 border border-white/10 flex flex-col items-center shadow-2xl">
+                            <div className={`w-full ${selectedMethod === 'gcash' ? 'bg-[#007dfe]' : 'bg-[#00e5ff]'} py-3 px-6 rounded-t-md flex justify-between items-center shadow-lg`}>
+                              <span className={`font-black italic tracking-tighter uppercase text-sm ${selectedMethod === 'gcash' ? 'text-white' : 'text-black'}`}>
+                                {selectedMethod === 'gcash' ? 'GCash Terminal' : 'GoTyme Terminal'}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={handleDownloadQr}
+                                  className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition-colors ${selectedMethod === 'gcash' ? 'border-white/60 text-white hover:bg-white/15' : 'border-black/60 text-black hover:bg-black/15'}`}
+                                  title="Download QR"
+                                  aria-label="Download QR"
+                                >
+                                  <Download size={14} />
+                                </button>
+                                <div className={`w-3 h-3 rounded-full ${selectedMethod === 'gcash' ? 'bg-white' : 'bg-black'} animate-pulse`} />
+                              </div>
+                            </div>
+
+                            <div className={`${selectedMethod === 'gcash' ? 'bg-[#007dfe]' : 'bg-[#00e5ff]'} p-4 w-full aspect-[3/5] flex items-center justify-center overflow-hidden border-x-4 border-b-4 ${selectedMethod === 'gcash' ? 'border-blue-600' : 'border-cyan-500'}`}>
+                              <img
+                                src={selectedQrSrc}
+                                alt={`${selectedMethod === 'gcash' ? 'GCash' : 'GoTyme'} payment QR code`}
+                                className="w-full h-full object-contain"
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+
+                            <div className="mt-6 text-center w-full py-4 border-t border-white/5">
                               <button
                                 type="button"
                                 onClick={handleDownloadQr}
-                                className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition-colors ${selectedMethod === 'gcash' ? 'border-white/60 text-white hover:bg-white/15' : 'border-black/60 text-black hover:bg-black/15'}`}
-                                title="Download QR"
-                                aria-label="Download QR"
+                                className="mb-3 inline-flex items-center gap-2 rounded border border-white/20 px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.2em] text-gray-300 hover:text-white hover:border-white/40 transition-colors"
                               >
-                                <Download size={14} />
+                                <Download size={12} />
+                                Download QR
                               </button>
-                              <div className={`w-3 h-3 rounded-full ${selectedMethod === 'gcash' ? 'bg-white' : 'bg-black'} animate-pulse`} />
+                              <p className="text-[10px] font-mono text-gray-500 uppercase tracking-[0.3em] mb-1">Recipient Verified</p>
+                              <p className="text-xl font-black text-white tracking-widest uppercase italic bg-gradient-to-r from-white to-gray-500 bg-clip-text text-transparent">
+                                Robert Rich Garcia
+                              </p>
                             </div>
                           </div>
-                          
-                          <div className={`${selectedMethod === 'gcash' ? 'bg-[#007dfe]' : 'bg-[#00e5ff]'} p-4 w-full aspect-[3/5] flex items-center justify-center overflow-hidden border-x-4 border-b-4 ${selectedMethod === 'gcash' ? 'border-blue-600' : 'border-cyan-500'}`}>
-                            <img 
-                              src={selectedQrSrc}
-                              alt={`${selectedMethod === 'gcash' ? 'GCash' : 'GoTyme'} payment QR code`}
-                              className="w-full h-full object-contain"
-                              referrerPolicy="no-referrer"
-                            />
-                          </div>
-                          
-                          <div className="mt-6 text-center w-full py-4 border-t border-white/5">
-                            <button
-                              type="button"
-                              onClick={handleDownloadQr}
-                              className="mb-3 inline-flex items-center gap-2 rounded border border-white/20 px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.2em] text-gray-300 hover:text-white hover:border-white/40 transition-colors"
-                            >
-                              <Download size={12} />
-                              Download QR
-                            </button>
-                            <p className="text-[10px] font-mono text-gray-500 uppercase tracking-[0.3em] mb-1">Recipient Verified</p>
-                            <p className="text-xl font-black text-white tracking-widest uppercase italic bg-gradient-to-r from-white to-gray-500 bg-clip-text text-transparent">
-                              Robert Rich Garcia
-                            </p>
-                          </div>
                         </div>
-                      </div>
-                    </motion.div>
-                  </AnimatePresence>
+                      </motion.div>
+                    </AnimatePresence>
                   </div>
 
                   <div className="hidden lg:block">
@@ -462,158 +714,47 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="flex justify-center">
-                <button
-                  onClick={() => setStep('form')}
-                  className="group relative px-12 py-4 bg-cyan-500 text-black font-black uppercase tracking-[0.2em] hover:bg-white transition-all duration-300"
-                >
-                  <span className="relative z-10 flex items-center gap-2">
-                    Proceed to Form <ExternalLink size={18} />
-                  </span>
-                  <div className="absolute top-0 left-0 w-full h-full border-2 border-cyan-500 translate-x-2 translate-y-2 group-hover:translate-x-0 group-hover:translate-y-0 transition-transform duration-300" />
-                </button>
+              <div className="flex flex-col sm:flex-row justify-center gap-3">
+                <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
+                  <ArrowLeft size={15} /> Back
+                </motion.button>
+                <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
+                  Next: Confirmation <ArrowRight size={15} />
+                </motion.button>
               </div>
             </motion.div>
           ) : (
             <motion.div
-              key="form-step"
+              key="stage-4-confirmation"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.3 }}
               className="w-full"
             >
-              <CyberCard title="Verification Form" icon={ShieldCheck} color="magenta">
+              <CyberCard title="Confirmation & Verification" icon={ShieldCheck} color="magenta">
                 <p className="mb-6 text-gray-300">
-                  Submit your payment verification details below. Add all products in one request,
-                  then our system will generate your serial and send tracking emails.
+                  Review your selected portal, add the payment reference number, then submit verification.
                 </p>
 
+                <div className="mb-4 rounded-xl border border-cyan-500/40 bg-[#031018]/80 p-4 shadow-[0_0_30px_rgba(0,195,255,0.1)]">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-cyan-300">Products</p>
+                      <p className="mt-1 text-sm text-white">{selectedProducts.length} item(s)</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-cyan-300">Portal</p>
+                      <p className="mt-1 text-sm text-white uppercase">{selectedMethod === 'gcash' ? 'GCash' : 'GoTyme'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-cyan-300">Total</p>
+                      <p className="mt-1 text-sm text-white">PHP {totalAmount}</p>
+                    </div>
+                  </div>
+                </div>
+
                 <form onSubmit={handleSubmitVerification} className="space-y-6">
-                  <div className="relative z-20 rounded-xl border border-cyan-500/40 bg-[#031018]/80 p-4 shadow-[0_0_35px_rgba(0,195,255,0.12)]">
-                    <div className="pointer-events-none absolute left-2 top-2 h-5 w-5 border-l-2 border-t-2 border-cyan-400/70" />
-                    <div className="pointer-events-none absolute bottom-2 right-2 h-5 w-5 border-b-2 border-r-2 border-cyan-400/70" />
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <label className="block">
-                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-300">Username</span>
-                        <input
-                          value={username}
-                          onChange={(event) => setUsername(event.target.value)}
-                          required
-                          className="w-full rounded-md border border-cyan-500/50 bg-black/50 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-cyan-300 focus:shadow-[0_0_18px_rgba(0,255,255,0.2)]"
-                          placeholder="Enter your username"
-                        />
-                      </label>
-
-                      <label className="block">
-                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-300">Email</span>
-                        <input
-                          type="email"
-                          value={email}
-                          onChange={(event) => setEmail(event.target.value)}
-                          required
-                          className="w-full rounded-md border border-cyan-500/50 bg-black/50 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-cyan-300 focus:shadow-[0_0_18px_rgba(0,255,255,0.2)]"
-                          placeholder="buyer@email.com"
-                        />
-                      </label>
-                    </div>
-                  </div>
-
-                  <div ref={productPickerRef} className="relative z-10 rounded-xl border border-cyan-500/40 bg-[#0b111f]/80 p-4 shadow-[0_0_35px_rgba(0,195,255,0.1)]">
-                    <div className="pointer-events-none absolute left-2 top-2 h-5 w-5 border-l-2 border-t-2 border-cyan-400/70" />
-                    <div className="pointer-events-none absolute bottom-2 right-2 h-5 w-5 border-b-2 border-r-2 border-cyan-400/70" />
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-300">Product Purchased</span>
-                      <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-gray-400">Multi-Product Enabled</span>
-                    </div>
-
-                    <div className="relative">
-                      <div className="relative">
-                        <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cyan-300/70" />
-                        <input
-                          value={productQuery}
-                          onChange={(event) => {
-                            setProductQuery(event.target.value);
-                            setSelectedProductName('');
-                            setIsProductMenuOpen(true);
-                          }}
-                          onFocus={() => setIsProductMenuOpen(true)}
-                          className="w-full rounded-md border border-cyan-500/50 bg-black/50 pl-10 pr-4 py-3 text-sm text-gray-100 outline-none transition focus:border-cyan-300 focus:shadow-[0_0_18px_rgba(0,255,255,0.2)]"
-                          placeholder="Search product name"
-                        />
-                      </div>
-
-                      {isProductMenuOpen && (
-                        <div className="absolute z-30 mt-2 max-h-64 w-full overflow-auto rounded-md border border-cyan-500/40 bg-[#090d17] shadow-[0_0_28px_rgba(0,200,255,0.15)]">
-                          {filteredProducts.length > 0 ? (
-                            filteredProducts.map((product) => {
-                              const isSelected = selectedProductName === product.name;
-                              return (
-                                <button
-                                  key={`${product.name}-${product.amount}`}
-                                  type="button"
-                                  onClick={() => handleSelectProduct(product.name)}
-                                  className={`flex w-full items-center justify-between border-b border-white/5 px-4 py-3 text-left transition last:border-b-0 ${isSelected ? 'bg-cyan-500/20 text-cyan-100' : 'text-gray-300 hover:bg-white/5'}`}
-                                >
-                                  <span className="pr-3 text-xs sm:text-sm">{product.name}</span>
-                                  <span className="flex shrink-0 items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em]">
-                                    PHP {product.amount}
-                                    {isSelected ? <Check size={14} /> : null}
-                                  </span>
-                                </button>
-                              );
-                            })
-                          ) : (
-                            <div className="px-4 py-4 text-xs font-mono uppercase tracking-[0.2em] text-gray-500">No matching product</div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="mt-3 flex flex-col sm:flex-row gap-3">
-                      <button
-                        type="button"
-                        onClick={handleAddSelectedProduct}
-                        disabled={!selectedProduct}
-                        className="inline-flex items-center justify-center gap-2 rounded-md border border-cyan-400/60 bg-cyan-500/20 px-4 py-2 text-xs font-mono uppercase tracking-[0.2em] text-cyan-200 transition hover:bg-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <Plus size={14} />
-                        Add Product
-                      </button>
-                      <div className="rounded-md border border-cyan-500/40 bg-black/40 px-4 py-2 text-xs font-mono uppercase tracking-[0.2em] text-cyan-200">
-                        {selectedProduct ? `Ready: PHP ${selectedProduct.amount}` : 'Select from list'}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 space-y-2">
-                      {selectedProducts.length > 0 ? (
-                        selectedProducts.map((item) => (
-                          <div
-                            key={`${item.name}-${item.amount}`}
-                            className="flex items-start justify-between gap-3 rounded-md border border-cyan-500/30 bg-black/40 px-3 py-2"
-                          >
-                            <div>
-                              <p className="text-sm text-cyan-100">{item.name}</p>
-                              <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">PHP {item.amount}</p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => removeSelectedProduct(item.name)}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded border border-red-400/40 text-red-300 hover:bg-red-500/10"
-                              title="Remove product"
-                            >
-                              <X size={12} />
-                            </button>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="rounded-md border border-dashed border-cyan-500/30 px-4 py-4 text-center text-xs font-mono uppercase tracking-[0.2em] text-gray-500">
-                          No products added yet
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
                   <div className="relative z-10 rounded-xl border border-[#ff8a00]/40 bg-[#1a0e05] p-4 shadow-[0_0_35px_rgba(255,128,0,0.2)]">
                     <div className="pointer-events-none absolute left-2 top-2 h-5 w-5 border-l-2 border-t-2 border-[#ff9f1a]/80" />
                     <div className="pointer-events-none absolute bottom-2 right-2 h-5 w-5 border-b-2 border-r-2 border-[#ff9f1a]/80" />
@@ -672,25 +813,31 @@ export default function App() {
                     </div>
                   ) : null}
 
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || selectedProducts.length === 0}
-                    className="group relative w-full px-6 py-4 bg-magenta-500 text-black font-black uppercase tracking-[0.2em] hover:bg-white transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    <span className="relative z-10">
+                  <div className="flex flex-col sm:flex-row gap-3 justify-between">
+                    <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
+                      <ArrowLeft size={15} /> Back
+                    </motion.button>
+
+                    <motion.button
+                      type="submit"
+                      whileHover={isSubmitting || selectedProducts.length === 0 ? undefined : { scale: 1.02 }}
+                      whileTap={isSubmitting || selectedProducts.length === 0 ? undefined : { scale: 0.98 }}
+                      disabled={isSubmitting || selectedProducts.length === 0}
+                      className="cyber-btn cyber-btn-primary"
+                    >
                       {isSubmitting ? 'Sending Verification...' : 'Submit Verification'}
-                    </span>
-                    <div className="absolute top-0 left-0 w-full h-full border-2 border-magenta-500 translate-x-2 translate-y-2 group-hover:translate-x-0 group-hover:translate-y-0 transition-transform duration-300" />
-                  </button>
+                      {!isSubmitting ? <ArrowRight size={15} /> : null}
+                    </motion.button>
+                  </div>
                 </form>
               </CyberCard>
 
               <div className="mt-8 flex justify-between items-center">
                 <button
-                  onClick={() => setStep('payment')}
+                  onClick={goToPreviousStage}
                   className="text-gray-500 hover:text-cyan-400 font-mono text-xs uppercase tracking-widest flex items-center gap-2 transition-colors"
                 >
-                  ← Back to Payment
+                  ← Back to Payment Portal
                 </button>
                 <div className="flex items-center gap-2 text-magenta-400/60 font-mono text-[10px] uppercase">
                   <ShieldCheck size={14} />
