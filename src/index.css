@@ -58,8 +58,8 @@
   content: "";
   position: absolute;
   inset: -22%;
-  background: linear-gradient(120deg, transparent 38%, rgba(255, 255, 255, 0.55) 50%, transparent 62%);
-  transform: translateX(-120%) rotate(8deg);
+  background: linear-gradient(90deg, transparent 49.35%, rgba(255, 0, 255, 0.92) 50%, transparent 50.65%);
+  transform: translateX(-120%);
   animation: cyber-saber-run 2.2s linear infinite;
   pointer-events: none;
 }
@@ -109,11 +109,11 @@
   content: "";
   position: absolute;
   inset: -22%;
-  background: linear-gradient(110deg, transparent 40%, rgba(0, 243, 255, 0.7) 50%, transparent 60%);
-  transform: translateX(-135%) rotate(8deg);
+  background: linear-gradient(90deg, transparent 49.3%, rgba(255, 0, 255, 0.88) 50%, transparent 50.7%);
+  transform: translateX(-135%);
   animation: cyber-saber-run 2.8s linear infinite;
   pointer-events: none;
-  opacity: 0.55;
+  opacity: 0.72;
 }
 
 .cyber-stage-chip-active {
@@ -150,17 +150,17 @@
   border-radius: 4px;
   pointer-events: none;
   z-index: 0;
-  background: linear-gradient(120deg, transparent 40%, rgba(0, 243, 255, 0.85) 50%, transparent 60%);
-  animation: cyber-frame-run 3s linear infinite;
-  opacity: 0.7;
+  background: linear-gradient(90deg, transparent 49.4%, rgba(255, 0, 255, 0.9) 50%, transparent 50.6%);
+  animation: cyber-saber-run 3s linear infinite;
+  opacity: 0.75;
 }
 
 .cyber-saber-frame-magenta::before {
-  background: linear-gradient(120deg, transparent 40%, rgba(255, 0, 255, 0.75) 50%, transparent 60%);
+  background: linear-gradient(90deg, transparent 49.4%, rgba(255, 0, 255, 0.9) 50%, transparent 50.6%);
 }
 
 .cyber-saber-frame-cyan::before {
-  background: linear-gradient(120deg, transparent 40%, rgba(0, 243, 255, 0.85) 50%, transparent 60%);
+  background: linear-gradient(90deg, transparent 49.4%, rgba(255, 0, 255, 0.9) 50%, transparent 50.6%);
 }
 
 .cyber-tap {
@@ -169,28 +169,10 @@
 
 @keyframes cyber-saber-run {
   0% {
-    transform: translateX(-135%) rotate(8deg);
+    transform: translateX(-135%);
   }
   100% {
-    transform: translateX(135%) rotate(8deg);
-  }
-}
-
-@keyframes cyber-frame-run {
-  0% {
-    clip-path: inset(0 100% 0 0);
-  }
-  25% {
-    clip-path: inset(0 0 100% 0);
-  }
-  50% {
-    clip-path: inset(0 0 0 100%);
-  }
-  75% {
-    clip-path: inset(100% 0 0 0);
-  }
-  100% {
-    clip-path: inset(0 100% 0 0);
+    transform: translateX(135%);
   }
 }
 

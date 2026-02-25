@@ -5,7 +5,7 @@
 
 import { type ComponentType, type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft, Lock } from 'lucide-react';
+import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft } from 'lucide-react';
 import gcashQr from './gcash-qr.png';
 import gotymeQr from './gotyme-qr.png';
 import { findProductByName, productCatalog, type ProductItem } from './data/products';
@@ -244,24 +244,6 @@ export default function App() {
     setStage((current) => (current > 1 ? ((current - 1) as FlowStage) : current));
   };
 
-  const handleSelectStage = (targetStage: FlowStage) => {
-    if (targetStage <= stage) {
-      setSubmitError('');
-      setStage(targetStage);
-      return;
-    }
-
-    for (let check = stage; check < targetStage; check += 1) {
-      if (!canProceedFrom(check as FlowStage)) {
-        setSubmitError(stageErrorMessage[check as FlowStage]);
-        return;
-      }
-    }
-
-    setSubmitError('');
-    setStage(targetStage);
-  };
-
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const incomingProduct = params.get('product');
@@ -466,6 +448,7 @@ export default function App() {
     { id: 3, title: 'Payment Portal', mobileTitle: 'Portal' },
     { id: 4, title: 'Confirmation', mobileTitle: 'Confirm' },
   ];
+  const activeStageItem = stageItems.find((item) => item.id === stage) ?? stageItems[0];
 
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-cyan-500/30 overflow-x-hidden">
@@ -499,59 +482,19 @@ export default function App() {
         </header>
 
         <div className="mb-6 sm:mb-10 rounded-xl border border-cyan-500/30 bg-[#070a12]/70 p-3 sm:p-4 shadow-[0_0_20px_rgba(0,243,255,0.1)] sm:shadow-[0_0_30px_rgba(0,243,255,0.12)]">
-          <div className="sm:hidden -mx-1 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex min-w-max gap-2 px-1 snap-x snap-mandatory">
-              {stageItems.map((item) => {
-                const isActive = stage === item.id;
-                const isCompleted = item.id < stage;
-                const isLocked = item.id > stage + 1;
-
-                return (
-                  <motion.button
-                    key={`mobile-${item.id}`}
-                    type="button"
-                    whileHover={!isLocked ? { scale: 1.02 } : undefined}
-                    whileTap={!isLocked ? { scale: 0.98 } : undefined}
-                    onClick={() => !isLocked && handleSelectStage(item.id)}
-                    disabled={isLocked}
-                    className={`cyber-stage-chip cyber-stage-chip-mobile min-w-[112px] snap-start ${isActive ? 'cyber-stage-chip-active' : ''} ${isCompleted ? 'cyber-stage-chip-complete' : ''} ${isLocked ? 'cyber-stage-chip-locked' : ''}`}
-                  >
-                    <span className="flex items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-[0.1em]">
-                      <span className={`truncate transition-opacity ${isActive ? 'opacity-100' : 'opacity-0 select-none'}`}>{item.mobileTitle}</span>
-                      {isLocked ? <Lock size={10} /> : isCompleted ? <Check size={10} /> : <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />}
-                    </span>
-                  </motion.button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="hidden sm:grid grid-cols-2 md:grid-cols-4 gap-3">
-            {stageItems.map((item) => {
-              const isActive = stage === item.id;
-              const isCompleted = item.id < stage;
-              const isLocked = item.id > stage + 1;
-
-              return (
-                <motion.button
-                  key={item.id}
-                  type="button"
-                  whileHover={!isLocked ? { scale: 1.03 } : undefined}
-                  whileTap={!isLocked ? { scale: 0.97 } : undefined}
-                  onClick={() => !isLocked && handleSelectStage(item.id)}
-                  disabled={isLocked}
-                  className={`cyber-stage-chip ${isActive ? 'cyber-stage-chip-active' : ''} ${isCompleted ? 'cyber-stage-chip-complete' : ''} ${isLocked ? 'cyber-stage-chip-locked' : ''}`}
-                >
-                  <span className="inline-flex w-full items-center justify-between gap-3 text-xs sm:text-sm font-semibold uppercase tracking-[0.12em]">
-                    <span className={`transition-opacity ${isActive ? 'opacity-100' : 'opacity-0 select-none'}`}>{item.title}</span>
-                    <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.2em]">
-                      {isLocked ? <Lock size={11} /> : isCompleted ? <Check size={11} /> : <span className="h-2 w-2 rounded-full bg-current animate-pulse" />}
-                      <span className={`hidden md:inline ${isActive ? 'opacity-100' : 'opacity-0 select-none'}`}>{isLocked ? 'Locked' : isCompleted ? 'Complete' : 'Active'}</span>
-                    </span>
+          <div className="mx-auto w-full sm:max-w-md">
+            <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+              <button type="button" className="cyber-stage-chip cyber-stage-chip-mobile cyber-stage-chip-active w-full">
+                <span className="flex items-center justify-between gap-2 text-[11px] sm:text-sm font-semibold uppercase tracking-[0.1em] sm:tracking-[0.12em]">
+                  <span className="truncate sm:hidden">{activeStageItem.mobileTitle}</span>
+                  <span className="truncate hidden sm:inline">{activeStageItem.title}</span>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.2em]">
+                    <span className="h-2 w-2 rounded-full bg-current animate-pulse" />
+                    <span className="hidden md:inline">Active</span>
                   </span>
-                </motion.button>
-              );
-            })}
+                </span>
+              </button>
+            </motion.div>
           </div>
         </div>
 
