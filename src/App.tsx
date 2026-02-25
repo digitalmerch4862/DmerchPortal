@@ -54,12 +54,14 @@ function CyberCard({children, title, icon: Icon, color = 'cyan'}: {children: Rea
       animate={{opacity: 1, y: 0}}
       className={`relative bg-black/80 p-4 sm:p-6 mb-4 sm:mb-6 ${shadowColor} backdrop-blur-md overflow-hidden ${isMagenta ? 'cyber-magenta-card border border-magenta-500/40' : `border-l-4 ${borderColor}`}`}
     >
-      <div className="flex items-center gap-3 mb-4">
-        <Icon className={textColor} size={24} />
-        <h2 className={`text-xl font-bold tracking-widest uppercase ${textColor}`}>
-          {title}
-        </h2>
-      </div>
+      {false ? (
+        <div className="flex items-center gap-3 mb-4">
+          <Icon className={textColor} size={24} />
+          <h2 className={`text-xl font-bold tracking-widest uppercase ${textColor}`}>
+            {title}
+          </h2>
+        </div>
+      ) : null}
       <div className="relative z-10 text-gray-300">{children}</div>
       <div className={`absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 ${borderColor} opacity-50`} />
       <div className={`absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 ${borderColor} opacity-50`} />
@@ -379,11 +381,11 @@ export default function App() {
     }
   };
 
-  const stageItems: Array<{ id: FlowStage; code: string; title: string; mobileTitle: string }> = [
-    { id: 1, code: '01', title: 'Order', mobileTitle: 'Order' },
-    { id: 2, code: '02', title: 'Client Details', mobileTitle: 'Client' },
-    { id: 3, code: '03', title: 'Payment Portal', mobileTitle: 'Portal' },
-    { id: 4, code: '04', title: 'Confirmation', mobileTitle: 'Confirm' },
+  const stageItems: Array<{ id: FlowStage; title: string; mobileTitle: string }> = [
+    { id: 1, title: 'Order', mobileTitle: 'Order' },
+    { id: 2, title: 'Client Details', mobileTitle: 'Client' },
+    { id: 3, title: 'Payment Portal', mobileTitle: 'Portal' },
+    { id: 4, title: 'Confirmation', mobileTitle: 'Confirm' },
   ];
 
   return (
@@ -435,8 +437,7 @@ export default function App() {
                     disabled={isLocked}
                     className={`cyber-stage-chip cyber-stage-chip-mobile min-w-[112px] snap-start ${isActive ? 'cyber-stage-chip-active' : ''} ${isCompleted ? 'cyber-stage-chip-complete' : ''} ${isLocked ? 'cyber-stage-chip-locked' : ''}`}
                   >
-                    <span className="flex items-center justify-between text-[9px] font-mono uppercase tracking-[0.2em] text-cyan-200/85">
-                      <span>{item.code}</span>
+                    <span className="flex items-center justify-end text-[9px] font-mono uppercase tracking-[0.2em] text-cyan-200/85">
                       {isLocked ? <Lock size={10} /> : isCompleted ? <Check size={10} /> : <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />}
                     </span>
                     <span className="mt-1 block text-[11px] font-semibold uppercase tracking-[0.1em] truncate">{item.mobileTitle}</span>
@@ -462,8 +463,7 @@ export default function App() {
                   disabled={isLocked}
                   className={`cyber-stage-chip ${isActive ? 'cyber-stage-chip-active' : ''} ${isCompleted ? 'cyber-stage-chip-complete' : ''} ${isLocked ? 'cyber-stage-chip-locked' : ''}`}
                 >
-                  <span className="text-[10px] font-mono uppercase tracking-[0.3em]">{item.code}</span>
-                  <span className="mt-1 block text-xs sm:text-sm font-semibold uppercase tracking-[0.12em]">{item.title}</span>
+                  <span className="block text-xs sm:text-sm font-semibold uppercase tracking-[0.12em]">{item.title}</span>
                   <span className="mt-2 inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.2em]">
                     {isLocked ? <Lock size={11} /> : isCompleted ? <Check size={11} /> : <span className="h-2 w-2 rounded-full bg-current animate-pulse" />}
                     {isLocked ? 'Locked' : isCompleted ? 'Complete' : 'Active'}
