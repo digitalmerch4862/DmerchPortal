@@ -3,11 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, ExternalLink, Facebook, Youtube, Instagram, Download } from 'lucide-react';
+import { ShieldCheck, ExternalLink, Facebook, Youtube, Instagram, Download, Search, Check } from 'lucide-react';
 import gcashQr from './gcash-qr.png';
 import gotymeQr from './gotyme-qr.png';
+import { findProductByName, productCatalog } from './data/products';
 
 // Cyberpunk Theme Constants
 const COLORS = {
@@ -19,16 +20,67 @@ const COLORS = {
   darkMagenta: '#910091',
 };
 
+type VerificationApiResponse = {
+  ok: boolean;
+  serialNo?: string;
+  sequenceNo?: number;
+  createdAt?: string;
+  emailStatus?: string;
+  error?: string;
+};
+
 export default function App() {
   const [step, setStep] = useState<'payment' | 'form'>('payment');
   const [selectedMethod, setSelectedMethod] = useState<'gcash' | 'gotyme'>('gcash');
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [referenceNo, setReferenceNo] = useState('');
+  const [productQuery, setProductQuery] = useState('');
+  const [selectedProductName, setSelectedProductName] = useState('');
+  const [isProductMenuOpen, setIsProductMenuOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [submitResult, setSubmitResult] = useState<VerificationApiResponse | null>(null);
 
   const selectedQrSrc = selectedMethod === 'gcash' ? gcashQr : gotymeQr;
   const selectedQrFilename = selectedMethod === 'gcash' ? 'dmerch-gcash-qr.png' : 'dmerch-gotyme-qr.png';
 
+  const selectedProduct = useMemo(() => {
+    if (!selectedProductName) {
+      return null;
+    }
+
+    return findProductByName(selectedProductName);
+  }, [selectedProductName]);
+
+  const filteredProducts = useMemo(() => {
+    const query = productQuery.trim().toLowerCase();
+    if (!query) {
+      return productCatalog.slice(0, 50);
+    }
+
+    return productCatalog
+      .filter((item) => item.name.toLowerCase().includes(query))
+      .slice(0, 75);
+  }, [productQuery]);
+
   useEffect(() => {
-    setIsLoaded(true);
+    const params = new URLSearchParams(window.location.search);
+    const incomingProduct = params.get('product');
+    if (!incomingProduct) {
+      return;
+    }
+
+    const normalizedIncoming = decodeURIComponent(incomingProduct).trim().toLowerCase();
+    const exactMatch = productCatalog.find((item) => item.name.toLowerCase() === normalizedIncoming);
+    const fuzzyMatch = productCatalog.find((item) => item.name.toLowerCase().includes(normalizedIncoming));
+    const resolved = exactMatch ?? fuzzyMatch;
+    if (!resolved) {
+      return;
+    }
+
+    setSelectedProductName(resolved.name);
+    setProductQuery(resolved.name);
   }, []);
 
   const handleDownloadQr = () => {
@@ -38,6 +90,55 @@ export default function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleSelectProduct = (productName: string) => {
+    setSelectedProductName(productName);
+    setProductQuery(productName);
+    setIsProductMenuOpen(false);
+  };
+
+  const handleSubmitVerification = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!selectedProduct) {
+      setSubmitError('Please select a product before submitting.');
+      return;
+    }
+
+    setSubmitError('');
+    setSubmitResult(null);
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch('/api/verification-submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username,
+          email,
+          productName: selectedProduct.name,
+          amount: selectedProduct.amount,
+          referenceNo,
+        }),
+      });
+
+      const payload = (await response.json()) as VerificationApiResponse;
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error ?? 'Unable to submit verification request.');
+      }
+
+      setSubmitResult(payload);
+      setUsername('');
+      setEmail('');
+      setReferenceNo('');
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Unexpected error while submitting the form.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const GlitchText = ({ text, className = "" }: { text: string; className?: string }) => (
@@ -305,29 +406,127 @@ export default function App() {
             >
               <CyberCard title="Verification Form" icon={ShieldCheck} color="magenta">
                 <p className="mb-6">
-                  Please fill out the form below with your transaction details and upload your proof of payment. 
-                  Our system will verify your payment within 5-10 minutes.
+                  Submit your payment verification details below. We will validate your reference number,
+                  issue your order serial, and send tracking confirmations by email.
                 </p>
-                
-                <div className="relative w-full min-h-[700px] bg-black/40 border-2 border-magenta-500/50 rounded-lg overflow-hidden shadow-[0_0_30px_rgba(255,0,255,0.1)]">
-                  <iframe
-                    src="https://api.leadconnectorhq.com/widget/form/G3KEcgah2pyk7Mz0sh4T"
-                    style={{ width: '100%', height: '700px', border: 'none' }}
-                    id="inline-G3KEcgah2pyk7Mz0sh4T" 
-                    data-layout="{'id':'INLINE'}"
-                    data-trigger-type="alwaysShow"
-                    data-trigger-value=""
-                    data-activation-type="alwaysActivated"
-                    data-activation-value=""
-                    data-deactivation-type="neverDeactivate"
-                    data-deactivation-value=""
-                    data-form-name="Follow up Product Link"
-                    data-height="637"
-                    data-layout-iframe-id="inline-G3KEcgah2pyk7Mz0sh4T"
-                    data-form-id="G3KEcgah2pyk7Mz0sh4T"
-                    title="Follow up Product Link"
-                  />
-                </div>
+
+                <form onSubmit={handleSubmitVerification} className="space-y-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <label className="block">
+                      <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-gray-400">Username</span>
+                      <input
+                        value={username}
+                        onChange={(event) => setUsername(event.target.value)}
+                        required
+                        className="w-full rounded-md border border-magenta-500/40 bg-black/50 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-magenta-400 focus:shadow-[0_0_18px_rgba(255,0,255,0.18)]"
+                        placeholder="Enter your username"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-gray-400">Email</span>
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                        required
+                        className="w-full rounded-md border border-magenta-500/40 bg-black/50 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-magenta-400 focus:shadow-[0_0_18px_rgba(255,0,255,0.18)]"
+                        placeholder="buyer@email.com"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="relative">
+                    <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-gray-400">Product Purchased</span>
+                    <div className="relative">
+                      <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-magenta-300/70" />
+                      <input
+                        value={productQuery}
+                        onChange={(event) => {
+                          setProductQuery(event.target.value);
+                          setSelectedProductName('');
+                          setIsProductMenuOpen(true);
+                        }}
+                        onFocus={() => setIsProductMenuOpen(true)}
+                        className="w-full rounded-md border border-magenta-500/40 bg-black/50 pl-10 pr-4 py-3 text-sm text-gray-100 outline-none transition focus:border-magenta-400 focus:shadow-[0_0_18px_rgba(255,0,255,0.18)]"
+                        placeholder="Search product name"
+                      />
+                    </div>
+
+                    {isProductMenuOpen && (
+                      <div className="absolute z-30 mt-2 max-h-64 w-full overflow-auto rounded-md border border-magenta-500/40 bg-[#0a0a0a] shadow-[0_0_28px_rgba(255,0,255,0.15)]">
+                        {filteredProducts.length > 0 ? (
+                          filteredProducts.map((product) => {
+                            const isSelected = selectedProductName === product.name;
+                            return (
+                              <button
+                                key={`${product.name}-${product.amount}`}
+                                type="button"
+                                onClick={() => handleSelectProduct(product.name)}
+                                className={`flex w-full items-center justify-between border-b border-white/5 px-4 py-3 text-left transition last:border-b-0 ${isSelected ? 'bg-magenta-500/20 text-magenta-100' : 'text-gray-300 hover:bg-white/5'}`}
+                              >
+                                <span className="pr-3 text-xs sm:text-sm">{product.name}</span>
+                                <span className="flex shrink-0 items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em]">
+                                  PHP {product.amount}
+                                  {isSelected ? <Check size={14} /> : null}
+                                </span>
+                              </button>
+                            );
+                          })
+                        ) : (
+                          <div className="px-4 py-4 text-xs font-mono uppercase tracking-[0.2em] text-gray-500">No matching product</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-gray-400">Amount</span>
+                      <div className="rounded-md border border-cyan-500/40 bg-cyan-500/10 px-4 py-3 text-sm font-mono uppercase tracking-[0.15em] text-cyan-200">
+                        {selectedProduct ? `PHP ${selectedProduct.amount}` : 'Select a product'}
+                      </div>
+                    </div>
+
+                    <label className="block">
+                      <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-gray-400">Reference No</span>
+                      <input
+                        value={referenceNo}
+                        onChange={(event) => setReferenceNo(event.target.value)}
+                        required
+                        className="w-full rounded-md border border-magenta-500/40 bg-black/50 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-magenta-400 focus:shadow-[0_0_18px_rgba(255,0,255,0.18)]"
+                        placeholder="Enter payment reference"
+                      />
+                    </label>
+                  </div>
+
+                  {submitError ? (
+                    <div className="rounded-md border border-red-500/40 bg-red-500/10 px-4 py-3 text-xs font-mono uppercase tracking-[0.15em] text-red-300">
+                      {submitError}
+                    </div>
+                  ) : null}
+
+                  {submitResult?.ok ? (
+                    <div className="rounded-md border border-cyan-500/40 bg-cyan-500/10 px-4 py-4">
+                      <p className="mb-2 text-xs font-mono uppercase tracking-[0.2em] text-cyan-300">Verification Submitted</p>
+                      <p className="text-lg font-black tracking-wider text-white">{submitResult.serialNo}</p>
+                      <p className="mt-2 text-xs text-gray-300">
+                        Sequence: {submitResult.sequenceNo} | Email status: {submitResult.emailStatus}
+                      </p>
+                    </div>
+                  ) : null}
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || !selectedProduct}
+                    className="group relative w-full px-6 py-4 bg-magenta-500 text-black font-black uppercase tracking-[0.2em] hover:bg-white transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <span className="relative z-10">
+                      {isSubmitting ? 'Submitting...' : 'Submit Verification'}
+                    </span>
+                    <div className="absolute top-0 left-0 w-full h-full border-2 border-magenta-500 translate-x-2 translate-y-2 group-hover:translate-x-0 group-hover:translate-y-0 transition-transform duration-300" />
+                  </button>
+                </form>
               </CyberCard>
 
               <div className="mt-8 flex justify-between items-center">

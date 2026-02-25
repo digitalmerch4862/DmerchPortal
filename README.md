@@ -18,3 +18,13 @@ View your app in AI Studio: https://ai.studio/apps/135be59a-af92-4139-a395-68210
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+## Verification API setup
+
+1. Run `supabase/migrations/0001_verification_orders.sql` in your Supabase SQL editor.
+2. Configure server environment variables in Vercel:
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `RESEND_API_KEY`
+   - `RESEND_FROM_EMAIL`
+   - `ADMIN_EMAIL`
