@@ -6,6 +6,8 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShieldCheck, ExternalLink, Facebook, Youtube, Instagram } from 'lucide-react';
+import gcashQr from './gcash-qr.png';
+import gotymeQr from './gotyme-qr.png';
 
 // Cyberpunk Theme Constants
 const COLORS = {
@@ -44,7 +46,6 @@ export default function App() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`relative bg-black/80 p-6 mb-6 ${shadowColor} backdrop-blur-md overflow-hidden ${isMagenta ? 'cyber-magenta-card border border-magenta-500/40' : `border-l-4 ${borderColor}`}`}
         className={`relative bg-black/80 p-6 mb-6 ${shadowColor} backdrop-blur-md overflow-hidden ${isMagenta ? 'cyber-magenta-card border border-magenta-500/40' : `border-l-4 ${borderColor}`}`}
       >
         <div className="absolute top-0 right-0 p-2 opacity-10">
@@ -195,7 +196,7 @@ export default function App() {
                           
                           <div className={`${selectedMethod === 'gcash' ? 'bg-[#007dfe]' : 'bg-[#00e5ff]'} p-4 w-full aspect-[3/5] flex items-center justify-center overflow-hidden border-x-4 border-b-4 ${selectedMethod === 'gcash' ? 'border-blue-600' : 'border-cyan-500'}`}>
                             <img 
-                              src={selectedMethod === 'gcash' ? '/Robert Garcia Gcash.png' : '/Robert Garcia Gotyme.png'} 
+                              src={selectedMethod === 'gcash' ? gcashQr : gotymeQr} 
                               alt="Payment QR Code" 
                               className="w-full h-full object-contain"
                               referrerPolicy="no-referrer"
