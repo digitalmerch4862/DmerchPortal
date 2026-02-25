@@ -399,29 +399,58 @@ export default function App() {
       {/* Scanline Effect */}
       <div className="fixed inset-0 z-50 pointer-events-none opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%]" />
 
-      <main className="relative z-10 max-w-4xl mx-auto px-4 py-12">
+      <main className="relative z-10 max-w-4xl mx-auto px-4 py-8 sm:py-12">
         {/* Header */}
-        <header className="text-center mb-16">
+        <header className="text-center mb-10 sm:mb-16">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5 }}
           >
-            <div className="inline-block border-2 border-cyan-500 px-8 py-4 mb-4 relative">
+            <div className="inline-block border-2 border-cyan-500 px-5 py-3 sm:px-8 sm:py-4 mb-4 relative">
               <div className="absolute -top-1 -left-1 w-3 h-3 bg-cyan-500" />
               <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-cyan-500" />
-              <h1 className="text-4xl md:text-6xl font-black tracking-tighter uppercase italic">
+              <h1 className="text-3xl sm:text-4xl md:text-6xl font-black tracking-tighter uppercase italic">
                 <GlitchText text="DMERCH_PORTAL" />
               </h1>
             </div>
-            <p className="text-cyan-400/80 font-mono text-sm tracking-[0.3em] uppercase">
+            <p className="text-cyan-400/80 font-mono text-[11px] sm:text-sm tracking-[0.25em] sm:tracking-[0.3em] uppercase">
               Secure Transaction Protocol v2.4.0
             </p>
           </motion.div>
         </header>
 
-        <div className="mb-10 rounded-xl border border-cyan-500/30 bg-[#070a12]/70 p-4 shadow-[0_0_30px_rgba(0,243,255,0.12)]">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="mb-6 sm:mb-10 rounded-xl border border-cyan-500/30 bg-[#070a12]/70 p-3 sm:p-4 shadow-[0_0_20px_rgba(0,243,255,0.1)] sm:shadow-[0_0_30px_rgba(0,243,255,0.12)]">
+          <div className="sm:hidden -mx-1 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex min-w-max gap-2 px-1 snap-x snap-mandatory">
+              {stageItems.map((item) => {
+                const isActive = stage === item.id;
+                const isCompleted = item.id < stage;
+                const isLocked = item.id > stage + 1;
+
+                return (
+                  <motion.button
+                    key={`mobile-${item.id}`}
+                    type="button"
+                    whileHover={!isLocked ? { scale: 1.02 } : undefined}
+                    whileTap={!isLocked ? { scale: 0.98 } : undefined}
+                    onClick={() => !isLocked && handleSelectStage(item.id)}
+                    disabled={isLocked}
+                    className={`cyber-stage-chip cyber-stage-chip-mobile min-w-[150px] snap-start ${isActive ? 'cyber-stage-chip-active' : ''} ${isCompleted ? 'cyber-stage-chip-complete' : ''} ${isLocked ? 'cyber-stage-chip-locked' : ''}`}
+                  >
+                    <span className="text-[10px] font-mono uppercase tracking-[0.3em]">{item.code}</span>
+                    <span className="mt-1 block text-xs font-semibold uppercase tracking-[0.12em]">{item.title}</span>
+                    <span className="mt-2 inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.2em]">
+                      {isLocked ? <Lock size={11} /> : isCompleted ? <Check size={11} /> : <span className="h-2 w-2 rounded-full bg-current animate-pulse" />}
+                      {isLocked ? '' : isCompleted ? 'Done' : 'Active'}
+                    </span>
+                  </motion.button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="hidden sm:grid grid-cols-2 md:grid-cols-4 gap-3">
             {stageItems.map((item) => {
               const isActive = stage === item.id;
               const isCompleted = item.id < stage;
@@ -458,7 +487,7 @@ export default function App() {
               exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.3 }}
             >
-              <CyberCard title="Order Selection" icon={PackageSearch} color="cyan">
+              <CyberCard title="Order Selection" icon={PackageSearch} color="magenta">
                 <p className="mb-6 text-gray-300">
                   Pick all products for this transaction. You can add multiple items before moving to client details.
                 </p>
