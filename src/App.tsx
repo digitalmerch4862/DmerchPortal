@@ -45,6 +45,7 @@ export default function App() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className={`relative bg-black/80 p-6 mb-6 ${shadowColor} backdrop-blur-md overflow-hidden ${isMagenta ? 'cyber-magenta-card border border-magenta-500/40' : `border-l-4 ${borderColor}`}`}
+        className={`relative bg-black/80 p-6 mb-6 ${shadowColor} backdrop-blur-md overflow-hidden ${isMagenta ? 'cyber-magenta-card border border-magenta-500/40' : `border-l-4 ${borderColor}`}`}
       >
         <div className="absolute top-0 right-0 p-2 opacity-10">
           <Icon size={80} />
