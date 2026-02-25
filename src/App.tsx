@@ -52,11 +52,8 @@ function CyberCard({children, title, icon: Icon, color = 'cyan'}: {children: Rea
     <motion.div
       initial={{opacity: 0, y: 20}}
       animate={{opacity: 1, y: 0}}
-      className={`relative bg-black/80 p-6 mb-6 ${shadowColor} backdrop-blur-md overflow-hidden ${isMagenta ? 'cyber-magenta-card border border-magenta-500/40' : `border-l-4 ${borderColor}`}`}
+      className={`relative bg-black/80 p-4 sm:p-6 mb-4 sm:mb-6 ${shadowColor} backdrop-blur-md overflow-hidden ${isMagenta ? 'cyber-magenta-card border border-magenta-500/40' : `border-l-4 ${borderColor}`}`}
     >
-      <div className="absolute top-0 right-0 p-2 opacity-10">
-        <Icon size={80} />
-      </div>
       <div className="flex items-center gap-3 mb-4">
         <Icon className={textColor} size={24} />
         <h2 className={`text-xl font-bold tracking-widest uppercase ${textColor}`}>
@@ -382,11 +379,11 @@ export default function App() {
     }
   };
 
-  const stageItems: Array<{ id: FlowStage; code: string; title: string }> = [
-    { id: 1, code: '01', title: 'Order' },
-    { id: 2, code: '02', title: 'Client Details' },
-    { id: 3, code: '03', title: 'Payment Portal' },
-    { id: 4, code: '04', title: 'Confirmation' },
+  const stageItems: Array<{ id: FlowStage; code: string; title: string; mobileTitle: string }> = [
+    { id: 1, code: '01', title: 'Order', mobileTitle: 'Order' },
+    { id: 2, code: '02', title: 'Client Details', mobileTitle: 'Client' },
+    { id: 3, code: '03', title: 'Payment Portal', mobileTitle: 'Portal' },
+    { id: 4, code: '04', title: 'Confirmation', mobileTitle: 'Confirm' },
   ];
 
   return (
@@ -436,14 +433,13 @@ export default function App() {
                     whileTap={!isLocked ? { scale: 0.98 } : undefined}
                     onClick={() => !isLocked && handleSelectStage(item.id)}
                     disabled={isLocked}
-                    className={`cyber-stage-chip cyber-stage-chip-mobile min-w-[150px] snap-start ${isActive ? 'cyber-stage-chip-active' : ''} ${isCompleted ? 'cyber-stage-chip-complete' : ''} ${isLocked ? 'cyber-stage-chip-locked' : ''}`}
+                    className={`cyber-stage-chip cyber-stage-chip-mobile min-w-[112px] snap-start ${isActive ? 'cyber-stage-chip-active' : ''} ${isCompleted ? 'cyber-stage-chip-complete' : ''} ${isLocked ? 'cyber-stage-chip-locked' : ''}`}
                   >
-                    <span className="text-[10px] font-mono uppercase tracking-[0.3em]">{item.code}</span>
-                    <span className="mt-1 block text-xs font-semibold uppercase tracking-[0.12em]">{item.title}</span>
-                    <span className="mt-2 inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.2em]">
-                      {isLocked ? <Lock size={11} /> : isCompleted ? <Check size={11} /> : <span className="h-2 w-2 rounded-full bg-current animate-pulse" />}
-                      {isLocked ? '' : isCompleted ? 'Done' : 'Active'}
+                    <span className="flex items-center justify-between text-[9px] font-mono uppercase tracking-[0.2em] text-cyan-200/85">
+                      <span>{item.code}</span>
+                      {isLocked ? <Lock size={10} /> : isCompleted ? <Check size={10} /> : <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />}
                     </span>
+                    <span className="mt-1 block text-[11px] font-semibold uppercase tracking-[0.1em] truncate">{item.mobileTitle}</span>
                   </motion.button>
                 );
               })}
@@ -488,10 +484,6 @@ export default function App() {
               transition={{ duration: 0.3 }}
             >
               <CyberCard title="Order Selection" icon={PackageSearch} color="magenta">
-                <p className="mb-6 text-gray-300">
-                  Pick all products for this transaction. You can add multiple items before moving to client details.
-                </p>
-
                 <div ref={productPickerRef} className="relative z-10 rounded-xl border border-cyan-500/40 bg-[#0b111f]/80 p-4 shadow-[0_0_35px_rgba(0,195,255,0.1)]">
                   <div className="pointer-events-none absolute left-2 top-2 h-5 w-5 border-l-2 border-t-2 border-cyan-400/70" />
                   <div className="pointer-events-none absolute bottom-2 right-2 h-5 w-5 border-b-2 border-r-2 border-cyan-400/70" />
@@ -609,10 +601,6 @@ export default function App() {
               className="w-full"
             >
               <CyberCard title="Client Details" icon={ShieldCheck} color="magenta">
-                <p className="mb-6 text-gray-300">
-                  Enter buyer credentials for verification and tracking updates.
-                </p>
-
                 <div className="relative z-20 rounded-xl border border-cyan-500/40 bg-[#031018]/80 p-4 shadow-[0_0_35px_rgba(0,195,255,0.12)]">
                   <div className="pointer-events-none absolute left-2 top-2 h-5 w-5 border-l-2 border-t-2 border-cyan-400/70" />
                   <div className="pointer-events-none absolute bottom-2 right-2 h-5 w-5 border-b-2 border-r-2 border-cyan-400/70" />
@@ -660,19 +648,25 @@ export default function App() {
               exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="mb-8 text-center">
-                <p className="text-cyan-400/60 font-mono text-xs uppercase tracking-[0.3em]">
-                  Select Payment Portal & Scan Secure QR
-                </p>
-              </div>
-
-              <div className="mb-16 space-y-6">
-                <div className="flex justify-center gap-4 lg:hidden">
-                  <MethodCard method="gcash" id="001" compact selectedMethod={selectedMethod} onSelectMethod={setSelectedMethod} />
-                  <MethodCard method="gotyme" id="002" compact selectedMethod={selectedMethod} onSelectMethod={setSelectedMethod} />
+              <div className="mb-6 sm:mb-10 space-y-4 sm:space-y-6">
+                <div className="flex items-center justify-center gap-2 lg:hidden">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMethod('gcash')}
+                    className={`rounded-md border px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.18em] transition-colors ${selectedMethod === 'gcash' ? 'border-blue-400 bg-blue-500/15 text-blue-100' : 'border-white/20 text-gray-300'}`}
+                  >
+                    GCash
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMethod('gotyme')}
+                    className={`rounded-md border px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.18em] transition-colors ${selectedMethod === 'gotyme' ? 'border-cyan-300 bg-cyan-400/15 text-cyan-100' : 'border-white/20 text-gray-300'}`}
+                  >
+                    GoTyme
+                  </button>
                 </div>
 
-                <div className="flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-12">
+                <div className="flex flex-col lg:flex-row items-center justify-center gap-4 sm:gap-8 lg:gap-12">
                   <div className="hidden lg:block">
                     <MethodCard method="gcash" id="001" selectedMethod={selectedMethod} onSelectMethod={setSelectedMethod} />
                   </div>
@@ -689,9 +683,9 @@ export default function App() {
                       >
                         <div className="relative group">
                           <div className={`absolute -inset-2 bg-gradient-to-r ${selectedMethod === 'gcash' ? 'from-blue-500 to-cyan-500' : 'from-cyan-400 to-emerald-400'} rounded-lg blur opacity-40 group-hover:opacity-60 transition duration-1000`} />
-                          <div className="relative bg-[#0a0a0a] rounded-lg p-6 border border-white/10 flex flex-col items-center shadow-2xl">
-                            <div className={`w-full ${selectedMethod === 'gcash' ? 'bg-[#007dfe]' : 'bg-[#00e5ff]'} py-3 px-6 rounded-t-md flex justify-between items-center shadow-lg`}>
-                              <span className={`font-black italic tracking-tighter uppercase text-sm ${selectedMethod === 'gcash' ? 'text-white' : 'text-black'}`}>
+                          <div className="relative bg-[#0a0a0a] rounded-lg p-3 sm:p-6 border border-white/10 flex flex-col items-center shadow-2xl">
+                            <div className={`w-full ${selectedMethod === 'gcash' ? 'bg-[#007dfe]' : 'bg-[#00e5ff]'} py-2 sm:py-3 px-3 sm:px-6 rounded-t-md flex justify-between items-center shadow-lg`}>
+                              <span className={`font-black italic tracking-tighter uppercase text-[11px] sm:text-sm ${selectedMethod === 'gcash' ? 'text-white' : 'text-black'}`}>
                                 {selectedMethod === 'gcash' ? 'GCash Terminal' : 'GoTyme Terminal'}
                               </span>
                               <div className="flex items-center gap-2">
@@ -708,7 +702,7 @@ export default function App() {
                               </div>
                             </div>
 
-                            <div className={`${selectedMethod === 'gcash' ? 'bg-[#007dfe]' : 'bg-[#00e5ff]'} p-4 w-full aspect-[3/5] flex items-center justify-center overflow-hidden border-x-4 border-b-4 ${selectedMethod === 'gcash' ? 'border-blue-600' : 'border-cyan-500'}`}>
+                            <div className={`${selectedMethod === 'gcash' ? 'bg-[#007dfe]' : 'bg-[#00e5ff]'} p-2 sm:p-4 w-full aspect-[3/4] sm:aspect-[3/5] flex items-center justify-center overflow-hidden border-x-4 border-b-4 ${selectedMethod === 'gcash' ? 'border-blue-600' : 'border-cyan-500'}`}>
                               <img
                                 src={selectedQrSrc}
                                 alt={`${selectedMethod === 'gcash' ? 'GCash' : 'GoTyme'} payment QR code`}
@@ -717,7 +711,7 @@ export default function App() {
                               />
                             </div>
 
-                            <div className="mt-6 text-center w-full py-4 border-t border-white/5">
+                            <div className="mt-3 sm:mt-6 text-center w-full py-3 sm:py-4 border-t border-white/5">
                               <button
                                 type="button"
                                 onClick={handleDownloadQr}
@@ -762,10 +756,6 @@ export default function App() {
               className="w-full"
             >
               <CyberCard title="Confirmation & Verification" icon={ShieldCheck} color="magenta">
-                <p className="mb-6 text-gray-300">
-                  Review your selected portal, add the payment reference number, then submit verification.
-                </p>
-
                 <div className="mb-4 rounded-xl border border-cyan-500/40 bg-[#031018]/80 p-4 shadow-[0_0_30px_rgba(0,195,255,0.1)]">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
@@ -878,7 +868,7 @@ export default function App() {
         </AnimatePresence>
 
         {/* Footer Info */}
-        <footer className="mt-24 pt-8 border-t border-white/5 text-center">
+        <footer className="mt-12 sm:mt-24 pt-6 sm:pt-8 border-t border-white/5 text-center hidden sm:block">
           {/* Social Links */}
           <div className="flex justify-center gap-10 mb-10">
             <motion.a

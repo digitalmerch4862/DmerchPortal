@@ -7,43 +7,198 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-const sanitizeProductForSerial = (name: string) => {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .slice(0, 36)
-    .replace(/^-|-$/g, '');
+const MANILA_TIMEZONE = 'Asia/Manila';
+
+const escapeHtml = (value: string) => {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 };
 
-const sanitizeUsernameForSerial = (name: string) => {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .slice(0, 24)
-    .replace(/^-|-$/g, '');
+const formatPhpAmount = (amount: number) => `PHP ${amount.toFixed(2)}`;
+
+const rpcToNumber = (rpcData: unknown) => {
+  if (typeof rpcData === 'number') {
+    return rpcData;
+  }
+
+  if (typeof rpcData === 'string') {
+    return parseInt(rpcData, 10);
+  }
+
+  if (Array.isArray(rpcData) && rpcData.length > 0) {
+    const first = rpcData[0];
+    const value = typeof first === 'object' && first !== null ? Object.values(first)[0] : first;
+    if (typeof value === 'number') {
+      return value;
+    }
+
+    if (typeof value === 'string') {
+      return parseInt(value, 10);
+    }
+  }
+
+  return null;
 };
 
-const formatDate = (date: Date) => {
-  const yyyy = date.getFullYear();
-  const month = date.toLocaleString('en-US', { month: 'short' }).toUpperCase();
-  const dd = `${date.getDate()}`.padStart(2, '0');
-  return `${yyyy}${month}${dd}`;
+const getManilaSerialParts = (date: Date) => {
+  const shortParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: MANILA_TIMEZONE,
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+  }).formatToParts(date);
+
+  const numericParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: MANILA_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+
+  const getPart = (parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes) => {
+    return parts.find((part) => part.type === type)?.value ?? '';
+  };
+
+  const year = getPart(shortParts, 'year');
+  const monthShort = getPart(shortParts, 'month').toUpperCase();
+  const day = getPart(shortParts, 'day');
+  const monthNumeric = getPart(numericParts, 'month');
+
+  return {
+    datePart: `${year}${monthShort}${day}`,
+    monthKey: `${year}${monthNumeric}`,
+  };
 };
 
-const buildSerialBase = (username: string, productName: string, now: Date) => {
-  const datePart = formatDate(now);
-  const productPart = sanitizeProductForSerial(productName) || 'PRODUCT';
-  const usernamePart = sanitizeUsernameForSerial(username) || 'buyer';
-  return `DMERCH-${datePart}-${usernamePart}-${productPart}`;
+const formatSubmittedDate = (dateIso: string) => {
+  const date = new Date(dateIso);
+  const dateText = date.toLocaleDateString('en-US', {
+    timeZone: MANILA_TIMEZONE,
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+  });
+  const timeText = date.toLocaleTimeString('en-US', {
+    timeZone: MANILA_TIMEZONE,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  return `${dateText} | ${timeText}`;
 };
 
-const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const buildEmailHtml = ({
+  username,
+  products,
+  totalAmount,
+  serialNo,
+  referenceNo,
+  submittedOn,
+  adminCopy = false,
+}: {
+  username: string;
+  products: Array<{ name: string; amount: number }>;
+  totalAmount: number;
+  serialNo: string;
+  referenceNo: string;
+  submittedOn: string;
+  adminCopy?: boolean;
+}) => {
+  const safeName = escapeHtml(username);
+  const safeSerial = escapeHtml(serialNo);
+  const safeReference = escapeHtml(referenceNo);
+  const safeSubmitted = escapeHtml(submittedOn);
+  const rowsHtml = products
+    .map(
+      (item) => `
+                                    <tr>
+                                        <td style="font-size: 14px; border-bottom: 1px solid #eeeeee;">${escapeHtml(item.name)}</td>
+                                        <td align="right" style="font-size: 14px; border-bottom: 1px solid #eeeeee;">${formatPhpAmount(item.amount)}</td>
+                                    </tr>`,
+    )
+    .join('');
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+        <tr>
+            <td style="padding: 20px 0;">
+                <table align="center" border="0" cellpadding="0" cellspacing="0" width="600" style="background-color: #ffffff; border-radius: 8px; border: 1px solid #dddddd; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                    <tr>
+                        <td align="center" style="padding: 40px 20px; background-color: #1a1a1a; color: #ffffff;">
+                            <h1 style="margin: 0; font-size: 24px; letter-spacing: 1px; text-transform: uppercase;">DMerch ${adminCopy ? '[ADMIN COPY]' : ''}</h1>
+                            <p style="margin: 5px 0 0; font-size: 14px; opacity: 0.8;">Verification Submitted Successfully</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <p style="margin: 0 0 20px; font-size: 16px; color: #333333;">Hello <strong>${safeName}</strong>,</p>
+                            <p style="margin: 0 0 30px; font-size: 15px; color: #555555; line-height: 1.6;">
+                                We've received your payment verification request. Our team is currently reviewing the details. You will receive your digital assets once the transaction is fully validated.
+                            </p>
+
+                            <table border="0" cellpadding="12" cellspacing="0" width="100%" style="border: 1px solid #eeeeee; border-radius: 5px;">
+                                <thead>
+                                    <tr style="background-color: #fafafa;">
+                                        <th align="left" style="font-size: 12px; color: #888888; border-bottom: 2px solid #eeeeee;">PRODUCT DESCRIPTION</th>
+                                        <th align="right" style="font-size: 12px; color: #888888; border-bottom: 2px solid #eeeeee;">AMOUNT</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+${rowsHtml}
+                                    <tr style="background-color: #fcfcfc;">
+                                        <td align="right" style="font-weight: bold; font-size: 14px;">Total Paid</td>
+                                        <td align="right" style="font-weight: bold; font-size: 16px; color: #1a1a1a;">${formatPhpAmount(totalAmount)}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+
+                            <div style="margin-top: 30px; padding: 20px; background-color: #f9f9f9; border-radius: 5px;">
+                                <p style="margin: 0; font-size: 12px; color: #777777;">ORDER SERIAL</p>
+                                <p style="margin: 4px 0 15px; font-family: monospace; font-size: 13px; color: #d32f2f; word-break: break-all;">
+                                    ${safeSerial}
+                                </p>
+                                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                    <tr>
+                                        <td width="50%">
+                                            <p style="margin: 0; font-size: 12px; color: #777777;">REFERENCE NO</p>
+                                            <p style="margin: 4px 0 0; font-size: 14px; font-weight: bold;">${safeReference}</p>
+                                        </td>
+                                        <td width="50%">
+                                            <p style="margin: 0; font-size: 12px; color: #777777;">SUBMITTED ON</p>
+                                            <p style="margin: 4px 0 0; font-size: 14px;">${safeSubmitted}</p>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td align="center" style="padding: 30px; background-color: #f4f4f4; border-top: 1px solid #eeeeee;">
+                            <p style="margin: 0; font-size: 12px; color: #999999;">
+                                This is an automated notification from the DMerch system.
+                            </p>
+                            <p style="margin: 10px 0 0; font-size: 12px; color: #999999;">
+                                Support: <a href="mailto:support@digitalmerchs.store" style="color: #007bff; text-decoration: none;">support@digitalmerchs.store</a>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>`;
+};
 
 const readBody = async (req: any) => {
   if (typeof req.body === 'string') {
@@ -124,20 +279,10 @@ export default async function handler(req: any, res: any) {
     const resend = new Resend(resendApiKey);
 
     const sequenceResponse = await supabase.rpc('next_verification_sequence');
-    const seqData = sequenceResponse.data;
-    let sequenceNo: number | null = null;
-
-    if (typeof seqData === 'number') {
-      sequenceNo = seqData;
-    } else if (typeof seqData === 'string') {
-      sequenceNo = parseInt(seqData, 10);
-    } else if (Array.isArray(seqData) && seqData.length > 0) {
-      const val = typeof seqData[0] === 'object' && seqData[0] !== null ? Object.values(seqData[0])[0] : seqData[0];
-      sequenceNo = typeof val === 'number' ? val : (typeof val === 'string' ? parseInt(val, 10) : null);
-    }
+    const sequenceNo = rpcToNumber(sequenceResponse.data);
 
     if (sequenceResponse.error || sequenceNo === null || isNaN(sequenceNo)) {
-      console.error('Sequence generation error:', JSON.stringify(sequenceResponse.error), 'Data:', JSON.stringify(seqData), 'Type:', typeof seqData);
+      console.error('Sequence generation error:', JSON.stringify(sequenceResponse.error), 'Data:', JSON.stringify(sequenceResponse.data), 'Type:', typeof sequenceResponse.data);
       const hint = sequenceResponse.error?.message?.includes('Invalid API key')
         ? 'Server configuration error: Invalid Supabase API key. Please contact the admin.'
         : 'Could not generate sequence. Please try again or contact the admin.';
@@ -146,35 +291,20 @@ export default async function handler(req: any, res: any) {
         error: hint,
       });
     }
+
     const now = new Date();
-    const serialBase = buildSerialBase(username, productName, now);
+    const { datePart, monthKey } = getManilaSerialParts(now);
+    const monthlySequenceResponse = await supabase.rpc('next_monthly_sequence', { month_key: monthKey });
+    const monthlySequenceNo = rpcToNumber(monthlySequenceResponse.data);
 
-    const serialLookup = await supabase
-      .from('verification_orders')
-      .select('serial_no')
-      .like('serial_no', `${serialBase}%`);
-
-    if (serialLookup.error) {
-      return res.status(500).json({ ok: false, error: serialLookup.error.message });
+    if (monthlySequenceResponse.error || monthlySequenceNo === null || isNaN(monthlySequenceNo)) {
+      return res.status(500).json({
+        ok: false,
+        error: 'Could not generate monthly purchase code sequence. Please try again.',
+      });
     }
 
-    const serialRegex = new RegExp(`^${escapeRegex(serialBase)}(?:-(\\d+))?$`);
-    let maxSuffix = 0;
-    for (const row of serialLookup.data ?? []) {
-      const serial = String(row.serial_no ?? '');
-      const match = serial.match(serialRegex);
-      if (!match) {
-        continue;
-      }
-
-      if (!match[1]) {
-        maxSuffix = Math.max(maxSuffix, 1);
-      } else {
-        maxSuffix = Math.max(maxSuffix, Number(match[1]));
-      }
-    }
-
-    const serialNo = maxSuffix === 0 ? serialBase : `${serialBase}-${maxSuffix + 1}`;
+    const serialNo = `DMERCH-${datePart}-${String(monthlySequenceNo).padStart(3, '0')}`;
 
     const insertResponse = await supabase
       .from('verification_orders')
@@ -199,24 +329,26 @@ export default async function handler(req: any, res: any) {
     }
 
     const createdAt = insertResponse.data.created_at;
-    const emailDate = new Date(createdAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' });
-    const productHtml = (products.length > 0 ? products : [{ name: productName, amount: totalAmount }])
-      .map((item) => `<li>${item.name} - PHP ${item.amount}</li>`)
-      .join('');
+    const submittedOn = formatSubmittedDate(createdAt);
+    const orderItems = products.length > 0 ? products : [{ name: productName, amount: totalAmount }];
     const subject = `DMerch Verification ${serialNo}`;
-    const html = `
-      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111;">
-        <h2 style="margin:0 0 12px;">DMerch Verification Submitted</h2>
-        <p style="margin:0 0 8px;"><strong>Order Serial:</strong> ${serialNo}</p>
-        <p style="margin:0 0 8px;"><strong>Username:</strong> ${username}</p>
-        <p style="margin:0 0 8px;"><strong>Products:</strong></p>
-        <ul style="margin:0 0 8px 18px;padding:0;">${productHtml}</ul>
-        <p style="margin:0 0 8px;"><strong>Total Amount:</strong> PHP ${totalAmount}</p>
-        <p style="margin:0 0 8px;"><strong>Reference No:</strong> ${referenceNo}</p>
-        <p style="margin:0 0 8px;"><strong>Submitted:</strong> ${emailDate}</p>
-        <p style="margin:14px 0 0;">Keep this serial for tracking and support updates.</p>
-      </div>
-    `;
+    const customerHtml = buildEmailHtml({
+      username,
+      products: orderItems,
+      totalAmount,
+      serialNo,
+      referenceNo,
+      submittedOn,
+    });
+    const adminHtml = buildEmailHtml({
+      username,
+      products: orderItems,
+      totalAmount,
+      serialNo,
+      referenceNo,
+      submittedOn,
+      adminCopy: true,
+    });
 
     let emailStatus = 'sent';
     try {
@@ -225,13 +357,13 @@ export default async function handler(req: any, res: any) {
           from: resendFromEmail,
           to: email,
           subject,
-          html,
+          html: customerHtml,
         }),
         resend.emails.send({
           from: resendFromEmail,
           to: adminEmail,
           subject: `[ADMIN] ${subject}`,
-          html,
+          html: adminHtml,
         }),
       ]);
     } catch (emailError) {
