@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, ExternalLink, Facebook, Youtube, Instagram } from 'lucide-react';
+import { ShieldCheck, ExternalLink, Facebook, Youtube, Instagram, Download } from 'lucide-react';
 import gcashQr from './gcash-qr.png';
 import gotymeQr from './gotyme-qr.png';
 
@@ -24,9 +24,21 @@ export default function App() {
   const [selectedMethod, setSelectedMethod] = useState<'gcash' | 'gotyme'>('gcash');
   const [isLoaded, setIsLoaded] = useState(false);
 
+  const selectedQrSrc = selectedMethod === 'gcash' ? gcashQr : gotymeQr;
+  const selectedQrFilename = selectedMethod === 'gcash' ? 'dmerch-gcash-qr.png' : 'dmerch-gotyme-qr.png';
+
   useEffect(() => {
     setIsLoaded(true);
   }, []);
+
+  const handleDownloadQr = () => {
+    const link = document.createElement('a');
+    link.href = selectedQrSrc;
+    link.download = selectedQrFilename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const GlitchText = ({ text, className = "" }: { text: string; className?: string }) => (
     <div className={`relative inline-block ${className}`}>
@@ -64,6 +76,64 @@ export default function App() {
         <div className={`absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 ${borderColor} opacity-50`} />
         <div className={`absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 ${borderColor} opacity-50`} />
       </motion.div>
+    );
+  };
+
+  const MethodCard = ({ method, id, compact = false }: { method: 'gcash' | 'gotyme'; id: string; compact?: boolean }) => {
+    const isActive = selectedMethod === method;
+    const isGcash = method === 'gcash';
+
+    return (
+      <motion.button
+        type="button"
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => setSelectedMethod(method)}
+        className={`relative cursor-pointer transition-all duration-300 border-2 overflow-hidden ${compact ? 'w-36 h-36' : 'w-44 h-64'} ${
+          isActive
+            ? isGcash
+              ? 'border-blue-500 bg-blue-500/20 shadow-[0_0_40px_rgba(0,125,254,0.5)]'
+              : 'border-cyan-500 bg-cyan-500/20 shadow-[0_0_40px_rgba(0,229,255,0.5)]'
+            : 'border-white/10 bg-white/5 grayscale hover:grayscale-0 opacity-40 hover:opacity-100'
+        }`}
+      >
+        <div className={`absolute top-0 left-0 w-full h-full flex flex-col items-center justify-between ${compact ? 'p-4' : 'p-6'}`}>
+          <div className="w-full flex justify-between items-start">
+            <span className="text-[10px] font-mono opacity-50">ID: {id}</span>
+            <div className={`w-2 h-2 rounded-full ${isActive ? (isGcash ? 'bg-blue-400 animate-pulse' : 'bg-cyan-400 animate-pulse') : 'bg-gray-700'}`} />
+          </div>
+
+          <div className="relative flex flex-col items-center justify-center gap-3 w-full">
+            <div className={`absolute w-24 h-12 blur-2xl rounded-full ${isGcash ? 'bg-blue-500/50' : 'bg-cyan-400/50'}`} />
+            <img
+              src={isGcash ? '/gcash-logo.svg' : '/gotyme-logo.svg'}
+              alt={isGcash ? 'GCash official logo' : 'GoTyme official logo'}
+              className={`relative z-10 w-auto object-contain ${compact ? 'h-8' : 'h-10'}`}
+              loading="lazy"
+              referrerPolicy="no-referrer"
+            />
+            {!compact && (
+              <span className="font-black tracking-[0.2em] uppercase text-lg italic">
+                {isGcash ? 'GCash' : 'GoTyme'}
+              </span>
+            )}
+          </div>
+
+          <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: isActive ? '100%' : '30%' }}
+              className={`h-full ${isGcash ? 'bg-blue-500' : 'bg-cyan-400'}`}
+            />
+          </div>
+        </div>
+
+        {isActive && (
+          <motion.div
+            className={`absolute inset-0 border-2 animate-pulse pointer-events-none ${isGcash ? 'border-blue-400' : 'border-cyan-400'}`}
+          />
+        )}
+      </motion.button>
     );
   };
 
@@ -133,48 +203,20 @@ export default function App() {
                 </p>
               </div>
 
-              {/* Side-by-Side Layout */}
-              <div className="flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-12 mb-16">
-                
-                {/* Left: GCash Card */}
-                <div className="order-2 lg:order-1">
-                  <motion.div
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setSelectedMethod('gcash')}
-                    className={`relative cursor-pointer w-44 h-64 transition-all duration-300 border-2 ${
-                      selectedMethod === 'gcash' 
-                        ? 'border-blue-500 bg-blue-500/20 shadow-[0_0_40px_rgba(0,125,254,0.5)]' 
-                        : 'border-white/10 bg-white/5 grayscale hover:grayscale-0 opacity-40 hover:opacity-100'
-                    }`}
-                  >
-                    <div className="absolute top-0 left-0 w-full h-full flex flex-col items-center justify-between p-6">
-                      <div className="w-full flex justify-between items-start">
-                        <span className="text-[10px] font-mono opacity-50">ID: 001</span>
-                        <div className={`w-2 h-2 rounded-full ${selectedMethod === 'gcash' ? 'bg-blue-400 animate-pulse' : 'bg-gray-700'}`} />
-                      </div>
-                      <div className="flex flex-col items-center">
-                        <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mb-4 shadow-lg shadow-blue-500/50">
-                          <span className="font-black italic text-white text-3xl">G</span>
-                        </div>
-                        <span className="font-black tracking-[0.2em] uppercase text-lg italic">GCash</span>
-                      </div>
-                      <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: selectedMethod === 'gcash' ? '100%' : '30%' }}
-                          className="h-full bg-blue-500"
-                        />
-                      </div>
-                    </div>
-                    {selectedMethod === 'gcash' && (
-                      <motion.div layoutId="selection-glow" className="absolute inset-0 border-2 border-blue-400 animate-pulse pointer-events-none" />
-                    )}
-                  </motion.div>
+              {/* Payment Layout */}
+              <div className="mb-16 space-y-6">
+                <div className="flex justify-center gap-4 lg:hidden">
+                  <MethodCard method="gcash" id="001" compact />
+                  <MethodCard method="gotyme" id="002" compact />
                 </div>
 
-                {/* Center: QR Terminal */}
-                <div className="order-1 lg:order-2 w-full max-w-sm">
+                <div className="flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-12">
+                  <div className="hidden lg:block">
+                    <MethodCard method="gcash" id="001" />
+                  </div>
+
+                  {/* Center: QR Terminal */}
+                  <div className="w-full max-w-sm">
                   <AnimatePresence mode="wait">
                     <motion.div
                       key={selectedMethod}
@@ -191,19 +233,38 @@ export default function App() {
                             <span className={`font-black italic tracking-tighter uppercase text-sm ${selectedMethod === 'gcash' ? 'text-white' : 'text-black'}`}>
                               {selectedMethod === 'gcash' ? 'GCash Terminal' : 'GoTyme Terminal'}
                             </span>
-                            <div className={`w-3 h-3 rounded-full ${selectedMethod === 'gcash' ? 'bg-white' : 'bg-black'} animate-pulse`} />
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={handleDownloadQr}
+                                className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition-colors ${selectedMethod === 'gcash' ? 'border-white/60 text-white hover:bg-white/15' : 'border-black/60 text-black hover:bg-black/15'}`}
+                                title="Download QR"
+                                aria-label="Download QR"
+                              >
+                                <Download size={14} />
+                              </button>
+                              <div className={`w-3 h-3 rounded-full ${selectedMethod === 'gcash' ? 'bg-white' : 'bg-black'} animate-pulse`} />
+                            </div>
                           </div>
                           
                           <div className={`${selectedMethod === 'gcash' ? 'bg-[#007dfe]' : 'bg-[#00e5ff]'} p-4 w-full aspect-[3/5] flex items-center justify-center overflow-hidden border-x-4 border-b-4 ${selectedMethod === 'gcash' ? 'border-blue-600' : 'border-cyan-500'}`}>
                             <img 
-                              src={selectedMethod === 'gcash' ? gcashQr : gotymeQr} 
-                              alt="Payment QR Code" 
+                              src={selectedQrSrc}
+                              alt={`${selectedMethod === 'gcash' ? 'GCash' : 'GoTyme'} payment QR code`}
                               className="w-full h-full object-contain"
                               referrerPolicy="no-referrer"
                             />
                           </div>
                           
                           <div className="mt-6 text-center w-full py-4 border-t border-white/5">
+                            <button
+                              type="button"
+                              onClick={handleDownloadQr}
+                              className="mb-3 inline-flex items-center gap-2 rounded border border-white/20 px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.2em] text-gray-300 hover:text-white hover:border-white/40 transition-colors"
+                            >
+                              <Download size={12} />
+                              Download QR
+                            </button>
                             <p className="text-[10px] font-mono text-gray-500 uppercase tracking-[0.3em] mb-1">Recipient Verified</p>
                             <p className="text-xl font-black text-white tracking-widest uppercase italic bg-gradient-to-r from-white to-gray-500 bg-clip-text text-transparent">
                               Robert Rich Garcia
@@ -213,45 +274,12 @@ export default function App() {
                       </div>
                     </motion.div>
                   </AnimatePresence>
-                </div>
+                  </div>
 
-                {/* Right: GoTyme Card */}
-                <div className="order-3">
-                  <motion.div
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setSelectedMethod('gotyme')}
-                    className={`relative cursor-pointer w-44 h-64 transition-all duration-300 border-2 ${
-                      selectedMethod === 'gotyme' 
-                        ? 'border-cyan-500 bg-cyan-500/20 shadow-[0_0_40px_rgba(0,229,255,0.5)]' 
-                        : 'border-white/10 bg-white/5 grayscale hover:grayscale-0 opacity-40 hover:opacity-100'
-                    }`}
-                  >
-                    <div className="absolute top-0 left-0 w-full h-full flex flex-col items-center justify-between p-6">
-                      <div className="w-full flex justify-between items-start">
-                        <span className="text-[10px] font-mono opacity-50">ID: 002</span>
-                        <div className={`w-2 h-2 rounded-full ${selectedMethod === 'gotyme' ? 'bg-cyan-400 animate-pulse' : 'bg-gray-700'}`} />
-                      </div>
-                      <div className="flex flex-col items-center">
-                        <div className="w-20 h-20 bg-cyan-400 rounded-full flex items-center justify-center mb-4 shadow-lg shadow-cyan-400/50">
-                          <span className="font-black italic text-black text-3xl">GT</span>
-                        </div>
-                        <span className="font-black tracking-[0.2em] uppercase text-lg italic">GoTyme</span>
-                      </div>
-                      <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: selectedMethod === 'gotyme' ? '100%' : '30%' }}
-                          className="h-full bg-cyan-400"
-                        />
-                      </div>
-                    </div>
-                    {selectedMethod === 'gotyme' && (
-                      <motion.div layoutId="selection-glow" className="absolute inset-0 border-2 border-cyan-400 animate-pulse pointer-events-none" />
-                    )}
-                  </motion.div>
+                  <div className="hidden lg:block">
+                    <MethodCard method="gotyme" id="002" />
+                  </div>
                 </div>
-
               </div>
 
               <div className="flex justify-center">
