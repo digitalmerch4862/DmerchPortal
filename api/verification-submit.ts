@@ -10,27 +10,40 @@ const corsHeaders = {
 const sanitizeProductForSerial = (name: string) => {
   return name
     .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9\s-]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
-    .slice(0, 60)
+    .slice(0, 36)
+    .replace(/^-|-$/g, '');
+};
+
+const sanitizeUsernameForSerial = (name: string) => {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 24)
     .replace(/^-|-$/g, '');
 };
 
 const formatDate = (date: Date) => {
   const yyyy = date.getFullYear();
-  const mm = `${date.getMonth() + 1}`.padStart(2, '0');
+  const month = date.toLocaleString('en-US', {month: 'short'}).toUpperCase();
   const dd = `${date.getDate()}`.padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
+  return `${yyyy}${month}${dd}`;
 };
 
-const buildSerial = (sequenceNo: number, productName: string, now: Date) => {
+const buildSerialBase = (username: string, productName: string, now: Date) => {
   const datePart = formatDate(now);
   const productPart = sanitizeProductForSerial(productName) || 'PRODUCT';
-  const sequencePart = `${sequenceNo}`.padStart(5, '0');
-  return `DMERCH-${datePart}-${productPart}-${sequencePart}`;
+  const usernamePart = sanitizeUsernameForSerial(username) || 'buyer';
+  return `DMERCH-${datePart}-${usernamePart}-${productPart}`;
 };
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const readBody = async (req: any) => {
   if (typeof req.body === 'string') {
@@ -85,11 +98,18 @@ export default async function handler(req: any, res: any) {
     const payload = await readBody(req);
     const username = String(payload.username ?? '').trim();
     const email = String(payload.email ?? '').trim();
-    const productName = String(payload.productName ?? '').trim();
+    const productsRaw = Array.isArray(payload.products) ? payload.products : [];
+    const products = productsRaw
+      .map((item) => ({
+        name: String(item?.name ?? '').trim(),
+        amount: Number(item?.amount ?? 0),
+      }))
+      .filter((item) => item.name && !Number.isNaN(item.amount) && item.amount > 0);
+    const productName = products[0]?.name ?? String(payload.productName ?? '').trim();
     const referenceNo = String(payload.referenceNo ?? '').trim();
-    const amount = Number(payload.amount ?? 0);
+    const totalAmount = Number(payload.totalAmount ?? 0) || products.reduce((sum, item) => sum + item.amount, 0);
 
-    if (!username || !email || !productName || !referenceNo || !amount) {
+    if (!username || !email || !productName || !referenceNo || !totalAmount) {
       return res.status(400).json({ok: false, error: 'Required fields are missing.'});
     }
 
@@ -111,9 +131,36 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    const sequenceNo = sequenceResponse.data;
+    const sequenceNo = Number(sequenceResponse.data);
     const now = new Date();
-    const serialNo = buildSerial(sequenceNo, productName, now);
+    const serialBase = buildSerialBase(username, productName, now);
+
+    const serialLookup = await supabase
+      .from('verification_orders')
+      .select('serial_no')
+      .like('serial_no', `${serialBase}%`);
+
+    if (serialLookup.error) {
+      return res.status(500).json({ok: false, error: serialLookup.error.message});
+    }
+
+    const serialRegex = new RegExp(`^${escapeRegex(serialBase)}(?:-(\\d+))?$`);
+    let maxSuffix = 0;
+    for (const row of serialLookup.data ?? []) {
+      const serial = String(row.serial_no ?? '');
+      const match = serial.match(serialRegex);
+      if (!match) {
+        continue;
+      }
+
+      if (!match[1]) {
+        maxSuffix = Math.max(maxSuffix, 1);
+      } else {
+        maxSuffix = Math.max(maxSuffix, Number(match[1]));
+      }
+    }
+
+    const serialNo = maxSuffix === 0 ? serialBase : `${serialBase}-${maxSuffix + 1}`;
 
     const insertResponse = await supabase
       .from('verification_orders')
@@ -123,7 +170,9 @@ export default async function handler(req: any, res: any) {
         username,
         email,
         product_name: productName,
-        amount,
+        amount: totalAmount,
+        products_json: products.length > 0 ? products : [{name: productName, amount: totalAmount}],
+        total_amount: totalAmount,
         reference_no: referenceNo,
         admin_email: adminEmail,
         email_status: 'pending',
@@ -137,14 +186,18 @@ export default async function handler(req: any, res: any) {
 
     const createdAt = insertResponse.data.created_at;
     const emailDate = new Date(createdAt).toLocaleString('en-PH', {timeZone: 'Asia/Manila'});
+    const productHtml = (products.length > 0 ? products : [{name: productName, amount: totalAmount}])
+      .map((item) => `<li>${item.name} - PHP ${item.amount}</li>`)
+      .join('');
     const subject = `DMerch Verification ${serialNo}`;
     const html = `
       <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111;">
         <h2 style="margin:0 0 12px;">DMerch Verification Submitted</h2>
         <p style="margin:0 0 8px;"><strong>Order Serial:</strong> ${serialNo}</p>
         <p style="margin:0 0 8px;"><strong>Username:</strong> ${username}</p>
-        <p style="margin:0 0 8px;"><strong>Product:</strong> ${productName}</p>
-        <p style="margin:0 0 8px;"><strong>Amount:</strong> PHP ${amount}</p>
+        <p style="margin:0 0 8px;"><strong>Products:</strong></p>
+        <ul style="margin:0 0 8px 18px;padding:0;">${productHtml}</ul>
+        <p style="margin:0 0 8px;"><strong>Total Amount:</strong> PHP ${totalAmount}</p>
         <p style="margin:0 0 8px;"><strong>Reference No:</strong> ${referenceNo}</p>
         <p style="margin:0 0 8px;"><strong>Submitted:</strong> ${emailDate}</p>
         <p style="margin:14px 0 0;">Keep this serial for tracking and support updates.</p>
@@ -183,6 +236,7 @@ export default async function handler(req: any, res: any) {
       sequenceNo,
       createdAt,
       emailStatus,
+      totalAmount,
     });
   } catch (error) {
     return res.status(500).json({

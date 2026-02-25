@@ -5,10 +5,10 @@
 
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, ExternalLink, Facebook, Youtube, Instagram, Download, Search, Check } from 'lucide-react';
+import { ShieldCheck, ExternalLink, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch } from 'lucide-react';
 import gcashQr from './gcash-qr.png';
 import gotymeQr from './gotyme-qr.png';
-import { findProductByName, productCatalog } from './data/products';
+import { findProductByName, productCatalog, type ProductItem } from './data/products';
 
 // Cyberpunk Theme Constants
 const COLORS = {
@@ -26,6 +26,7 @@ type VerificationApiResponse = {
   sequenceNo?: number;
   createdAt?: string;
   emailStatus?: string;
+  totalAmount?: number;
   error?: string;
 };
 
@@ -37,8 +38,10 @@ export default function App() {
   const [referenceNo, setReferenceNo] = useState('');
   const [productQuery, setProductQuery] = useState('');
   const [selectedProductName, setSelectedProductName] = useState('');
+  const [selectedProducts, setSelectedProducts] = useState<ProductItem[]>([]);
   const [isProductMenuOpen, setIsProductMenuOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitProgress, setSubmitProgress] = useState(0);
   const [submitError, setSubmitError] = useState('');
   const [submitResult, setSubmitResult] = useState<VerificationApiResponse | null>(null);
 
@@ -64,6 +67,10 @@ export default function App() {
       .slice(0, 75);
   }, [productQuery]);
 
+  const totalAmount = useMemo(() => {
+    return selectedProducts.reduce((sum, item) => sum + item.amount, 0);
+  }, [selectedProducts]);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const incomingProduct = params.get('product');
@@ -81,7 +88,29 @@ export default function App() {
 
     setSelectedProductName(resolved.name);
     setProductQuery(resolved.name);
+    setSelectedProducts([resolved]);
   }, []);
+
+  useEffect(() => {
+    if (!isSubmitting) {
+      return;
+    }
+
+    setSubmitProgress(8);
+    const timer = window.setInterval(() => {
+      setSubmitProgress((current) => {
+        if (current >= 94) {
+          return current;
+        }
+
+        return Math.min(94, current + Math.max(1, Math.floor((100 - current) / 8)));
+      });
+    }, 180);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [isSubmitting]);
 
   const handleDownloadQr = () => {
     const link = document.createElement('a');
@@ -98,16 +127,41 @@ export default function App() {
     setIsProductMenuOpen(false);
   };
 
+  const handleAddSelectedProduct = () => {
+    if (!selectedProduct) {
+      setSubmitError('Select a product first before adding to the list.');
+      return;
+    }
+
+    setSubmitError('');
+    setSelectedProducts((prev) => {
+      const alreadyAdded = prev.some((item) => item.name === selectedProduct.name && item.amount === selectedProduct.amount);
+      if (alreadyAdded) {
+        return prev;
+      }
+
+      return [...prev, selectedProduct];
+    });
+    setProductQuery('');
+    setSelectedProductName('');
+    setIsProductMenuOpen(false);
+  };
+
+  const removeSelectedProduct = (productName: string) => {
+    setSelectedProducts((prev) => prev.filter((item) => item.name !== productName));
+  };
+
   const handleSubmitVerification = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!selectedProduct) {
-      setSubmitError('Please select a product before submitting.');
+    if (selectedProducts.length === 0) {
+      setSubmitError('Add at least one product before submitting.');
       return;
     }
 
     setSubmitError('');
     setSubmitResult(null);
+    setSubmitProgress(10);
     setIsSubmitting(true);
 
     try {
@@ -119,8 +173,8 @@ export default function App() {
         body: JSON.stringify({
           username,
           email,
-          productName: selectedProduct.name,
-          amount: selectedProduct.amount,
+          products: selectedProducts,
+          totalAmount,
           referenceNo,
         }),
       });
@@ -130,13 +184,21 @@ export default function App() {
         throw new Error(payload.error ?? 'Unable to submit verification request.');
       }
 
+      setSubmitProgress(100);
       setSubmitResult(payload);
       setUsername('');
       setEmail('');
       setReferenceNo('');
+      setProductQuery('');
+      setSelectedProductName('');
+      setSelectedProducts([]);
     } catch (error) {
+      setSubmitProgress(100);
       setSubmitError(error instanceof Error ? error.message : 'Unexpected error while submitting the form.');
     } finally {
+      window.setTimeout(() => {
+        setSubmitProgress(0);
+      }, 500);
       setIsSubmitting(false);
     }
   };
@@ -405,99 +467,176 @@ export default function App() {
               className="w-full"
             >
               <CyberCard title="Verification Form" icon={ShieldCheck} color="magenta">
-                <p className="mb-6">
-                  Submit your payment verification details below. We will validate your reference number,
-                  issue your order serial, and send tracking confirmations by email.
+                <p className="mb-6 text-gray-300">
+                  Submit your payment verification details below. Add all products in one request,
+                  then our system will generate your serial and send tracking emails.
                 </p>
 
-                <form onSubmit={handleSubmitVerification} className="space-y-5">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <label className="block">
-                      <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-gray-400">Username</span>
-                      <input
-                        value={username}
-                        onChange={(event) => setUsername(event.target.value)}
-                        required
-                        className="w-full rounded-md border border-magenta-500/40 bg-black/50 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-magenta-400 focus:shadow-[0_0_18px_rgba(255,0,255,0.18)]"
-                        placeholder="Enter your username"
-                      />
-                    </label>
+                <form onSubmit={handleSubmitVerification} className="space-y-6">
+                  <div className="relative rounded-xl border border-cyan-500/40 bg-[#031018]/80 p-4 shadow-[0_0_35px_rgba(0,195,255,0.12)]">
+                    <div className="pointer-events-none absolute left-2 top-2 h-5 w-5 border-l-2 border-t-2 border-cyan-400/70" />
+                    <div className="pointer-events-none absolute bottom-2 right-2 h-5 w-5 border-b-2 border-r-2 border-cyan-400/70" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-300">Username</span>
+                        <input
+                          value={username}
+                          onChange={(event) => setUsername(event.target.value)}
+                          required
+                          className="w-full rounded-md border border-cyan-500/50 bg-black/50 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-cyan-300 focus:shadow-[0_0_18px_rgba(0,255,255,0.2)]"
+                          placeholder="Enter your username"
+                        />
+                      </label>
 
-                    <label className="block">
-                      <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-gray-400">Email</span>
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={(event) => setEmail(event.target.value)}
-                        required
-                        className="w-full rounded-md border border-magenta-500/40 bg-black/50 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-magenta-400 focus:shadow-[0_0_18px_rgba(255,0,255,0.18)]"
-                        placeholder="buyer@email.com"
-                      />
-                    </label>
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-300">Email</span>
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={(event) => setEmail(event.target.value)}
+                          required
+                          className="w-full rounded-md border border-cyan-500/50 bg-black/50 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-cyan-300 focus:shadow-[0_0_18px_rgba(0,255,255,0.2)]"
+                          placeholder="buyer@email.com"
+                        />
+                      </label>
+                    </div>
                   </div>
 
-                  <div className="relative">
-                    <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-gray-400">Product Purchased</span>
+                  <div className="relative rounded-xl border border-cyan-500/40 bg-[#0b111f]/80 p-4 shadow-[0_0_35px_rgba(0,195,255,0.1)]">
+                    <div className="pointer-events-none absolute left-2 top-2 h-5 w-5 border-l-2 border-t-2 border-cyan-400/70" />
+                    <div className="pointer-events-none absolute bottom-2 right-2 h-5 w-5 border-b-2 border-r-2 border-cyan-400/70" />
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-300">Product Purchased</span>
+                      <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-gray-400">Multi-Product Enabled</span>
+                    </div>
+
                     <div className="relative">
-                      <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-magenta-300/70" />
-                      <input
-                        value={productQuery}
-                        onChange={(event) => {
-                          setProductQuery(event.target.value);
-                          setSelectedProductName('');
-                          setIsProductMenuOpen(true);
-                        }}
-                        onFocus={() => setIsProductMenuOpen(true)}
-                        className="w-full rounded-md border border-magenta-500/40 bg-black/50 pl-10 pr-4 py-3 text-sm text-gray-100 outline-none transition focus:border-magenta-400 focus:shadow-[0_0_18px_rgba(255,0,255,0.18)]"
-                        placeholder="Search product name"
-                      />
+                      <div className="relative">
+                        <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cyan-300/70" />
+                        <input
+                          value={productQuery}
+                          onChange={(event) => {
+                            setProductQuery(event.target.value);
+                            setSelectedProductName('');
+                            setIsProductMenuOpen(true);
+                          }}
+                          onFocus={() => setIsProductMenuOpen(true)}
+                          className="w-full rounded-md border border-cyan-500/50 bg-black/50 pl-10 pr-4 py-3 text-sm text-gray-100 outline-none transition focus:border-cyan-300 focus:shadow-[0_0_18px_rgba(0,255,255,0.2)]"
+                          placeholder="Search product name"
+                        />
+                      </div>
+
+                      {isProductMenuOpen && (
+                        <div className="absolute z-30 mt-2 max-h-64 w-full overflow-auto rounded-md border border-cyan-500/40 bg-[#090d17] shadow-[0_0_28px_rgba(0,200,255,0.15)]">
+                          {filteredProducts.length > 0 ? (
+                            filteredProducts.map((product) => {
+                              const isSelected = selectedProductName === product.name;
+                              return (
+                                <button
+                                  key={`${product.name}-${product.amount}`}
+                                  type="button"
+                                  onClick={() => handleSelectProduct(product.name)}
+                                  className={`flex w-full items-center justify-between border-b border-white/5 px-4 py-3 text-left transition last:border-b-0 ${isSelected ? 'bg-cyan-500/20 text-cyan-100' : 'text-gray-300 hover:bg-white/5'}`}
+                                >
+                                  <span className="pr-3 text-xs sm:text-sm">{product.name}</span>
+                                  <span className="flex shrink-0 items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em]">
+                                    PHP {product.amount}
+                                    {isSelected ? <Check size={14} /> : null}
+                                  </span>
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <div className="px-4 py-4 text-xs font-mono uppercase tracking-[0.2em] text-gray-500">No matching product</div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
-                    {isProductMenuOpen && (
-                      <div className="absolute z-30 mt-2 max-h-64 w-full overflow-auto rounded-md border border-magenta-500/40 bg-[#0a0a0a] shadow-[0_0_28px_rgba(255,0,255,0.15)]">
-                        {filteredProducts.length > 0 ? (
-                          filteredProducts.map((product) => {
-                            const isSelected = selectedProductName === product.name;
-                            return (
-                              <button
-                                key={`${product.name}-${product.amount}`}
-                                type="button"
-                                onClick={() => handleSelectProduct(product.name)}
-                                className={`flex w-full items-center justify-between border-b border-white/5 px-4 py-3 text-left transition last:border-b-0 ${isSelected ? 'bg-magenta-500/20 text-magenta-100' : 'text-gray-300 hover:bg-white/5'}`}
-                              >
-                                <span className="pr-3 text-xs sm:text-sm">{product.name}</span>
-                                <span className="flex shrink-0 items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em]">
-                                  PHP {product.amount}
-                                  {isSelected ? <Check size={14} /> : null}
-                                </span>
-                              </button>
-                            );
-                          })
-                        ) : (
-                          <div className="px-4 py-4 text-xs font-mono uppercase tracking-[0.2em] text-gray-500">No matching product</div>
-                        )}
+                    <div className="mt-3 flex flex-col sm:flex-row gap-3">
+                      <button
+                        type="button"
+                        onClick={handleAddSelectedProduct}
+                        disabled={!selectedProduct}
+                        className="inline-flex items-center justify-center gap-2 rounded-md border border-cyan-400/60 bg-cyan-500/20 px-4 py-2 text-xs font-mono uppercase tracking-[0.2em] text-cyan-200 transition hover:bg-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Plus size={14} />
+                        Add Product
+                      </button>
+                      <div className="rounded-md border border-cyan-500/40 bg-black/40 px-4 py-2 text-xs font-mono uppercase tracking-[0.2em] text-cyan-200">
+                        {selectedProduct ? `Ready: PHP ${selectedProduct.amount}` : 'Select from list'}
                       </div>
-                    )}
+                    </div>
+
+                    <div className="mt-4 space-y-2">
+                      {selectedProducts.length > 0 ? (
+                        selectedProducts.map((item) => (
+                          <div
+                            key={`${item.name}-${item.amount}`}
+                            className="flex items-start justify-between gap-3 rounded-md border border-cyan-500/30 bg-black/40 px-3 py-2"
+                          >
+                            <div>
+                              <p className="text-sm text-cyan-100">{item.name}</p>
+                              <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">PHP {item.amount}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeSelectedProduct(item.name)}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded border border-red-400/40 text-red-300 hover:bg-red-500/10"
+                              title="Remove product"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-md border border-dashed border-cyan-500/30 px-4 py-4 text-center text-xs font-mono uppercase tracking-[0.2em] text-gray-500">
+                          No products added yet
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-gray-400">Amount</span>
-                      <div className="rounded-md border border-cyan-500/40 bg-cyan-500/10 px-4 py-3 text-sm font-mono uppercase tracking-[0.15em] text-cyan-200">
-                        {selectedProduct ? `PHP ${selectedProduct.amount}` : 'Select a product'}
+                  <div className="relative rounded-xl border border-[#ff8a00]/40 bg-[#1a0e05] p-4 shadow-[0_0_35px_rgba(255,128,0,0.2)]">
+                    <div className="pointer-events-none absolute left-2 top-2 h-5 w-5 border-l-2 border-t-2 border-[#ff9f1a]/80" />
+                    <div className="pointer-events-none absolute bottom-2 right-2 h-5 w-5 border-b-2 border-r-2 border-[#ff9f1a]/80" />
+                    <div className="mb-3 flex items-center gap-2 text-[#ffb257]">
+                      <PackageSearch size={15} />
+                      <span className="text-[11px] font-mono uppercase tracking-[0.25em]">Verification Summary</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Reference No</span>
+                        <input
+                          value={referenceNo}
+                          onChange={(event) => setReferenceNo(event.target.value)}
+                          required
+                          className="w-full rounded-md border border-[#ff8a00]/50 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-[#ffb257] focus:shadow-[0_0_18px_rgba(255,138,0,0.24)]"
+                          placeholder="Enter payment reference"
+                        />
+                      </label>
+                      <div>
+                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Total Amount</span>
+                        <div className="rounded-md border border-[#ff8a00]/50 bg-black/30 px-4 py-3 text-sm font-mono uppercase tracking-[0.15em] text-[#ffc680]">
+                          PHP {totalAmount}
+                        </div>
                       </div>
                     </div>
 
-                    <label className="block">
-                      <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-gray-400">Reference No</span>
-                      <input
-                        value={referenceNo}
-                        onChange={(event) => setReferenceNo(event.target.value)}
-                        required
-                        className="w-full rounded-md border border-magenta-500/40 bg-black/50 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-magenta-400 focus:shadow-[0_0_18px_rgba(255,0,255,0.18)]"
-                        placeholder="Enter payment reference"
-                      />
-                    </label>
+                    {isSubmitting ? (
+                      <div className="mt-4 rounded-md border border-[#ff8a00]/60 bg-black/50 p-3">
+                        <p className="mb-2 text-xs font-mono uppercase tracking-[0.25em] text-[#ffb257]">Processing Transmission...</p>
+                        <div className="h-3 w-full overflow-hidden rounded-sm border border-[#ff8a00]/70 bg-[#2b1608]">
+                          <motion.div
+                            initial={{ width: '0%' }}
+                            animate={{ width: `${submitProgress}%` }}
+                            transition={{ duration: 0.25, ease: 'easeOut' }}
+                            className="h-full bg-[repeating-linear-gradient(-45deg,#9dff4f,#9dff4f_10px,#53bf1e_10px,#53bf1e_20px)] shadow-[0_0_18px_rgba(157,255,79,0.6)]"
+                          />
+                        </div>
+                        <p className="mt-2 text-right text-xs font-mono uppercase tracking-[0.2em] text-[#ffb257]">{submitProgress}%</p>
+                      </div>
+                    ) : null}
                   </div>
 
                   {submitError ? (
@@ -511,18 +650,18 @@ export default function App() {
                       <p className="mb-2 text-xs font-mono uppercase tracking-[0.2em] text-cyan-300">Verification Submitted</p>
                       <p className="text-lg font-black tracking-wider text-white">{submitResult.serialNo}</p>
                       <p className="mt-2 text-xs text-gray-300">
-                        Sequence: {submitResult.sequenceNo} | Email status: {submitResult.emailStatus}
+                        Sequence: {submitResult.sequenceNo} | Total: PHP {submitResult.totalAmount ?? totalAmount} | Email status: {submitResult.emailStatus}
                       </p>
                     </div>
                   ) : null}
 
                   <button
                     type="submit"
-                    disabled={isSubmitting || !selectedProduct}
+                    disabled={isSubmitting || selectedProducts.length === 0}
                     className="group relative w-full px-6 py-4 bg-magenta-500 text-black font-black uppercase tracking-[0.2em] hover:bg-white transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <span className="relative z-10">
-                      {isSubmitting ? 'Submitting...' : 'Submit Verification'}
+                      {isSubmitting ? 'Sending Verification...' : 'Submit Verification'}
                     </span>
                     <div className="absolute top-0 left-0 w-full h-full border-2 border-magenta-500 translate-x-2 translate-y-2 group-hover:translate-x-0 group-hover:translate-y-0 transition-transform duration-300" />
                   </button>
