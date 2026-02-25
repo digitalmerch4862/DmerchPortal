@@ -1,5 +1,5 @@
-import {createClient} from '@supabase/supabase-js';
-import {Resend} from 'resend';
+import { createClient } from '@supabase/supabase-js';
+import { Resend } from 'resend';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -31,7 +31,7 @@ const sanitizeUsernameForSerial = (name: string) => {
 
 const formatDate = (date: Date) => {
   const yyyy = date.getFullYear();
-  const month = date.toLocaleString('en-US', {month: 'short'}).toUpperCase();
+  const month = date.toLocaleString('en-US', { month: 'short' }).toUpperCase();
   const dd = `${date.getDate()}`.padStart(2, '0');
   return `${yyyy}${month}${dd}`;
 };
@@ -78,7 +78,7 @@ export default async function handler(req: any, res: any) {
   }
 
   if (req.method !== 'POST') {
-    return res.status(405).json({ok: false, error: 'Method not allowed'});
+    return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
   const supabaseUrl = process.env.SUPABASE_URL;
@@ -110,28 +110,39 @@ export default async function handler(req: any, res: any) {
     const totalAmount = Number(payload.totalAmount ?? 0) || products.reduce((sum, item) => sum + item.amount, 0);
 
     if (!username || !email || !productName || !referenceNo || !totalAmount) {
-      return res.status(400).json({ok: false, error: 'Required fields are missing.'});
+      return res.status(400).json({ ok: false, error: 'Required fields are missing.' });
     }
 
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailPattern.test(email)) {
-      return res.status(400).json({ok: false, error: 'Invalid email address.'});
+      return res.status(400).json({ ok: false, error: 'Invalid email address.' });
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
-      auth: {persistSession: false, autoRefreshToken: false},
+      auth: { persistSession: false, autoRefreshToken: false },
     });
     const resend = new Resend(resendApiKey);
 
     const sequenceResponse = await supabase.rpc('next_verification_sequence');
-    if (sequenceResponse.error || typeof sequenceResponse.data !== 'number') {
-      return res.status(500).json({
-        ok: false,
-        error: 'Could not generate sequence. Please run the SQL setup file in Supabase.',
-      });
+    const seqData = sequenceResponse.data;
+    let sequenceNo: number | null = null;
+
+    if (typeof seqData === 'number') {
+      sequenceNo = seqData;
+    } else if (typeof seqData === 'string') {
+      sequenceNo = parseInt(seqData, 10);
+    } else if (Array.isArray(seqData) && seqData.length > 0) {
+      const val = typeof seqData[0] === 'object' && seqData[0] !== null ? Object.values(seqData[0])[0] : seqData[0];
+      sequenceNo = typeof val === 'number' ? val : (typeof val === 'string' ? parseInt(val, 10) : null);
     }
 
-    const sequenceNo = Number(sequenceResponse.data);
+    if (sequenceResponse.error || sequenceNo === null || isNaN(sequenceNo)) {
+      console.error('Sequence generation error:', sequenceResponse.error, 'Data:', seqData);
+      return res.status(500).json({
+        ok: false,
+        error: 'Could not generate sequence. If the error persists, please check your Supabase project configuration.',
+      });
+    }
     const now = new Date();
     const serialBase = buildSerialBase(username, productName, now);
 
@@ -141,7 +152,7 @@ export default async function handler(req: any, res: any) {
       .like('serial_no', `${serialBase}%`);
 
     if (serialLookup.error) {
-      return res.status(500).json({ok: false, error: serialLookup.error.message});
+      return res.status(500).json({ ok: false, error: serialLookup.error.message });
     }
 
     const serialRegex = new RegExp(`^${escapeRegex(serialBase)}(?:-(\\d+))?$`);
@@ -171,7 +182,7 @@ export default async function handler(req: any, res: any) {
         email,
         product_name: productName,
         amount: totalAmount,
-        products_json: products.length > 0 ? products : [{name: productName, amount: totalAmount}],
+        products_json: products.length > 0 ? products : [{ name: productName, amount: totalAmount }],
         total_amount: totalAmount,
         reference_no: referenceNo,
         admin_email: adminEmail,
@@ -181,12 +192,12 @@ export default async function handler(req: any, res: any) {
       .single();
 
     if (insertResponse.error) {
-      return res.status(500).json({ok: false, error: insertResponse.error.message});
+      return res.status(500).json({ ok: false, error: insertResponse.error.message });
     }
 
     const createdAt = insertResponse.data.created_at;
-    const emailDate = new Date(createdAt).toLocaleString('en-PH', {timeZone: 'Asia/Manila'});
-    const productHtml = (products.length > 0 ? products : [{name: productName, amount: totalAmount}])
+    const emailDate = new Date(createdAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' });
+    const productHtml = (products.length > 0 ? products : [{ name: productName, amount: totalAmount }])
       .map((item) => `<li>${item.name} - PHP ${item.amount}</li>`)
       .join('');
     const subject = `DMerch Verification ${serialNo}`;
@@ -226,7 +237,7 @@ export default async function handler(req: any, res: any) {
 
     await supabase
       .from('verification_orders')
-      .update({email_status: emailStatus})
+      .update({ email_status: emailStatus })
       .eq('id', insertResponse.data.id);
 
     res.setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin']);

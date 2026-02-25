@@ -3,11 +3,17 @@ create extension if not exists pgcrypto;
 create sequence if not exists verification_order_seq start 1;
 
 create or replace function public.next_verification_sequence()
-returns bigint
-language sql
+returns integer
+language plpgsql
 security definer
+set search_path = public
 as $$
-  select nextval('verification_order_seq');
+declare
+  next_val integer;
+begin
+  select nextval('verification_order_seq')::integer into next_val;
+  return next_val;
+end;
 $$;
 
 create table if not exists public.verification_orders (
