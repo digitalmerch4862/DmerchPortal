@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type ComponentType, type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type ComponentType, type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft, Lock } from 'lucide-react';
 import gcashQr from './gcash-qr.png';
@@ -43,25 +43,18 @@ function GlitchText({text, className = ''}: {text: string; className?: string}) 
 }
 
 function CyberCard({children, title, icon: Icon, color = 'cyan'}: {children: ReactNode; title: string; icon: ComponentType<{className?: string; size?: number}>; color?: 'cyan' | 'magenta'}) {
+  void title;
+  void Icon;
   const isMagenta = color === 'magenta';
   const borderColor = color === 'cyan' ? 'border-[#00f3ff]' : 'border-[#ff00ff]';
   const shadowColor = color === 'cyan' ? 'shadow-[0_0_15px_rgba(0,243,255,0.3)]' : 'shadow-[0_0_15px_rgba(255,0,255,0.3)]';
-  const textColor = color === 'cyan' ? 'text-[#00f3ff]' : 'text-[#ff00ff]';
 
   return (
     <motion.div
       initial={{opacity: 0, y: 20}}
       animate={{opacity: 1, y: 0}}
-      className={`relative bg-black/80 p-4 sm:p-6 mb-4 sm:mb-6 ${shadowColor} backdrop-blur-md overflow-hidden ${isMagenta ? 'cyber-magenta-card border border-magenta-500/40' : `border-l-4 ${borderColor}`}`}
+      className={`relative cyber-saber-frame ${isMagenta ? 'cyber-saber-frame-magenta' : 'cyber-saber-frame-cyan'} bg-black/80 p-4 sm:p-6 mb-4 sm:mb-6 ${shadowColor} backdrop-blur-md overflow-hidden ${isMagenta ? 'cyber-magenta-card border border-magenta-500/40' : `border-l-4 ${borderColor}`}`}
     >
-      {false ? (
-        <div className="flex items-center gap-3 mb-4">
-          <Icon className={textColor} size={24} />
-          <h2 className={`text-xl font-bold tracking-widest uppercase ${textColor}`}>
-            {title}
-          </h2>
-        </div>
-      ) : null}
       <div className="relative z-10 text-gray-300">{children}</div>
       <div className={`absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 ${borderColor} opacity-50`} />
       <div className={`absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 ${borderColor} opacity-50`} />
@@ -135,10 +128,53 @@ export default function App() {
   const [submitProgress, setSubmitProgress] = useState(0);
   const [submitError, setSubmitError] = useState('');
   const [submitResult, setSubmitResult] = useState<VerificationApiResponse | null>(null);
+  const [sfxEnabled, setSfxEnabled] = useState(true);
   const productPickerRef = useRef<HTMLDivElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   const selectedQrSrc = selectedMethod === 'gcash' ? gcashQr : gotymeQr;
   const selectedQrFilename = selectedMethod === 'gcash' ? 'dmerch-gcash-qr.png' : 'dmerch-gotyme-qr.png';
+
+  const playTapSfx = useCallback((strength: 'soft' | 'strong' = 'soft') => {
+    if (!sfxEnabled || typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) {
+        return;
+      }
+
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioCtx();
+      }
+
+      const context = audioContextRef.current;
+      if (context.state === 'suspended') {
+        context.resume().catch(() => undefined);
+      }
+
+      const now = context.currentTime;
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+
+      oscillator.type = 'square';
+      oscillator.frequency.setValueAtTime(strength === 'strong' ? 220 : 170, now);
+      oscillator.frequency.exponentialRampToValueAtTime(strength === 'strong' ? 95 : 75, now + 0.08);
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(strength === 'strong' ? 0.06 : 0.035, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
+
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start(now);
+      oscillator.stop(now + 0.095);
+    } catch {
+      // SFX should fail silently in unsupported browsers
+    }
+  }, [sfxEnabled]);
 
   const selectedProduct = useMemo(() => {
     if (!selectedProductName) {
@@ -290,6 +326,43 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const handlePressFeedback = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      const button = target?.closest('button');
+      if (!button || button.hasAttribute('disabled')) {
+        return;
+      }
+
+      button.classList.remove('cyber-tap');
+      window.requestAnimationFrame(() => {
+        button.classList.add('cyber-tap');
+      });
+
+      const isPrimary = button.classList.contains('cyber-btn-primary');
+      playTapSfx(isPrimary ? 'strong' : 'soft');
+
+      if (sfxEnabled && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(isPrimary ? 18 : 10);
+      }
+    };
+
+    const handleAnimationEnd = (event: AnimationEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.classList.contains('cyber-tap')) {
+        target.classList.remove('cyber-tap');
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePressFeedback);
+    document.addEventListener('animationend', handleAnimationEnd, true);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePressFeedback);
+      document.removeEventListener('animationend', handleAnimationEnd, true);
+    };
+  }, [playTapSfx, sfxEnabled]);
+
   const handleDownloadQr = () => {
     const link = document.createElement('a');
     link.href = selectedQrSrc;
@@ -337,6 +410,12 @@ export default function App() {
       return;
     }
 
+    const normalizedReferenceNo = referenceNo.replace(/\D/g, '').slice(-6);
+    if (normalizedReferenceNo.length !== 6) {
+      setSubmitError('Please enter the last 6 digits for reference no (sample: 123456).');
+      return;
+    }
+
     setSubmitError('');
     setSubmitResult(null);
     setSubmitProgress(10);
@@ -353,7 +432,7 @@ export default function App() {
           email,
           products: selectedProducts,
           totalAmount,
-          referenceNo,
+          referenceNo: normalizedReferenceNo,
         }),
       });
 
@@ -416,6 +495,13 @@ export default function App() {
             <p className="text-cyan-400/80 font-mono text-[11px] sm:text-sm tracking-[0.25em] sm:tracking-[0.3em] uppercase">
               Secure Transaction Protocol v2.4.0
             </p>
+            <button
+              type="button"
+              onClick={() => setSfxEnabled((current) => !current)}
+              className={`mt-3 inline-flex items-center gap-2 rounded border px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.2em] transition-colors ${sfxEnabled ? 'border-cyan-400/70 bg-cyan-500/10 text-cyan-100' : 'border-white/20 text-gray-300'}`}
+            >
+              {sfxEnabled ? 'SFX On' : 'SFX Off'}
+            </button>
           </motion.div>
         </header>
 
@@ -437,10 +523,10 @@ export default function App() {
                     disabled={isLocked}
                     className={`cyber-stage-chip cyber-stage-chip-mobile min-w-[112px] snap-start ${isActive ? 'cyber-stage-chip-active' : ''} ${isCompleted ? 'cyber-stage-chip-complete' : ''} ${isLocked ? 'cyber-stage-chip-locked' : ''}`}
                   >
-                    <span className="flex items-center justify-end text-[9px] font-mono uppercase tracking-[0.2em] text-cyan-200/85">
+                    <span className="flex items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-[0.1em]">
+                      <span className="truncate">{item.mobileTitle}</span>
                       {isLocked ? <Lock size={10} /> : isCompleted ? <Check size={10} /> : <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />}
                     </span>
-                    <span className="mt-1 block text-[11px] font-semibold uppercase tracking-[0.1em] truncate">{item.mobileTitle}</span>
                   </motion.button>
                 );
               })}
@@ -463,10 +549,12 @@ export default function App() {
                   disabled={isLocked}
                   className={`cyber-stage-chip ${isActive ? 'cyber-stage-chip-active' : ''} ${isCompleted ? 'cyber-stage-chip-complete' : ''} ${isLocked ? 'cyber-stage-chip-locked' : ''}`}
                 >
-                  <span className="block text-xs sm:text-sm font-semibold uppercase tracking-[0.12em]">{item.title}</span>
-                  <span className="mt-2 inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.2em]">
-                    {isLocked ? <Lock size={11} /> : isCompleted ? <Check size={11} /> : <span className="h-2 w-2 rounded-full bg-current animate-pulse" />}
-                    {isLocked ? 'Locked' : isCompleted ? 'Complete' : 'Active'}
+                  <span className="inline-flex w-full items-center justify-between gap-3 text-xs sm:text-sm font-semibold uppercase tracking-[0.12em]">
+                    <span>{item.title}</span>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.2em]">
+                      {isLocked ? <Lock size={11} /> : isCompleted ? <Check size={11} /> : <span className="h-2 w-2 rounded-full bg-current animate-pulse" />}
+                      <span className="hidden md:inline">{isLocked ? 'Locked' : isCompleted ? 'Complete' : 'Active'}</span>
+                    </span>
                   </span>
                 </motion.button>
               );
@@ -757,20 +845,13 @@ export default function App() {
             >
               <CyberCard title="Confirmation & Verification" icon={ShieldCheck} color="magenta">
                 <div className="mb-4 rounded-xl border border-cyan-500/40 bg-[#031018]/80 p-4 shadow-[0_0_30px_rgba(0,195,255,0.1)]">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                      <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-cyan-300">Products</p>
-                      <p className="mt-1 text-sm text-white">{selectedProducts.length} item(s)</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-cyan-300">Portal</p>
-                      <p className="mt-1 text-sm text-white uppercase">{selectedMethod === 'gcash' ? 'GCash' : 'GoTyme'}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-cyan-300">Total</p>
-                      <p className="mt-1 text-sm text-white">PHP {totalAmount}</p>
-                    </div>
-                  </div>
+                  <p className="text-xs sm:text-sm font-mono uppercase tracking-[0.14em] text-cyan-100 leading-relaxed">
+                    Products: {selectedProducts.length} item(s)
+                    <span className="px-2 text-cyan-400/70">|</span>
+                    Portal: {selectedMethod === 'gcash' ? 'GCash' : 'GoTyme'}
+                    <span className="px-2 text-cyan-400/70">|</span>
+                    Total: PHP {totalAmount}
+                  </p>
                 </div>
 
                 <form onSubmit={handleSubmitVerification} className="space-y-6">
@@ -783,14 +864,20 @@ export default function App() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <label className="block">
-                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Reference No</span>
+                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Reference No (Last 6 Digits)</span>
                         <input
                           value={referenceNo}
-                          onChange={(event) => setReferenceNo(event.target.value)}
+                          onChange={(event) => {
+                            const digitsOnly = event.target.value.replace(/\D/g, '');
+                            setReferenceNo(digitsOnly.slice(-6));
+                          }}
                           required
+                          inputMode="numeric"
+                          maxLength={6}
                           className="w-full rounded-md border border-[#ff8a00]/50 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-[#ffb257] focus:shadow-[0_0_18px_rgba(255,138,0,0.24)]"
-                          placeholder="Enter payment reference"
+                          placeholder="e.g. 123456"
                         />
+                        <span className="mt-2 block text-[10px] font-mono uppercase tracking-[0.18em] text-[#ffbd75]">Sample: 987654 (last 6 digits only)</span>
                       </label>
                       <div>
                         <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Total Amount</span>

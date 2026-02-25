@@ -261,11 +261,15 @@ export default async function handler(req: any, res: any) {
       }))
       .filter((item) => item.name && !Number.isNaN(item.amount) && item.amount > 0);
     const productName = products[0]?.name ?? String(payload.productName ?? '').trim();
-    const referenceNo = String(payload.referenceNo ?? '').trim();
+    const referenceNo = String(payload.referenceNo ?? '').replace(/\D/g, '').slice(-6);
     const totalAmount = Number(payload.totalAmount ?? 0) || products.reduce((sum, item) => sum + item.amount, 0);
 
-    if (!username || !email || !productName || !referenceNo || !totalAmount) {
+    if (!username || !email || !productName || !totalAmount) {
       return res.status(400).json({ ok: false, error: 'Required fields are missing.' });
+    }
+
+    if (referenceNo.length !== 6) {
+      return res.status(400).json({ ok: false, error: 'Please enter the last 6 digits for reference no (sample: 123456).' });
     }
 
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

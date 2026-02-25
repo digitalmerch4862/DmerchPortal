@@ -50,7 +50,18 @@
   font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
+  overflow: hidden;
   transition: transform 160ms ease, box-shadow 220ms ease, border-color 220ms ease, background-color 220ms ease, color 220ms ease;
+}
+
+.cyber-btn::before {
+  content: "";
+  position: absolute;
+  inset: -22%;
+  background: linear-gradient(120deg, transparent 38%, rgba(255, 255, 255, 0.55) 50%, transparent 62%);
+  transform: translateX(-120%) rotate(8deg);
+  animation: cyber-saber-run 2.2s linear infinite;
+  pointer-events: none;
 }
 
 .cyber-btn:disabled {
@@ -83,6 +94,8 @@
 }
 
 .cyber-stage-chip {
+  position: relative;
+  overflow: hidden;
   border: 1px solid rgba(111, 133, 160, 0.35);
   border-radius: 10px;
   background: rgba(9, 15, 26, 0.85);
@@ -90,6 +103,17 @@
   padding: 12px 10px;
   text-align: left;
   transition: border-color 200ms ease, color 200ms ease, box-shadow 200ms ease, background-color 200ms ease;
+}
+
+.cyber-stage-chip::before {
+  content: "";
+  position: absolute;
+  inset: -22%;
+  background: linear-gradient(110deg, transparent 40%, rgba(0, 243, 255, 0.7) 50%, transparent 60%);
+  transform: translateX(-135%) rotate(8deg);
+  animation: cyber-saber-run 2.8s linear infinite;
+  pointer-events: none;
+  opacity: 0.55;
 }
 
 .cyber-stage-chip-active {
@@ -109,6 +133,77 @@
   border-color: rgba(111, 133, 160, 0.2);
   color: rgba(116, 130, 149, 0.8);
   background: rgba(6, 10, 18, 0.8);
+}
+
+.cyber-stage-chip-locked::before {
+  opacity: 0.2;
+}
+
+.cyber-saber-frame {
+  position: relative;
+}
+
+.cyber-saber-frame::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 0;
+  background: linear-gradient(120deg, transparent 40%, rgba(0, 243, 255, 0.85) 50%, transparent 60%);
+  animation: cyber-frame-run 3s linear infinite;
+  opacity: 0.7;
+}
+
+.cyber-saber-frame-magenta::before {
+  background: linear-gradient(120deg, transparent 40%, rgba(255, 0, 255, 0.75) 50%, transparent 60%);
+}
+
+.cyber-saber-frame-cyan::before {
+  background: linear-gradient(120deg, transparent 40%, rgba(0, 243, 255, 0.85) 50%, transparent 60%);
+}
+
+.cyber-tap {
+  animation: cyber-tap-burst 180ms ease-out;
+}
+
+@keyframes cyber-saber-run {
+  0% {
+    transform: translateX(-135%) rotate(8deg);
+  }
+  100% {
+    transform: translateX(135%) rotate(8deg);
+  }
+}
+
+@keyframes cyber-frame-run {
+  0% {
+    clip-path: inset(0 100% 0 0);
+  }
+  25% {
+    clip-path: inset(0 0 100% 0);
+  }
+  50% {
+    clip-path: inset(0 0 0 100%);
+  }
+  75% {
+    clip-path: inset(100% 0 0 0);
+  }
+  100% {
+    clip-path: inset(0 100% 0 0);
+  }
+}
+
+@keyframes cyber-tap-burst {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .cyber-stage-chip-mobile {
@@ -139,7 +234,23 @@
     box-shadow: 0 0 10px rgba(0, 243, 255, 0.18);
   }
 
+  .cyber-btn::before,
+  .cyber-stage-chip::before,
+  .cyber-saber-frame::before {
+    animation-duration: 3.5s;
+    opacity: 0.4;
+  }
+
   .cyber-magenta-card::after {
     box-shadow: 0 0 9px rgba(255, 0, 255, 0.14), inset 0 0 6px rgba(255, 0, 255, 0.1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cyber-btn::before,
+  .cyber-stage-chip::before,
+  .cyber-saber-frame::before,
+  .cyber-tap {
+    animation: none !important;
   }
 }
