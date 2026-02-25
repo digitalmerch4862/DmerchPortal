@@ -18,7 +18,7 @@ const escapeHtml = (value: string) => {
     .replace(/'/g, '&#39;');
 };
 
-const formatPhpAmount = (amount: number) => `PHP ${amount.toFixed(2)}`;
+const formatPhpAmount = (amount: number) => `₱${amount.toFixed(2)}`;
 
 const rpcToNumber = (rpcData: unknown) => {
   if (typeof rpcData === 'number') {

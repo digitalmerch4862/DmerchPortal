@@ -517,7 +517,7 @@ export default function App() {
                     className={`cyber-stage-chip cyber-stage-chip-mobile min-w-[112px] snap-start ${isActive ? 'cyber-stage-chip-active' : ''} ${isCompleted ? 'cyber-stage-chip-complete' : ''} ${isLocked ? 'cyber-stage-chip-locked' : ''}`}
                   >
                     <span className="flex items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-[0.1em]">
-                      <span className="truncate">{item.mobileTitle}</span>
+                      <span className={`truncate transition-opacity ${isActive ? 'opacity-100' : 'opacity-0 select-none'}`}>{item.mobileTitle}</span>
                       {isLocked ? <Lock size={10} /> : isCompleted ? <Check size={10} /> : <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />}
                     </span>
                   </motion.button>
@@ -543,10 +543,10 @@ export default function App() {
                   className={`cyber-stage-chip ${isActive ? 'cyber-stage-chip-active' : ''} ${isCompleted ? 'cyber-stage-chip-complete' : ''} ${isLocked ? 'cyber-stage-chip-locked' : ''}`}
                 >
                   <span className="inline-flex w-full items-center justify-between gap-3 text-xs sm:text-sm font-semibold uppercase tracking-[0.12em]">
-                    <span>{item.title}</span>
+                    <span className={`transition-opacity ${isActive ? 'opacity-100' : 'opacity-0 select-none'}`}>{item.title}</span>
                     <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.2em]">
                       {isLocked ? <Lock size={11} /> : isCompleted ? <Check size={11} /> : <span className="h-2 w-2 rounded-full bg-current animate-pulse" />}
-                      <span className="hidden md:inline">{isLocked ? 'Locked' : isCompleted ? 'Complete' : 'Active'}</span>
+                      <span className={`hidden md:inline ${isActive ? 'opacity-100' : 'opacity-0 select-none'}`}>{isLocked ? 'Locked' : isCompleted ? 'Complete' : 'Active'}</span>
                     </span>
                   </span>
                 </motion.button>
@@ -838,13 +838,28 @@ export default function App() {
             >
               <CyberCard title="Confirmation & Verification" icon={ShieldCheck} color="magenta">
                 <div className="mb-4 rounded-xl border border-cyan-500/40 bg-[#031018]/80 p-4 shadow-[0_0_30px_rgba(0,195,255,0.1)]">
-                  <p className="text-xs sm:text-sm font-mono uppercase tracking-[0.14em] text-cyan-100 leading-relaxed">
-                    Products: {selectedProducts.length} item(s)
-                    <span className="px-2 text-cyan-400/70">|</span>
-                    Portal: {selectedMethod === 'gcash' ? 'GCash' : 'GoTyme'}
-                    <span className="px-2 text-cyan-400/70">|</span>
-                    Total: PHP {totalAmount}
-                  </p>
+                  <table className="w-full border-collapse text-xs sm:text-sm font-mono uppercase tracking-[0.12em] text-cyan-100">
+                    <thead>
+                      <tr className="border-b border-cyan-500/30 text-cyan-300">
+                        <th className="py-2 pr-3 text-left font-semibold">Field</th>
+                        <th className="py-2 text-right font-semibold">Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b border-cyan-500/15">
+                        <td className="py-2 pr-3">Products</td>
+                        <td className="py-2 text-right">{selectedProducts.length} item(s)</td>
+                      </tr>
+                      <tr className="border-b border-cyan-500/15">
+                        <td className="py-2 pr-3">Portal</td>
+                        <td className="py-2 text-right">{selectedMethod === 'gcash' ? 'GCash' : 'GoTyme'}</td>
+                      </tr>
+                      <tr>
+                        <td className="pt-2 pr-3">Total</td>
+                        <td className="pt-2 text-right">PHP {totalAmount}</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
 
                 <form onSubmit={handleSubmitVerification} className="space-y-6">
