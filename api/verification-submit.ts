@@ -138,9 +138,12 @@ export default async function handler(req: any, res: any) {
 
     if (sequenceResponse.error || sequenceNo === null || isNaN(sequenceNo)) {
       console.error('Sequence generation error:', JSON.stringify(sequenceResponse.error), 'Data:', JSON.stringify(seqData), 'Type:', typeof seqData);
+      const hint = sequenceResponse.error?.message?.includes('Invalid API key')
+        ? 'Server configuration error: Invalid Supabase API key. Please contact the admin.'
+        : 'Could not generate sequence. Please try again or contact the admin.';
       return res.status(500).json({
         ok: false,
-        error: `Could not generate sequence. Debug: err=${JSON.stringify(sequenceResponse.error)}, data=${JSON.stringify(seqData)}, type=${typeof seqData}`,
+        error: hint,
       });
     }
     const now = new Date();
