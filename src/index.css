@@ -245,12 +245,3 @@
     box-shadow: 0 0 9px rgba(255, 0, 255, 0.14), inset 0 0 6px rgba(255, 0, 255, 0.1);
   }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .cyber-btn::before,
-  .cyber-stage-chip::before,
-  .cyber-saber-frame::before,
-  .cyber-tap {
-    animation: none !important;
-  }
-}

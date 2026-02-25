@@ -128,15 +128,15 @@ export default function App() {
   const [submitProgress, setSubmitProgress] = useState(0);
   const [submitError, setSubmitError] = useState('');
   const [submitResult, setSubmitResult] = useState<VerificationApiResponse | null>(null);
-  const [sfxEnabled, setSfxEnabled] = useState(true);
   const productPickerRef = useRef<HTMLDivElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const sfxEnabled = true;
 
   const selectedQrSrc = selectedMethod === 'gcash' ? gcashQr : gotymeQr;
   const selectedQrFilename = selectedMethod === 'gcash' ? 'dmerch-gcash-qr.png' : 'dmerch-gotyme-qr.png';
 
   const playTapSfx = useCallback((strength: 'soft' | 'strong' = 'soft') => {
-    if (!sfxEnabled || typeof window === 'undefined') {
+    if (typeof window === 'undefined') {
       return;
     }
 
@@ -174,7 +174,7 @@ export default function App() {
     } catch {
       // SFX should fail silently in unsupported browsers
     }
-  }, [sfxEnabled]);
+  }, []);
 
   const selectedProduct = useMemo(() => {
     if (!selectedProductName) {
@@ -361,7 +361,7 @@ export default function App() {
       document.removeEventListener('pointerdown', handlePressFeedback);
       document.removeEventListener('animationend', handleAnimationEnd, true);
     };
-  }, [playTapSfx, sfxEnabled]);
+  }, [playTapSfx]);
 
   const handleDownloadQr = () => {
     const link = document.createElement('a');
@@ -495,13 +495,6 @@ export default function App() {
             <p className="text-cyan-400/80 font-mono text-[11px] sm:text-sm tracking-[0.25em] sm:tracking-[0.3em] uppercase">
               Secure Transaction Protocol v2.4.0
             </p>
-            <button
-              type="button"
-              onClick={() => setSfxEnabled((current) => !current)}
-              className={`mt-3 inline-flex items-center gap-2 rounded border px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.2em] transition-colors ${sfxEnabled ? 'border-cyan-400/70 bg-cyan-500/10 text-cyan-100' : 'border-white/20 text-gray-300'}`}
-            >
-              {sfxEnabled ? 'SFX On' : 'SFX Off'}
-            </button>
           </motion.div>
         </header>
 

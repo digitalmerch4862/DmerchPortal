@@ -52,13 +52,6 @@ const getManilaSerialParts = (date: Date) => {
     day: '2-digit',
   }).formatToParts(date);
 
-  const numericParts = new Intl.DateTimeFormat('en-US', {
-    timeZone: MANILA_TIMEZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date);
-
   const getPart = (parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes) => {
     return parts.find((part) => part.type === type)?.value ?? '';
   };
@@ -66,13 +59,14 @@ const getManilaSerialParts = (date: Date) => {
   const year = getPart(shortParts, 'year');
   const monthShort = getPart(shortParts, 'month').toUpperCase();
   const day = getPart(shortParts, 'day');
-  const monthNumeric = getPart(numericParts, 'month');
 
   return {
     datePart: `${year}${monthShort}${day}`,
-    monthKey: `${year}${monthNumeric}`,
+    monthSerialPrefix: `${year}${monthShort}`,
   };
 };
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const formatSubmittedDate = (dateIso: string) => {
   const date = new Date(dateIso);
@@ -297,44 +291,81 @@ export default async function handler(req: any, res: any) {
     }
 
     const now = new Date();
-    const { datePart, monthKey } = getManilaSerialParts(now);
-    const monthlySequenceResponse = await supabase.rpc('next_monthly_sequence', { month_key: monthKey });
-    const monthlySequenceNo = rpcToNumber(monthlySequenceResponse.data);
-
-    if (monthlySequenceResponse.error || monthlySequenceNo === null || isNaN(monthlySequenceNo)) {
-      return res.status(500).json({
-        ok: false,
-        error: 'Could not generate monthly purchase code sequence. Please try again.',
-      });
-    }
-
-    const serialNo = `DMERCH-${datePart}-${String(monthlySequenceNo).padStart(3, '0')}`;
-
-    const insertResponse = await supabase
+    const { datePart, monthSerialPrefix } = getManilaSerialParts(now);
+    const monthLookupPattern = `DMERCH-${monthSerialPrefix}%`;
+    const monthlySerialLookup = await supabase
       .from('verification_orders')
-      .insert({
-        sequence_no: sequenceNo,
-        serial_no: serialNo,
-        username,
-        email,
-        product_name: productName,
-        amount: totalAmount,
-        products_json: products.length > 0 ? products : [{ name: productName, amount: totalAmount }],
-        total_amount: totalAmount,
-        reference_no: referenceNo,
-        admin_email: adminEmail,
-        email_status: 'pending',
-      })
-      .select('id, created_at')
-      .single();
+      .select('serial_no')
+      .like('serial_no', monthLookupPattern);
 
-    if (insertResponse.error) {
-      return res.status(500).json({ ok: false, error: insertResponse.error.message });
+    if (monthlySerialLookup.error) {
+      return res.status(500).json({ ok: false, error: monthlySerialLookup.error.message });
     }
 
-    const createdAt = insertResponse.data.created_at;
-    const submittedOn = formatSubmittedDate(createdAt);
+    const monthlySerialRegex = new RegExp(`^DMERCH-${escapeRegex(monthSerialPrefix)}\\d{2}-(\\d+)$`);
+    let maxMonthlySuffix = 0;
+    for (const row of monthlySerialLookup.data ?? []) {
+      const serial = String(row.serial_no ?? '');
+      const match = serial.match(monthlySerialRegex);
+      if (!match) {
+        continue;
+      }
+
+      const numeric = Number(match[1]);
+      if (!Number.isNaN(numeric)) {
+        maxMonthlySuffix = Math.max(maxMonthlySuffix, numeric);
+      }
+    }
+
     const orderItems = products.length > 0 ? products : [{ name: productName, amount: totalAmount }];
+    const maxInsertAttempts = 6;
+    let serialNo = '';
+    let createdAt = '';
+    let insertedOrderId = '';
+
+    for (let attempt = 0; attempt < maxInsertAttempts; attempt += 1) {
+      const nextSuffix = maxMonthlySuffix + 1 + attempt;
+      const serialCandidate = `DMERCH-${datePart}-${String(nextSuffix).padStart(3, '0')}`;
+
+      const insertResponse = await supabase
+        .from('verification_orders')
+        .insert({
+          sequence_no: sequenceNo,
+          serial_no: serialCandidate,
+          username,
+          email,
+          product_name: productName,
+          amount: totalAmount,
+          products_json: orderItems,
+          total_amount: totalAmount,
+          reference_no: referenceNo,
+          admin_email: adminEmail,
+          email_status: 'pending',
+        })
+        .select('id, created_at')
+        .single();
+
+      if (!insertResponse.error) {
+        serialNo = serialCandidate;
+        createdAt = insertResponse.data.created_at;
+        insertedOrderId = insertResponse.data.id;
+        break;
+      }
+
+      const isSerialConflict = insertResponse.error.code === '23505'
+        && ((insertResponse.error.message ?? '').toLowerCase().includes('serial_no')
+          || (insertResponse.error.details ?? '').toLowerCase().includes('serial_no'));
+
+      if (!isSerialConflict) {
+        return res.status(500).json({ ok: false, error: insertResponse.error.message });
+      }
+    }
+
+    if (!serialNo || !createdAt || !insertedOrderId) {
+      return res.status(500).json({ ok: false, error: 'Could not generate monthly purchase code sequence. Please try again.' });
+    }
+
+    const submittedOn = formatSubmittedDate(createdAt);
     const subject = `DMerch Verification ${serialNo}`;
     const customerHtml = buildEmailHtml({
       username,
@@ -377,7 +408,7 @@ export default async function handler(req: any, res: any) {
     await supabase
       .from('verification_orders')
       .update({ email_status: emailStatus })
-      .eq('id', insertResponse.data.id);
+      .eq('id', insertedOrderId);
 
     res.setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin']);
     return res.status(200).json({
