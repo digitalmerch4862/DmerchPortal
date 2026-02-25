@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { type ComponentType, type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShieldCheck, ExternalLink, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch } from 'lucide-react';
 import gcashQr from './gcash-qr.png';
@@ -29,6 +29,96 @@ type VerificationApiResponse = {
   totalAmount?: number;
   error?: string;
 };
+
+function GlitchText({text, className = ''}: {text: string; className?: string}) {
+  return (
+    <div className={`relative inline-block ${className}`}>
+      <span className="relative z-10">{text}</span>
+      <span className="absolute top-0 left-0 -ml-0.5 text-cyan-400 opacity-70 animate-pulse select-none z-0" style={{clipPath: 'inset(45% 0 30% 0)'}}>{text}</span>
+      <span className="absolute top-0 left-0 ml-0.5 text-magenta-400 opacity-70 animate-pulse select-none z-0" style={{clipPath: 'inset(10% 0 60% 0)'}}>{text}</span>
+    </div>
+  );
+}
+
+function CyberCard({children, title, icon: Icon, color = 'cyan'}: {children: ReactNode; title: string; icon: ComponentType<{className?: string; size?: number}>; color?: 'cyan' | 'magenta'}) {
+  const isMagenta = color === 'magenta';
+  const borderColor = color === 'cyan' ? 'border-[#00f3ff]' : 'border-[#ff00ff]';
+  const shadowColor = color === 'cyan' ? 'shadow-[0_0_15px_rgba(0,243,255,0.3)]' : 'shadow-[0_0_15px_rgba(255,0,255,0.3)]';
+  const textColor = color === 'cyan' ? 'text-[#00f3ff]' : 'text-[#ff00ff]';
+
+  return (
+    <motion.div
+      initial={{opacity: 0, y: 20}}
+      animate={{opacity: 1, y: 0}}
+      className={`relative bg-black/80 p-6 mb-6 ${shadowColor} backdrop-blur-md overflow-hidden ${isMagenta ? 'cyber-magenta-card border border-magenta-500/40' : `border-l-4 ${borderColor}`}`}
+    >
+      <div className="absolute top-0 right-0 p-2 opacity-10">
+        <Icon size={80} />
+      </div>
+      <div className="flex items-center gap-3 mb-4">
+        <Icon className={textColor} size={24} />
+        <h2 className={`text-xl font-bold tracking-widest uppercase ${textColor}`}>
+          {title}
+        </h2>
+      </div>
+      <div className="relative z-10 text-gray-300">{children}</div>
+      <div className={`absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 ${borderColor} opacity-50`} />
+      <div className={`absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 ${borderColor} opacity-50`} />
+    </motion.div>
+  );
+}
+
+function MethodCard({method, id, compact = false, selectedMethod, onSelectMethod}: {method: 'gcash' | 'gotyme'; id: string; compact?: boolean; selectedMethod: 'gcash' | 'gotyme'; onSelectMethod: (method: 'gcash' | 'gotyme') => void}) {
+  const isActive = selectedMethod === method;
+  const isGcash = method === 'gcash';
+
+  return (
+    <motion.button
+      type="button"
+      whileHover={{scale: 1.05}}
+      whileTap={{scale: 0.95}}
+      onClick={() => onSelectMethod(method)}
+      className={`relative cursor-pointer transition-all duration-300 border-2 overflow-hidden ${compact ? 'w-36 h-36' : 'w-44 h-64'} ${
+        isActive
+          ? isGcash
+            ? 'border-blue-500 bg-blue-500/20 shadow-[0_0_40px_rgba(0,125,254,0.5)]'
+            : 'border-cyan-500 bg-cyan-500/20 shadow-[0_0_40px_rgba(0,229,255,0.5)]'
+          : 'border-white/10 bg-white/5 grayscale hover:grayscale-0 opacity-40 hover:opacity-100'
+      }`}
+    >
+      <div className={`absolute top-0 left-0 w-full h-full flex flex-col items-center justify-between ${compact ? 'p-4' : 'p-6'}`}>
+        <div className="w-full flex justify-between items-start">
+          <span className="text-[10px] font-mono opacity-50">ID: {id}</span>
+          <div className={`w-2 h-2 rounded-full ${isActive ? (isGcash ? 'bg-blue-400 animate-pulse' : 'bg-cyan-400 animate-pulse') : 'bg-gray-700'}`} />
+        </div>
+
+        <div className="relative flex flex-col items-center justify-center gap-3 w-full">
+          <div className={`absolute w-24 h-12 blur-2xl rounded-full ${isGcash ? 'bg-blue-500/50' : 'bg-cyan-400/50'}`} />
+          <img
+            src={isGcash ? '/gcash-logo.svg' : '/gotyme-logo.svg'}
+            alt={isGcash ? 'GCash official logo' : 'GoTyme official logo'}
+            className={`relative z-10 w-auto object-contain ${compact ? 'h-8' : 'h-10'}`}
+            loading="lazy"
+            referrerPolicy="no-referrer"
+          />
+          {!compact && (
+            <span className="font-black tracking-[0.2em] uppercase text-lg italic">{isGcash ? 'GCash' : 'GoTyme'}</span>
+          )}
+        </div>
+
+        <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+          <motion.div
+            initial={{width: 0}}
+            animate={{width: isActive ? '100%' : '30%'}}
+            className={`h-full ${isGcash ? 'bg-blue-500' : 'bg-cyan-400'}`}
+          />
+        </div>
+      </div>
+
+      {isActive && <motion.div className={`absolute inset-0 border-2 animate-pulse pointer-events-none ${isGcash ? 'border-blue-400' : 'border-cyan-400'}`} />}
+    </motion.button>
+  );
+}
 
 export default function App() {
   const [step, setStep] = useState<'payment' | 'form'>('payment');
@@ -227,103 +317,6 @@ export default function App() {
     }
   };
 
-  const GlitchText = ({ text, className = "" }: { text: string; className?: string }) => (
-    <div className={`relative inline-block ${className}`}>
-      <span className="relative z-10">{text}</span>
-      <span className="absolute top-0 left-0 -ml-0.5 text-cyan-400 opacity-70 animate-pulse select-none z-0" style={{ clipPath: 'inset(45% 0 30% 0)' }}>{text}</span>
-      <span className="absolute top-0 left-0 ml-0.5 text-magenta-400 opacity-70 animate-pulse select-none z-0" style={{ clipPath: 'inset(10% 0 60% 0)' }}>{text}</span>
-    </div>
-  );
-
-  const CyberCard = ({ children, title, icon: Icon, color = 'cyan' }: any) => {
-    const isMagenta = color === 'magenta';
-    const borderColor = color === 'cyan' ? 'border-[#00f3ff]' : 'border-[#ff00ff]';
-    const shadowColor = color === 'cyan' ? 'shadow-[0_0_15px_rgba(0,243,255,0.3)]' : 'shadow-[0_0_15px_rgba(255,0,255,0.3)]';
-    const textColor = color === 'cyan' ? 'text-[#00f3ff]' : 'text-[#ff00ff]';
-
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className={`relative bg-black/80 p-6 mb-6 ${shadowColor} backdrop-blur-md overflow-hidden ${isMagenta ? 'cyber-magenta-card border border-magenta-500/40' : `border-l-4 ${borderColor}`}`}
-      >
-        <div className="absolute top-0 right-0 p-2 opacity-10">
-          <Icon size={80} />
-        </div>
-        <div className="flex items-center gap-3 mb-4">
-          <Icon className={textColor} size={24} />
-          <h2 className={`text-xl font-bold tracking-widest uppercase ${textColor}`}>
-            {title}
-          </h2>
-        </div>
-        <div className="relative z-10 text-gray-300">
-          {children}
-        </div>
-        {/* Decorative elements */}
-        <div className={`absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 ${borderColor} opacity-50`} />
-        <div className={`absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 ${borderColor} opacity-50`} />
-      </motion.div>
-    );
-  };
-
-  const MethodCard = ({ method, id, compact = false }: { method: 'gcash' | 'gotyme'; id: string; compact?: boolean }) => {
-    const isActive = selectedMethod === method;
-    const isGcash = method === 'gcash';
-
-    return (
-      <motion.button
-        type="button"
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => setSelectedMethod(method)}
-        className={`relative cursor-pointer transition-all duration-300 border-2 overflow-hidden ${compact ? 'w-36 h-36' : 'w-44 h-64'} ${
-          isActive
-            ? isGcash
-              ? 'border-blue-500 bg-blue-500/20 shadow-[0_0_40px_rgba(0,125,254,0.5)]'
-              : 'border-cyan-500 bg-cyan-500/20 shadow-[0_0_40px_rgba(0,229,255,0.5)]'
-            : 'border-white/10 bg-white/5 grayscale hover:grayscale-0 opacity-40 hover:opacity-100'
-        }`}
-      >
-        <div className={`absolute top-0 left-0 w-full h-full flex flex-col items-center justify-between ${compact ? 'p-4' : 'p-6'}`}>
-          <div className="w-full flex justify-between items-start">
-            <span className="text-[10px] font-mono opacity-50">ID: {id}</span>
-            <div className={`w-2 h-2 rounded-full ${isActive ? (isGcash ? 'bg-blue-400 animate-pulse' : 'bg-cyan-400 animate-pulse') : 'bg-gray-700'}`} />
-          </div>
-
-          <div className="relative flex flex-col items-center justify-center gap-3 w-full">
-            <div className={`absolute w-24 h-12 blur-2xl rounded-full ${isGcash ? 'bg-blue-500/50' : 'bg-cyan-400/50'}`} />
-            <img
-              src={isGcash ? '/gcash-logo.svg' : '/gotyme-logo.svg'}
-              alt={isGcash ? 'GCash official logo' : 'GoTyme official logo'}
-              className={`relative z-10 w-auto object-contain ${compact ? 'h-8' : 'h-10'}`}
-              loading="lazy"
-              referrerPolicy="no-referrer"
-            />
-            {!compact && (
-              <span className="font-black tracking-[0.2em] uppercase text-lg italic">
-                {isGcash ? 'GCash' : 'GoTyme'}
-              </span>
-            )}
-          </div>
-
-          <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: isActive ? '100%' : '30%' }}
-              className={`h-full ${isGcash ? 'bg-blue-500' : 'bg-cyan-400'}`}
-            />
-          </div>
-        </div>
-
-        {isActive && (
-          <motion.div
-            className={`absolute inset-0 border-2 animate-pulse pointer-events-none ${isGcash ? 'border-blue-400' : 'border-cyan-400'}`}
-          />
-        )}
-      </motion.button>
-    );
-  };
-
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-cyan-500/30 overflow-x-hidden">
       {/* Background Grid & Effects */}
@@ -393,13 +386,13 @@ export default function App() {
               {/* Payment Layout */}
               <div className="mb-16 space-y-6">
                 <div className="flex justify-center gap-4 lg:hidden">
-                  <MethodCard method="gcash" id="001" compact />
-                  <MethodCard method="gotyme" id="002" compact />
+                  <MethodCard method="gcash" id="001" compact selectedMethod={selectedMethod} onSelectMethod={setSelectedMethod} />
+                  <MethodCard method="gotyme" id="002" compact selectedMethod={selectedMethod} onSelectMethod={setSelectedMethod} />
                 </div>
 
                 <div className="flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-12">
                   <div className="hidden lg:block">
-                    <MethodCard method="gcash" id="001" />
+                    <MethodCard method="gcash" id="001" selectedMethod={selectedMethod} onSelectMethod={setSelectedMethod} />
                   </div>
 
                   {/* Center: QR Terminal */}
@@ -464,7 +457,7 @@ export default function App() {
                   </div>
 
                   <div className="hidden lg:block">
-                    <MethodCard method="gotyme" id="002" />
+                    <MethodCard method="gotyme" id="002" selectedMethod={selectedMethod} onSelectMethod={setSelectedMethod} />
                   </div>
                 </div>
               </div>
