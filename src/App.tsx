@@ -668,7 +668,7 @@ export default function App() {
               Secure Transaction Protocol v2.4.0
             </p>
 
-            <div className="mx-auto mt-2 w-full max-w-xl rounded-lg border border-cyan-500/25 bg-black/35 px-3 py-2 text-left">
+            <div className="mx-auto mt-2 w-full max-w-xl rounded-lg bg-black/35 px-3 py-2 text-left">
               <div className="mb-1 flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">
                 <span>Live Availment Feed</span>
                 <span className="inline-flex items-center gap-1 text-cyan-200">
@@ -676,7 +676,7 @@ export default function App() {
                   Live
                 </span>
               </div>
-              <div className="min-h-[42px] overflow-hidden">
+              <div className="overflow-hidden">
                 <AnimatePresence mode="wait">
                   <motion.p
                     key={`${activeAvailment.buyer}-${liveAvailmentIndex}`}
@@ -684,7 +684,7 @@ export default function App() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.28 }}
-                    className="text-[11px] sm:text-xs text-cyan-100 leading-relaxed"
+                    className="truncate whitespace-nowrap text-[11px] sm:text-xs text-cyan-100 leading-relaxed"
                   >
                     <span className="font-mono uppercase tracking-[0.08em] text-cyan-300">{activeAvailment.timeLabel}</span>{' '}
                     <span className="font-semibold text-cyan-50">{activeAvailment.buyer}</span> from{' '}
