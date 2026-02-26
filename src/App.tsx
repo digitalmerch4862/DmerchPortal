@@ -706,7 +706,11 @@ export default function App() {
               <div className="absolute -top-1 -left-1 w-3 h-3 bg-cyan-500" />
               <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-cyan-500" />
               <h1 className="text-3xl sm:text-4xl md:text-6xl font-black tracking-tighter uppercase italic flex items-center justify-center gap-3">
-                <ShieldCheck size={48} className="text-cyan-400 drop-shadow-[0_0_8px_rgba(0,243,255,0.8)]" />
+                <img
+                  src="/android-chrome-512x512.png"
+                  alt="DMerch logo"
+                  className="h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14 object-contain drop-shadow-[0_0_10px_rgba(0,243,255,0.7)]"
+                />
                 <GlitchText text="DMERCH" />
               </h1>
             </div>
