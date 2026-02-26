@@ -1091,6 +1091,9 @@ export default function App() {
                     <div className="rounded-md border border-cyan-500/40 bg-cyan-500/10 px-4 py-4">
                       <p className="mb-2 text-xs font-mono uppercase tracking-[0.2em] text-cyan-300">Reference Code</p>
                       <p className="text-lg font-black tracking-wider text-white">{submitResult.serialNo}</p>
+                      <p className="mt-2 text-xs text-gray-300 leading-relaxed">
+                        Keep this reference code for your records. Check your Inbox or Spam folder for email confirmation.
+                      </p>
                       <p className="mt-2 text-xs text-gray-400">
                         Sequence: {submitResult.sequenceNo} | Total: PHP {submitResult.totalAmount ?? totalAmount} | Email status: {submitResult.customerEmailStatus ?? submitResult.emailStatus}
                       </p>
