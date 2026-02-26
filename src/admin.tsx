@@ -198,7 +198,7 @@ export default function Admin() {
 
   const pendingCount = useMemo(() => inboxItems.filter((item) => item.status === 'pending').length, [inboxItems]);
   const selectedCount = selectedProductIds.length;
-  const areAllFilteredSelected = filteredProducts.length > 0 && filteredProducts.every((item) => selectedProductIds.includes(item.id));
+  const areAllProductsSelected = products.length > 0 && products.every((item) => selectedProductIds.includes(item.id));
 
   const refreshInbox = async (tokenOverride?: string) => {
     const token = tokenOverride ?? accessToken;
@@ -302,15 +302,15 @@ export default function Admin() {
     setSelectedProductIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
   };
 
-  const toggleSelectAllFiltered = () => {
-    if (areAllFilteredSelected) {
-      setSelectedProductIds((current) => current.filter((id) => !filteredProducts.some((item) => item.id === id)));
+  const selectAllProducts = () => {
+    if (areAllProductsSelected) {
       return;
     }
+    setSelectedProductIds(products.map((item) => item.id));
+  };
 
-    const merged = new Set<string>(selectedProductIds);
-    filteredProducts.forEach((item) => merged.add(item.id));
-    setSelectedProductIds(Array.from(merged));
+  const clearSelectedProducts = () => {
+    setSelectedProductIds([]);
   };
 
   const applyMassAmount = () => {
@@ -467,7 +467,8 @@ export default function Admin() {
           </div>
 
           <div className="mb-3 flex flex-wrap gap-2 rounded-md border border-cyan-500/20 bg-black/25 p-2">
-            <button onClick={toggleSelectAllFiltered} className="cyber-btn cyber-btn-secondary">{areAllFilteredSelected ? 'Unselect Filtered' : 'Select Filtered'}</button>
+            <button onClick={selectAllProducts} className="cyber-btn cyber-btn-secondary">Select All</button>
+            <button onClick={clearSelectedProducts} className="cyber-btn cyber-btn-secondary">Remove Selected All</button>
             <span className="inline-flex items-center px-2 text-xs text-cyan-200">Selected: {selectedCount}</span>
             <input
               value={massAmount}
@@ -491,7 +492,7 @@ export default function Admin() {
             <table className="w-full min-w-[980px] border-collapse text-xs">
               <thead className="bg-cyan-500/10 text-cyan-200">
                 <tr>
-                  <th className="px-2 py-2 text-center">Select</th>
+                  <th className="px-2 py-2 text-center"></th>
                   <th className="px-2 py-2 text-left">File Name</th>
                   <th className="px-2 py-2 text-left">File Link</th>
                   <th className="px-2 py-2 text-left">OS</th>
