@@ -182,6 +182,9 @@ function MethodCard({method, id, compact = false, selectedMethod, onSelectMethod
 export default function App() {
   const [stage, setStage] = useState<FlowStage>(1);
   const [selectedMethod, setSelectedMethod] = useState<'gcash' | 'gotyme'>('gcash');
+  const [paymentPortalUsed, setPaymentPortalUsed] = useState<'gcash' | 'gotyme'>('gcash');
+  const [gcashNumberUsed, setGcashNumberUsed] = useState('');
+  const [gotymeAccountNameUsed, setGotymeAccountNameUsed] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [referenceNo, setReferenceNo] = useState('');
@@ -369,6 +372,9 @@ export default function App() {
     }
 
     setSubmitError('');
+    if (stage === 3) {
+      setPaymentPortalUsed(selectedMethod);
+    }
     setStage((current) => (current < 4 ? ((current + 1) as FlowStage) : current));
   };
 
@@ -557,6 +563,12 @@ export default function App() {
       return;
     }
 
+    const paymentDetailUsed = paymentPortalUsed === 'gcash' ? gcashNumberUsed.trim() : gotymeAccountNameUsed.trim();
+    if (!paymentDetailUsed) {
+      setSubmitError(paymentPortalUsed === 'gcash' ? 'Enter the GCash number used for payment.' : 'Enter the GoTyme account name used for payment.');
+      return;
+    }
+
     const normalizedReferenceNo = referenceNo.replace(/\D/g, '').slice(-6);
     if (normalizedReferenceNo.length !== 6) {
       setSubmitError('Please enter the last 6 digits for reference no (sample: 123456).');
@@ -581,6 +593,8 @@ export default function App() {
           products: selectedProducts,
           totalAmount,
           referenceNo: normalizedReferenceNo,
+          paymentPortalUsed,
+          paymentDetailUsed,
         }),
       });
 
@@ -600,6 +614,9 @@ export default function App() {
       setUsername('');
       setEmail('');
       setReferenceNo('');
+      setPaymentPortalUsed(selectedMethod);
+      setGcashNumberUsed('');
+      setGotymeAccountNameUsed('');
       setProductQuery('');
       setSelectedProductName('');
       setSelectedProducts([]);
@@ -1043,7 +1060,6 @@ export default function App() {
                   </div>
 
                   <div className="mt-3 flex flex-col gap-2 rounded-md border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-xs font-mono uppercase tracking-[0.15em] text-cyan-200">Portal: {selectedMethod === 'gcash' ? 'GCash' : 'GoTyme'}</p>
                     <p className="text-xs font-mono uppercase tracking-[0.15em] text-cyan-100">Total: PHP {submitResult?.totalAmount ?? totalAmount}</p>
                   </div>
                 </div>
@@ -1055,6 +1071,46 @@ export default function App() {
                     <div className="mb-3 flex items-center gap-2 text-[#ffb257]">
                       <PackageSearch size={15} />
                       <span className="text-[11px] font-mono uppercase tracking-[0.25em]">Verification Summary</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Payment Portal Used</span>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setPaymentPortalUsed('gcash')}
+                            className={`rounded-md border px-3 py-2 text-xs font-mono uppercase tracking-[0.16em] ${paymentPortalUsed === 'gcash' ? 'border-[#ffb257] bg-[#ff8a00]/20 text-[#ffd2a1]' : 'border-[#ff8a00]/40 text-[#ffbd75]'}`}
+                          >
+                            GCash
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPaymentPortalUsed('gotyme')}
+                            className={`rounded-md border px-3 py-2 text-xs font-mono uppercase tracking-[0.16em] ${paymentPortalUsed === 'gotyme' ? 'border-[#ffb257] bg-[#ff8a00]/20 text-[#ffd2a1]' : 'border-[#ff8a00]/40 text-[#ffbd75]'}`}
+                          >
+                            GoTyme
+                          </button>
+                        </div>
+                      </div>
+
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">
+                          {paymentPortalUsed === 'gcash' ? 'GCash Number Used' : 'GoTyme Account Name Used'}
+                        </span>
+                        <input
+                          value={paymentPortalUsed === 'gcash' ? gcashNumberUsed : gotymeAccountNameUsed}
+                          onChange={(event) => {
+                            if (paymentPortalUsed === 'gcash') {
+                              setGcashNumberUsed(event.target.value);
+                              return;
+                            }
+                            setGotymeAccountNameUsed(event.target.value);
+                          }}
+                          required
+                          className="w-full rounded-md border border-[#ff8a00]/50 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-[#ffb257] focus:shadow-[0_0_18px_rgba(255,138,0,0.24)]"
+                          placeholder={paymentPortalUsed === 'gcash' ? 'e.g. 09XXXXXXXXX' : 'e.g. JUAN DELA CRUZ'}
+                        />
+                      </label>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <label className="block">
@@ -1121,6 +1177,10 @@ export default function App() {
                       {submitNotice}
                     </div>
                   ) : null}
+
+                  <div className="rounded-md border border-red-500/55 bg-red-500/15 px-4 py-3 text-sm font-black uppercase tracking-[0.12em] text-red-200 shadow-[0_0_18px_rgba(239,68,68,0.35)]">
+                    WARNING!!! SUBMITTING FAKE PAYMENT DETAILS WILL LEAD TO PERMANENT ACCOUNT BAN.
+                  </div>
 
                   <div className="flex flex-col sm:flex-row gap-3 justify-between">
                     <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">

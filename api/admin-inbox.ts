@@ -52,7 +52,7 @@ export default async function handler(req: any, res: any) {
 
     const lookup = await supabase
       .from('verification_orders')
-      .select('serial_no, username, email, created_at, products_json, email_status')
+      .select('serial_no, username, email, created_at, products_json, email_status, payment_portal_used, payment_detail_used')
       .order('created_at', { ascending: false })
       .limit(120);
 
@@ -70,6 +70,8 @@ export default async function handler(req: any, res: any) {
         submittedAt: row.created_at,
         products: products.map((item: any) => String(item?.name ?? '')).filter(Boolean),
         status: getReviewStatus(String(row.email_status ?? '')),
+        paymentPortalUsed: row.payment_portal_used,
+        paymentDetailUsed: row.payment_detail_used,
         totalDownloads,
       };
     });

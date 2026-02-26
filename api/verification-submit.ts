@@ -371,6 +371,9 @@ export default async function handler(req: any, res: any) {
       .filter((item) => item.name && !Number.isNaN(item.amount) && item.amount > 0);
     const productName = products[0]?.name ?? String(payload.productName ?? '').trim();
     const referenceNo = String(payload.referenceNo ?? '').replace(/\D/g, '').slice(-6);
+    const paymentPortalUsedRaw = String(payload.paymentPortalUsed ?? '').trim().toLowerCase();
+    const paymentPortalUsed = paymentPortalUsedRaw === 'gotyme' ? 'gotyme' : paymentPortalUsedRaw === 'gcash' ? 'gcash' : '';
+    const paymentDetailUsed = String(payload.paymentDetailUsed ?? '').trim();
     const totalAmount = Number(payload.totalAmount ?? 0) || products.reduce((sum, item) => sum + item.amount, 0);
 
     if (!username || !email || !productName || !totalAmount) {
@@ -379,6 +382,14 @@ export default async function handler(req: any, res: any) {
 
     if (referenceNo.length !== 6) {
       return res.status(400).json({ ok: false, error: 'Please enter the last 6 digits for reference no (sample: 123456).' });
+    }
+
+    if (!paymentPortalUsed) {
+      return res.status(400).json({ ok: false, error: 'Payment portal used is required (GCash or GoTyme).' });
+    }
+
+    if (!paymentDetailUsed) {
+      return res.status(400).json({ ok: false, error: paymentPortalUsed === 'gcash' ? 'GCash number used is required.' : 'GoTyme account name used is required.' });
     }
 
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -495,6 +506,8 @@ export default async function handler(req: any, res: any) {
           products_json: orderItems,
           total_amount: totalAmount,
           reference_no: referenceNo,
+          payment_portal_used: paymentPortalUsed,
+          payment_detail_used: paymentDetailUsed,
           admin_email: adminEmail,
           email_status: 'pending',
         })

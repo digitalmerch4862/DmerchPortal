@@ -20,6 +20,8 @@ type InboxItem = {
   products: string[];
   status: 'pending' | 'approved' | 'rejected';
   deliveryLink: string;
+  paymentPortalUsed?: string;
+  paymentDetailUsed?: string;
   totalDownloads?: number;
 };
 
@@ -515,6 +517,8 @@ export default function Admin() {
                     <p className="text-sm font-semibold text-cyan-100">{item.referenceCode}</p>
                     <p className="text-xs text-cyan-200">{item.buyerName} ({item.buyerEmail})</p>
                     <p className="mt-1 text-xs text-gray-300">Products: {item.products.join(' | ')}</p>
+                    <p className="mt-1 text-xs text-cyan-300">Paid via: {item.paymentPortalUsed ? String(item.paymentPortalUsed).toUpperCase() : 'N/A'}</p>
+                    <p className="mt-1 text-xs text-cyan-300">Payment detail used: {item.paymentDetailUsed || 'N/A'}</p>
                   </div>
                   <span className={`rounded-full border px-2 py-1 text-[10px] font-mono uppercase ${item.status === 'pending' ? 'border-amber-400/40 text-amber-200' : item.status === 'approved' ? 'border-emerald-400/40 text-emerald-200' : 'border-red-400/40 text-red-200'}`}>
                     {item.status}
