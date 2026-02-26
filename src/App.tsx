@@ -8,7 +8,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft } from 'lucide-react';
 import gcashQr from './gcash-qr.png';
 import gotymeQr from './gotyme-qr.png';
-import { findProductByName, productCatalog, type ProductItem } from './data/products';
+import { productCatalog, type ProductItem } from './data/products';
+
+const ADMIN_PRODUCTS_KEY = 'dmerch_admin_products_v1';
 
 // Cyberpunk Theme Constants
 const COLORS = {
@@ -190,6 +192,7 @@ export default function App() {
   const [productQuery, setProductQuery] = useState('');
   const [selectedProductName, setSelectedProductName] = useState('');
   const [selectedProducts, setSelectedProducts] = useState<ProductItem[]>([]);
+  const [availableProducts, setAvailableProducts] = useState<ProductItem[]>(productCatalog);
   const [isProductMenuOpen, setIsProductMenuOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitProgress, setSubmitProgress] = useState(0);
@@ -207,6 +210,49 @@ export default function App() {
   const selectedQrSrc = selectedMethod === 'gcash' ? gcashQr : gotymeQr;
   const selectedQrFilename = selectedMethod === 'gcash' ? 'dmerch-gcash-qr.png' : 'dmerch-gotyme-qr.png';
   const activeAvailment = FAKE_AVAILMENTS[liveAvailmentIndex % FAKE_AVAILMENTS.length];
+
+  useEffect(() => {
+    const parseAdminProducts = (raw: string | null): ProductItem[] => {
+      if (raw === null) {
+        return productCatalog;
+      }
+
+      try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) {
+          return productCatalog;
+        }
+
+        return parsed
+          .map((item) => ({
+            name: String((item as any)?.name ?? '').trim(),
+            amount: Number((item as any)?.amount ?? 0),
+          }))
+          .filter((item) => item.name && Number.isFinite(item.amount) && item.amount > 0);
+      } catch {
+        return productCatalog;
+      }
+    };
+
+    const loadAvailableProducts = () => {
+      const next = parseAdminProducts(window.localStorage.getItem(ADMIN_PRODUCTS_KEY));
+      setAvailableProducts(next);
+    };
+
+    loadAvailableProducts();
+
+    const handleStorageSync = (event: StorageEvent) => {
+      if (event.key !== ADMIN_PRODUCTS_KEY) {
+        return;
+      }
+      setAvailableProducts(parseAdminProducts(event.newValue));
+    };
+
+    window.addEventListener('storage', handleStorageSync);
+    return () => {
+      window.removeEventListener('storage', handleStorageSync);
+    };
+  }, []);
 
   const playTapSfx = useCallback((strength: 'soft' | 'strong' = 'soft') => {
     if (typeof window === 'undefined') {
@@ -304,19 +350,19 @@ export default function App() {
       return null;
     }
 
-    return findProductByName(selectedProductName);
-  }, [selectedProductName]);
+    return availableProducts.find((item) => item.name === selectedProductName) ?? null;
+  }, [availableProducts, selectedProductName]);
 
   const filteredProducts = useMemo(() => {
     const query = productQuery.trim().toLowerCase();
     if (!query) {
-      return productCatalog.slice(0, 50);
+      return availableProducts.slice(0, 50);
     }
 
-    return productCatalog
+    return availableProducts
       .filter((item) => item.name.toLowerCase().includes(query))
       .slice(0, 75);
-  }, [productQuery]);
+  }, [availableProducts, productQuery]);
 
   const totalAmount = useMemo(() => {
     return selectedProducts.reduce((sum, item) => sum + item.amount, 0);
@@ -400,8 +446,8 @@ export default function App() {
     }
 
     const normalizedIncoming = decodeURIComponent(incomingProduct).trim().toLowerCase();
-    const exactMatch = productCatalog.find((item) => item.name.toLowerCase() === normalizedIncoming);
-    const fuzzyMatch = productCatalog.find((item) => item.name.toLowerCase().includes(normalizedIncoming));
+    const exactMatch = availableProducts.find((item) => item.name.toLowerCase() === normalizedIncoming);
+    const fuzzyMatch = availableProducts.find((item) => item.name.toLowerCase().includes(normalizedIncoming));
     const resolved = exactMatch ?? fuzzyMatch;
     if (!resolved) {
       return;
@@ -410,7 +456,7 @@ export default function App() {
     setSelectedProductName(resolved.name);
     setProductQuery(resolved.name);
     setSelectedProducts([resolved]);
-  }, []);
+  }, [availableProducts]);
 
   useEffect(() => {
     if (!isSubmitting) {

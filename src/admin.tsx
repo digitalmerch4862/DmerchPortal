@@ -175,9 +175,6 @@ export default function Admin() {
   }, []);
 
   useEffect(() => {
-    if (products.length === 0) {
-      return;
-    }
     window.localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
   }, [products]);
 
