@@ -231,18 +231,22 @@ export default function App() {
       const oscillator = context.createOscillator();
       const gain = context.createGain();
 
-      oscillator.type = 'square';
-      oscillator.frequency.setValueAtTime(strength === 'strong' ? 220 : 170, now);
-      oscillator.frequency.exponentialRampToValueAtTime(strength === 'strong' ? 95 : 75, now + 0.08);
+      oscillator.type = 'sawtooth';
+      const startFrequency = strength === 'strong' ? 1880 : 1420;
+      const endFrequency = strength === 'strong' ? 180 : 130;
+      const duration = strength === 'strong' ? 0.14 : 0.11;
+
+      oscillator.frequency.setValueAtTime(startFrequency, now);
+      oscillator.frequency.exponentialRampToValueAtTime(endFrequency, now + duration);
 
       gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(strength === 'strong' ? 0.06 : 0.035, now + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
+      gain.gain.exponentialRampToValueAtTime(strength === 'strong' ? 0.045 : 0.03, now + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
 
       oscillator.connect(gain);
       gain.connect(context.destination);
       oscillator.start(now);
-      oscillator.stop(now + 0.095);
+      oscillator.stop(now + duration + 0.01);
     } catch {
       // SFX should fail silently in unsupported browsers
     }
