@@ -935,37 +935,67 @@ export default function App() {
               className="w-full"
             >
               <CyberCard title="Confirmation & Verification" icon={ShieldCheck} color="magenta">
-                <div className="mb-4 rounded-xl border border-cyan-500/40 bg-[#031018]/80 p-4 shadow-[0_0_30px_rgba(0,195,255,0.1)] overflow-x-auto">
-                  <table className="w-full min-w-[720px] border-collapse text-xs sm:text-sm font-mono uppercase tracking-[0.12em] text-cyan-100">
-                    <thead>
-                      <tr className="border-b border-cyan-500/30 text-cyan-300">
-                        <th className="py-2 px-2 text-center font-semibold">Product</th>
-                        <th className="py-2 px-2 text-center font-semibold">Category</th>
-                        <th className="py-2 px-2 text-center font-semibold">Amount</th>
-                        <th className="py-2 px-2 text-center font-semibold">Suggested Upsell</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {orderSummaryItems.length > 0 ? (
-                        orderSummaryItems.map((item) => (
-                          <tr key={`${item.name}-${item.amount}`} className="border-b border-cyan-500/15">
-                            <td className="py-2 px-2 text-left">{item.name}</td>
-                            <td className="py-2 px-2 text-left">{item.category}</td>
-                            <td className="py-2 px-2 text-right">PHP {item.amount}</td>
-                            <td className="py-2 px-2 text-left text-cyan-200">{item.upsell}</td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr className="border-b border-cyan-500/15">
-                          <td className="py-3 px-2 text-center text-gray-500" colSpan={4}>No products to review yet</td>
+                <div className="mb-4 rounded-xl border border-cyan-500/40 bg-[#031018]/80 p-4 shadow-[0_0_30px_rgba(0,195,255,0.1)]">
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full min-w-[660px] border-collapse text-xs sm:text-sm font-mono uppercase tracking-[0.12em] text-cyan-100">
+                      <thead>
+                        <tr className="border-b border-cyan-500/30 text-cyan-300">
+                          <th className="py-2 px-2 text-center font-semibold">Product</th>
+                          <th className="py-2 px-2 text-center font-semibold">Category</th>
+                          <th className="py-2 px-2 text-center font-semibold">Amount</th>
+                          <th className="py-2 px-2 text-center font-semibold">Suggested Upsell</th>
                         </tr>
-                      )}
-                      <tr>
-                        <td className="pt-3 px-2 text-left text-cyan-200" colSpan={2}>Portal: {selectedMethod === 'gcash' ? 'GCash' : 'GoTyme'}</td>
-                        <td className="pt-3 px-2 text-right font-semibold" colSpan={2}>Total: PHP {submitResult?.totalAmount ?? totalAmount}</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {orderSummaryItems.length > 0 ? (
+                          orderSummaryItems.map((item) => (
+                            <tr key={`${item.name}-${item.amount}`} className="border-b border-cyan-500/15">
+                              <td className="py-2 px-2 text-left normal-case tracking-normal break-words">{item.name}</td>
+                              <td className="py-2 px-2 text-left normal-case tracking-normal">{item.category}</td>
+                              <td className="py-2 px-2 text-right">PHP {item.amount}</td>
+                              <td className="py-2 px-2 text-left normal-case tracking-normal text-cyan-200 break-words">{item.upsell}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr className="border-b border-cyan-500/15">
+                            <td className="py-3 px-2 text-center text-gray-500" colSpan={4}>No products to review yet</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="space-y-2 md:hidden">
+                    {orderSummaryItems.length > 0 ? (
+                      orderSummaryItems.map((item) => (
+                        <div key={`${item.name}-${item.amount}`} className="rounded-md border border-cyan-500/25 bg-black/35 px-3 py-3">
+                          <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">Product</p>
+                          <p className="mt-1 text-sm text-cyan-100 normal-case tracking-normal break-words">{item.name}</p>
+                          <div className="mt-2 grid grid-cols-1 gap-2">
+                            <div>
+                              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">Category</p>
+                              <p className="text-xs text-cyan-100 normal-case tracking-normal">{item.category}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">Amount</p>
+                              <p className="text-xs text-cyan-100">PHP {item.amount}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">Suggested Upsell</p>
+                              <p className="text-xs text-cyan-200 normal-case tracking-normal break-words">{item.upsell}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rounded-md border border-cyan-500/25 bg-black/35 px-3 py-3 text-center text-xs text-gray-500">No products to review yet</div>
+                    )}
+                  </div>
+
+                  <div className="mt-3 flex flex-col gap-2 rounded-md border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs font-mono uppercase tracking-[0.15em] text-cyan-200">Portal: {selectedMethod === 'gcash' ? 'GCash' : 'GoTyme'}</p>
+                    <p className="text-xs font-mono uppercase tracking-[0.15em] text-cyan-100">Total: PHP {submitResult?.totalAmount ?? totalAmount}</p>
+                  </div>
                 </div>
 
                 <form onSubmit={handleSubmitVerification} className="space-y-6">
