@@ -593,7 +593,7 @@ export default function App() {
       if (payload.customerEmailDelivered === false) {
         setSubmitNotice(`Reference code generated, but customer email failed to send (${payload.customerEmailStatus ?? 'delivery issue'}). Please recheck email settings.`);
       } else {
-        setSubmitNotice('You will receive an email proof of purchase. We will send your purchased product link immediately after review.');
+        setSubmitNotice('');
       }
       setLastSubmittedProducts(selectedProducts);
       setUsername('');
@@ -1090,9 +1090,6 @@ export default function App() {
                     <div className="rounded-md border border-cyan-500/40 bg-cyan-500/10 px-4 py-4">
                       <p className="mb-2 text-xs font-mono uppercase tracking-[0.2em] text-cyan-300">Reference Code</p>
                       <p className="text-lg font-black tracking-wider text-white">{submitResult.serialNo}</p>
-                      <p className="mt-2 text-xs text-gray-300 leading-relaxed">
-                        You will receive an email proof of purchase. We will send your purchased product link immediately after review.
-                      </p>
                       <p className="mt-2 text-xs text-gray-400">
                         Sequence: {submitResult.sequenceNo} | Total: PHP {submitResult.totalAmount ?? totalAmount} | Email status: {submitResult.customerEmailStatus ?? submitResult.emailStatus}
                       </p>
