@@ -3,7 +3,7 @@ import { Resend } from 'resend';
 import {
   buildEmailHtml,
   sendEmailWithStatus,
-} from './email-service';
+} from './_lib/email-service';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
