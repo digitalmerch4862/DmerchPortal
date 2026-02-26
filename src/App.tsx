@@ -333,6 +333,7 @@ export default function App() {
 
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const isEmailValid = emailPattern.test(email.trim());
+  const isAdminAccessTrigger = username.trim().toUpperCase() === 'RAD' && email.trim().toUpperCase() === 'DMERCHPAYMENTPORTAL';
 
   const canProceedFrom = (fromStage: FlowStage) => {
     if (fromStage === 1) {
@@ -861,6 +862,21 @@ export default function App() {
                     Next: Payment Portal <ArrowRight size={15} />
                   </motion.button>
                 </div>
+
+                {isAdminAccessTrigger ? (
+                  <div className="mt-3 rounded-md border border-amber-400/35 bg-amber-500/10 px-4 py-3">
+                    <p className="text-[11px] font-mono uppercase tracking-[0.18em] text-amber-200">Admin Access Detected</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.location.href = '/admin';
+                      }}
+                      className="mt-2 cyber-btn cyber-btn-secondary"
+                    >
+                      Open Admin Portal
+                    </button>
+                  </div>
+                ) : null}
               </CyberCard>
             </motion.div>
           ) : stage === 3 ? (
