@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, CheckCircle2, Inbox, PackageSearch, ShieldAlert, Trash2, Upload } from 'lucide-react';
+import { ArrowLeft, BarChart3, CheckCircle2, Inbox, PackageSearch, ShieldAlert, Trash2, Upload, UsersRound } from 'lucide-react';
 import { productCatalog } from './data/products';
 import { getSupabaseBrowserClient } from './lib/supabase-browser';
 
@@ -50,29 +50,6 @@ const toSeedProducts = () => {
   }));
 };
 
-const toSeedInbox = (): InboxItem[] => [
-  {
-    id: 'DMERCH-2026FEB26-011',
-    buyerName: 'John R.',
-    buyerEmail: 'johnr@example.com',
-    referenceCode: 'DMERCH-2026FEB26-011',
-    submittedAt: new Date().toISOString(),
-    products: ['Adobe Premiere Pro 2025 v25.0 (x64) for Windows(OS)'],
-    status: 'pending',
-    deliveryLink: '',
-  },
-  {
-    id: 'DMERCH-2026FEB26-012',
-    buyerName: 'Mia T.',
-    buyerEmail: 'miat@example.com',
-    referenceCode: 'DMERCH-2026FEB26-012',
-    submittedAt: new Date(Date.now() - 1000 * 60 * 9).toISOString(),
-    products: ['CANVA PREMIUM LIFE TIME'],
-    status: 'pending',
-    deliveryLink: '',
-  },
-];
-
 const parseBulkRows = (raw: string): AdminProduct[] => {
   const rows = raw
     .split(/\r?\n/)
@@ -109,6 +86,93 @@ const parseBulkRows = (raw: string): AdminProduct[] => {
 
 type InboxApiItem = Omit<InboxItem, 'id' | 'deliveryLink'>;
 
+type CrmItem = {
+  id: string;
+  referenceCode: string;
+  buyerName: string;
+  buyerEmail: string;
+  submittedAt: string;
+  products: string[];
+  totalAmount: number;
+  status: 'pending' | 'approved' | 'rejected';
+};
+
+type CrmApiItem = Omit<CrmItem, 'id'>;
+
+type AdminTab = 'analytics' | 'approvals' | 'products' | 'crm';
+
+const toPhp = (amount: number) =>
+  new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(amount) ? amount : 0);
+
+const startOfWeek = (date: Date) => {
+  const clone = new Date(date);
+  const day = clone.getDay();
+  const diffToMonday = (day + 6) % 7;
+  clone.setDate(clone.getDate() - diffToMonday);
+  clone.setHours(0, 0, 0, 0);
+  return clone;
+};
+
+const startOfMonth = (date: Date) => {
+  const clone = new Date(date);
+  clone.setDate(1);
+  clone.setHours(0, 0, 0, 0);
+  return clone;
+};
+
+const startOfQuarter = (date: Date) => {
+  const clone = new Date(date);
+  const quarterStartMonth = Math.floor(clone.getMonth() / 3) * 3;
+  clone.setMonth(quarterStartMonth, 1);
+  clone.setHours(0, 0, 0, 0);
+  return clone;
+};
+
+const startOfYear = (date: Date) => {
+  const clone = new Date(date);
+  clone.setMonth(0, 1);
+  clone.setHours(0, 0, 0, 0);
+  return clone;
+};
+
+const subtractDays = (date: Date, days: number) => {
+  const clone = new Date(date);
+  clone.setDate(clone.getDate() - days);
+  return clone;
+};
+
+const subtractMonths = (date: Date, months: number) => {
+  const clone = new Date(date);
+  clone.setMonth(clone.getMonth() - months);
+  return clone;
+};
+
+const subtractYears = (date: Date, years: number) => {
+  const clone = new Date(date);
+  clone.setFullYear(clone.getFullYear() - years);
+  return clone;
+};
+
+const toReadableDate = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'N/A';
+  }
+  return date.toLocaleString('en-PH', {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
 export default function Admin() {
   const [loginEmail, setLoginEmail] = useState('rad4862@gmail.com');
   const [loginPassword, setLoginPassword] = useState('');
@@ -119,12 +183,17 @@ export default function Admin() {
 
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
+  const [crmItems, setCrmItems] = useState<CrmItem[]>([]);
   const [bulkData, setBulkData] = useState('');
   const [search, setSearch] = useState('');
+  const [crmSearch, setCrmSearch] = useState('');
+  const [crmStatusFilter, setCrmStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [massAmount, setMassAmount] = useState('');
   const [massOs, setMassOs] = useState('');
   const [inboxLoading, setInboxLoading] = useState(false);
+  const [crmLoading, setCrmLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<AdminTab>('analytics');
 
   useEffect(() => {
     const storedProducts = window.localStorage.getItem(PRODUCTS_KEY);
@@ -141,9 +210,8 @@ export default function Admin() {
     if (storedInbox) {
       setInboxItems(JSON.parse(storedInbox) as InboxItem[]);
     } else {
-      const seeded = toSeedInbox();
-      setInboxItems(seeded);
-      window.localStorage.setItem(INBOX_KEY, JSON.stringify(seeded));
+      setInboxItems([]);
+      window.localStorage.setItem(INBOX_KEY, JSON.stringify([]));
     }
 
     const supabase = getSupabaseBrowserClient();
@@ -190,7 +258,6 @@ export default function Admin() {
     return products.filter((item) => item.name.toLowerCase().includes(query));
   }, [products, search]);
 
-  const pendingCount = useMemo(() => inboxItems.filter((item) => item.status === 'pending').length, [inboxItems]);
   const selectedCount = selectedProductIds.length;
   const areAllProductsSelected = products.length > 0 && products.every((item) => selectedProductIds.includes(item.id));
 
@@ -227,11 +294,39 @@ export default function Admin() {
     }
   };
 
+  const refreshCrm = async (tokenOverride?: string) => {
+    const token = tokenOverride ?? accessToken;
+    if (!token) {
+      return;
+    }
+
+    setCrmLoading(true);
+    try {
+      const response = await fetch('/api/admin-crm', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const payload = (await response.json()) as { ok: boolean; rows?: CrmApiItem[]; error?: string };
+      if (!response.ok || !payload.ok || !payload.rows) {
+        throw new Error(payload.error ?? 'Could not load CRM records');
+      }
+
+      setCrmItems(payload.rows.map((item) => ({ ...item, id: item.referenceCode })));
+      setLoginError('');
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : 'Could not load CRM records');
+    } finally {
+      setCrmLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!unlocked || !accessToken) {
       return;
     }
     void refreshInbox(accessToken);
+    void refreshCrm(accessToken);
   }, [unlocked, accessToken]);
 
   const handleLogin = async () => {
@@ -254,7 +349,7 @@ export default function Admin() {
 
     setAccessToken(data.session.access_token);
     setUnlocked(true);
-    await refreshInbox(data.session.access_token);
+    await Promise.all([refreshInbox(data.session.access_token), refreshCrm(data.session.access_token)]);
   };
 
   const updateProduct = (id: string, patch: Partial<AdminProduct>) => {
@@ -362,7 +457,9 @@ export default function Admin() {
       throw new Error(payload.error ?? 'Review action failed');
     }
 
-    setInboxItems((current) => current.map((row) => (row.id === item.id ? { ...row, status: action === 'approve' ? 'approved' : 'rejected' } : row)));
+    const nextStatus = action === 'approve' ? 'approved' : 'rejected';
+    setInboxItems((current) => current.map((row) => (row.id === item.id ? { ...row, status: nextStatus } : row)));
+    setCrmItems((current) => current.map((row) => (row.referenceCode === item.referenceCode ? { ...row, status: nextStatus } : row)));
   };
 
   const clearInbox = async () => {
@@ -392,13 +489,118 @@ export default function Admin() {
 
       setInboxItems([]);
       setLoginError('');
-      await refreshInbox();
+      await Promise.all([refreshInbox(), refreshCrm()]);
     } catch (error) {
       setLoginError(error instanceof Error ? error.message : 'Failed to clear inbox');
     } finally {
       setInboxLoading(false);
     }
   };
+
+  const filteredCrmItems = useMemo(() => {
+    const query = crmSearch.trim().toLowerCase();
+    return crmItems.filter((item) => {
+      if (crmStatusFilter !== 'all' && item.status !== crmStatusFilter) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      const productText = item.products.join(' | ').toLowerCase();
+      return (
+        item.buyerName.toLowerCase().includes(query)
+        || item.buyerEmail.toLowerCase().includes(query)
+        || productText.includes(query)
+        || item.referenceCode.toLowerCase().includes(query)
+      );
+    });
+  }, [crmItems, crmSearch, crmStatusFilter]);
+
+  const totalApprovedSales = useMemo(
+    () => crmItems.filter((item) => item.status === 'approved').reduce((sum, item) => sum + item.totalAmount, 0),
+    [crmItems],
+  );
+
+  const analyticsCards = useMemo(() => {
+    const now = new Date();
+    const approvedItems = crmItems.filter((item) => item.status === 'approved');
+
+    const sumRange = (start: Date, end: Date) => {
+      const startMs = start.getTime();
+      const endMs = end.getTime();
+      return approvedItems.reduce((sum, item) => {
+        const timestamp = new Date(item.submittedAt).getTime();
+        if (Number.isNaN(timestamp)) {
+          return sum;
+        }
+        return timestamp >= startMs && timestamp < endMs ? sum + item.totalAmount : sum;
+      }, 0);
+    };
+
+    const weekStart = startOfWeek(now);
+    const monthStart = startOfMonth(now);
+    const quarterStart = startOfQuarter(now);
+    const yearStart = startOfYear(now);
+
+    const periods = [
+      {
+        key: 'week',
+        title: 'This Week',
+        currentStart: weekStart,
+        currentEnd: now,
+        previousStart: subtractDays(weekStart, 7),
+        previousEnd: weekStart,
+      },
+      {
+        key: 'month',
+        title: 'This Month',
+        currentStart: monthStart,
+        currentEnd: now,
+        previousStart: startOfMonth(subtractMonths(monthStart, 1)),
+        previousEnd: monthStart,
+      },
+      {
+        key: 'quarter',
+        title: 'This Quarter',
+        currentStart: quarterStart,
+        currentEnd: now,
+        previousStart: startOfQuarter(subtractMonths(quarterStart, 3)),
+        previousEnd: quarterStart,
+      },
+      {
+        key: 'year',
+        title: 'This Year',
+        currentStart: yearStart,
+        currentEnd: now,
+        previousStart: startOfYear(subtractYears(yearStart, 1)),
+        previousEnd: yearStart,
+      },
+    ] as const;
+
+    return periods.map((period) => {
+      const currentSales = sumRange(period.currentStart, period.currentEnd);
+      const previousSales = sumRange(period.previousStart, period.previousEnd);
+      const delta = currentSales - previousSales;
+      const percentChange = previousSales > 0 ? (delta / previousSales) * 100 : null;
+
+      const evaluation = percentChange === null
+        ? (currentSales > 0 ? 'Excellent' : 'Needs Attention')
+        : percentChange >= 15
+          ? 'Excellent'
+          : percentChange >= 0
+            ? 'Good'
+            : 'Needs Attention';
+
+      return {
+        ...period,
+        currentSales,
+        previousSales,
+        delta,
+        percentChange,
+        evaluation,
+      };
+    });
+  }, [crmItems]);
 
   const handleLogout = async () => {
     const supabase = getSupabaseBrowserClient();
@@ -408,6 +610,13 @@ export default function Admin() {
     setAccessToken('');
     setUnlocked(false);
   };
+
+  const tabItems: Array<{ key: AdminTab; label: string; icon: typeof BarChart3 }> = [
+    { key: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { key: 'approvals', label: 'Approvals', icon: Inbox },
+    { key: 'products', label: 'Products', icon: PackageSearch },
+    { key: 'crm', label: 'CRM', icon: UsersRound },
+  ];
 
   if (authChecking) {
     return (
@@ -457,7 +666,7 @@ export default function Admin() {
             <div>
               <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">DMerch Control</p>
               <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-[0.1em] text-cyan-100">Admin Portal</h1>
-              <p className="mt-1 text-xs text-cyan-100/80">Manage deployed products, links, and buyer approvals in one screen.</p>
+              <p className="mt-1 text-xs text-cyan-100/80">Analytics, approvals, products, and CRM in one dashboard.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <button onClick={() => { window.location.href = '/'; }} className="cyber-btn cyber-btn-secondary"><ArrowLeft size={14} />Main Portal</button>
@@ -466,189 +675,266 @@ export default function Admin() {
           </div>
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-3">
-          <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-4">
-            <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">Pending Approvals</p>
-            <p className="mt-2 text-3xl font-black text-cyan-100">{pendingCount}</p>
-          </section>
-          <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-4">
-            <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">Deployed Products</p>
-            <p className="mt-2 text-3xl font-black text-cyan-100">{products.length}</p>
-          </section>
-          <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-4">
-            <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">Approved Today</p>
-            <p className="mt-2 text-3xl font-black text-cyan-100">{inboxItems.filter((item) => item.status === 'approved').length}</p>
-          </section>
+        <div className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-3">
+          <div className="flex gap-2 overflow-x-auto">
+            {tabItems.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`cyber-btn whitespace-nowrap ${activeTab === tab.key ? 'cyber-btn-primary' : 'cyber-btn-secondary'}`}
+                >
+                  <Icon size={14} /> {tab.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-4 sm:p-5">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <p className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300"><PackageSearch size={14} />Products Manager</p>
-            <div className="flex gap-2">
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                className="rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
-                placeholder="Search file name"
-              />
-              <button onClick={addProductRow} className="cyber-btn cyber-btn-primary">Add Product</button>
+        {activeTab === 'analytics' ? (
+          <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-4 sm:p-5 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300"><BarChart3 size={14} />Approved Sales Analytics</p>
+              <button onClick={() => { void refreshCrm(); }} className="cyber-btn cyber-btn-secondary">{crmLoading ? 'Refreshing...' : 'Refresh Data'}</button>
             </div>
-          </div>
-
-          <div className="mb-3 flex flex-wrap gap-2 rounded-md border border-cyan-500/20 bg-black/25 p-2">
-            <button onClick={selectAllProducts} className="cyber-btn cyber-btn-secondary">Select All</button>
-            <button onClick={clearSelectedProducts} className="cyber-btn cyber-btn-secondary">Remove Selected All</button>
-            <span className="inline-flex items-center px-2 text-xs text-cyan-200">Selected: {selectedCount}</span>
-            <input
-              value={massAmount}
-              onChange={(event) => setMassAmount(event.target.value)}
-              type="number"
-              className="rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
-              placeholder="Mass amount"
-            />
-            <button disabled={selectedCount === 0} onClick={applyMassAmount} className="cyber-btn cyber-btn-secondary">Mass Edit Amount</button>
-            <input
-              value={massOs}
-              onChange={(event) => setMassOs(event.target.value)}
-              className="rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
-              placeholder="Mass OS"
-            />
-            <button disabled={selectedCount === 0} onClick={applyMassOs} className="cyber-btn cyber-btn-secondary">Mass Edit OS</button>
-            <button disabled={selectedCount === 0} onClick={deleteSelectedProducts} className="cyber-btn cyber-btn-secondary">Mass Delete</button>
-          </div>
-
-          <div className="max-h-[420px] overflow-auto rounded-lg border border-cyan-500/20">
-            <table className="w-full min-w-[980px] border-collapse text-xs">
-              <thead className="bg-cyan-500/10 text-cyan-200">
-                <tr>
-                  <th className="px-2 py-2 text-center"></th>
-                  <th className="px-2 py-2 text-left">File Name</th>
-                  <th className="px-2 py-2 text-left">File Link</th>
-                  <th className="px-2 py-2 text-left">OS</th>
-                  <th className="px-2 py-2 text-right">Amount</th>
-                  <th className="px-2 py-2 text-center">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProducts.map((item) => (
-                  <tr key={item.id} className="border-t border-cyan-500/15">
-                    <td className="px-2 py-2 text-center">
-                      <button
-                        type="button"
-                        onClick={() => toggleSelectProduct(item.id)}
-                        className={`inline-flex h-5 w-5 items-center justify-center rounded-full border ${selectedProductIds.includes(item.id) ? 'border-cyan-300 bg-cyan-400/20' : 'border-cyan-500/35'}`}
-                        aria-label="Select row"
-                      >
-                        {selectedProductIds.includes(item.id) ? <span className="h-2 w-2 rounded-full bg-cyan-300" /> : null}
-                      </button>
-                    </td>
-                    <td className="px-2 py-2">
-                      <input
-                        value={item.name}
-                        onChange={(event) => updateProduct(item.id, { name: event.target.value })}
-                        className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1"
-                      />
-                    </td>
-                    <td className="px-2 py-2">
-                      <input
-                        value={item.fileLink}
-                        onChange={(event) => updateProduct(item.id, { fileLink: event.target.value })}
-                        className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1"
-                        placeholder="https://drive.google.com/..."
-                      />
-                    </td>
-                    <td className="px-2 py-2">
-                      <input
-                        value={item.os}
-                        onChange={(event) => updateProduct(item.id, { os: event.target.value })}
-                        className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1"
-                      />
-                    </td>
-                    <td className="px-2 py-2">
-                      <input
-                        type="number"
-                        value={item.amount}
-                        onChange={(event) => updateProduct(item.id, { amount: Number(event.target.value || 0) })}
-                        className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1 text-right"
-                      />
-                    </td>
-                    <td className="px-2 py-2 text-center">
-                      <button onClick={() => removeProduct(item.id)} className="inline-flex h-8 w-8 items-center justify-center rounded border border-red-400/45 text-red-300 hover:bg-red-500/10">
-                        <Trash2 size={13} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-4 sm:p-5">
-          <p className="mb-2 inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300"><Upload size={14} />Bulk Upload (CSV/TSV Paste)</p>
-          <p className="mb-3 text-xs text-cyan-100/80">Format: <span className="font-mono">File Name, File Link, Operating System, Amount</span>. Amount is optional and defaults to 99.</p>
-          <textarea
-            value={bulkData}
-            onChange={(event) => setBulkData(event.target.value)}
-            className="h-28 w-full rounded-md border border-cyan-500/35 bg-black/40 p-3 text-xs"
-            placeholder="Adobe Photoshop 2025 v26.0 for Windows(OS),https://drive.google.com/file/d/.../view,Windows,99"
-          />
-          <div className="mt-3 flex justify-end">
-            <button onClick={applyBulkImport} className="cyber-btn cyber-btn-primary">Import Rows</button>
-          </div>
-        </section>
-
-        <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-4 sm:p-5">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <p className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300"><Inbox size={14} />Buyer Approval Inbox</p>
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => { void refreshInbox(); }} className="cyber-btn cyber-btn-secondary">{inboxLoading ? 'Refreshing...' : 'Refresh Inbox'}</button>
-              <button onClick={() => { void clearInbox(); }} className="cyber-btn cyber-btn-secondary">Clear Inbox</button>
+            <div className="grid gap-4 lg:grid-cols-4 sm:grid-cols-2">
+              {analyticsCards.map((card) => {
+                const isPositive = card.delta >= 0;
+                return (
+                  <article key={card.key} className="rounded-lg border border-cyan-500/20 bg-black/35 p-3">
+                    <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">{card.title}</p>
+                    <p className="mt-2 text-xl font-black text-cyan-100">{toPhp(card.currentSales)}</p>
+                    <p className="mt-1 text-xs text-cyan-200">Previous: {toPhp(card.previousSales)}</p>
+                    <p className={`mt-1 text-xs ${isPositive ? 'text-emerald-300' : 'text-red-300'}`}>
+                      {isPositive ? '+' : '-'}{toPhp(Math.abs(card.delta))} ({card.percentChange === null ? 'N/A' : `${card.percentChange >= 0 ? '+' : ''}${card.percentChange.toFixed(1)}%`})
+                    </p>
+                    <p className="mt-2 text-[11px] font-mono uppercase tracking-[0.18em] text-cyan-100">Evaluation: {card.evaluation}</p>
+                  </article>
+                );
+              })}
             </div>
-          </div>
-          <div className="space-y-3">
-            {inboxItems.map((item) => (
-              <motion.div key={item.id} layout className="rounded-lg border border-cyan-500/20 bg-black/35 p-3">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-cyan-100">{item.referenceCode}</p>
-                    <p className="text-xs text-cyan-200">{item.buyerName} ({item.buyerEmail})</p>
-                    <p className="mt-1 text-xs text-gray-300">Products: {item.products.join(' | ')}</p>
-                    <p className="mt-1 text-xs text-cyan-300">Paid via: {item.paymentPortalUsed ? String(item.paymentPortalUsed).toUpperCase() : 'N/A'}</p>
-                    <p className="mt-1 text-xs text-cyan-300">Payment detail used: {item.paymentDetailUsed || 'N/A'}</p>
+            <div className="rounded-lg border border-cyan-500/20 bg-black/30 p-4">
+              <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">Total Approved Sales</p>
+              <p className="mt-2 text-3xl font-black text-cyan-100">{toPhp(totalApprovedSales)}</p>
+              <p className="mt-1 text-xs text-cyan-200">Based on all approved records in CRM history.</p>
+            </div>
+          </section>
+        ) : null}
+
+        {activeTab === 'approvals' ? (
+          <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-4 sm:p-5">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300"><Inbox size={14} />Buyer Approval Inbox</p>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => { void refreshInbox(); }} className="cyber-btn cyber-btn-secondary">{inboxLoading ? 'Refreshing...' : 'Refresh Inbox'}</button>
+                <button onClick={() => { void clearInbox(); }} className="cyber-btn cyber-btn-secondary">Clear Inbox</button>
+              </div>
+            </div>
+            <div className="space-y-3">
+              {inboxItems.length === 0 ? <p className="rounded-md border border-cyan-500/20 bg-black/25 px-3 py-4 text-xs text-cyan-200">No inbox records found.</p> : null}
+              {inboxItems.map((item) => (
+                <motion.div key={item.id} layout className="rounded-lg border border-cyan-500/20 bg-black/35 p-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-cyan-100">{item.referenceCode}</p>
+                      <p className="text-xs text-cyan-200">{item.buyerName} ({item.buyerEmail})</p>
+                      <p className="mt-1 text-xs text-gray-300">Products: {item.products.join(' | ')}</p>
+                      <p className="mt-1 text-xs text-cyan-300">Paid via: {item.paymentPortalUsed ? String(item.paymentPortalUsed).toUpperCase() : 'N/A'}</p>
+                      <p className="mt-1 text-xs text-cyan-300">Payment detail used: {item.paymentDetailUsed || 'N/A'}</p>
+                    </div>
+                    <span className={`rounded-full border px-2 py-1 text-[10px] font-mono uppercase ${item.status === 'pending' ? 'border-amber-400/40 text-amber-200' : item.status === 'approved' ? 'border-emerald-400/40 text-emerald-200' : 'border-red-400/40 text-red-200'}`}>
+                      {item.status}
+                    </span>
                   </div>
-                  <span className={`rounded-full border px-2 py-1 text-[10px] font-mono uppercase ${item.status === 'pending' ? 'border-amber-400/40 text-amber-200' : item.status === 'approved' ? 'border-emerald-400/40 text-emerald-200' : 'border-red-400/40 text-red-200'}`}>
-                    {item.status}
-                  </span>
-                </div>
-                <p className="mt-1 text-[11px] text-cyan-300/90">
-                  Downloads entitlement (admin): {item.entitlementUnlimited ? 'UNLIMITED' : `${item.entitlementUsed ?? 0}/${item.entitlementLimit ?? 10}`}
-                </p>
+                  <p className="mt-1 text-[11px] text-cyan-300/90">
+                    Downloads entitlement (admin): {item.entitlementUnlimited ? 'UNLIMITED' : `${item.entitlementUsed ?? 0}/${item.entitlementLimit ?? 10}`}
+                  </p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                    <input
+                      value={item.deliveryLink}
+                      onChange={(event) => updateInbox(item.id, { deliveryLink: event.target.value })}
+                      className="rounded-md border border-cyan-500/35 bg-black/35 px-3 py-2 text-xs"
+                      placeholder="Paste delivery link to send customer"
+                    />
+                    <button
+                      onClick={() => { void submitReview(item, 'approve'); }}
+                      className="cyber-btn cyber-btn-primary"
+                      disabled={!item.deliveryLink.trim()}
+                    >
+                      <CheckCircle2 size={14} /> Approve
+                    </button>
+                    <button onClick={() => { void submitReview(item, 'reject'); }} className="cyber-btn cyber-btn-secondary">
+                      <ShieldAlert size={14} /> Reject
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
-                <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+        {activeTab === 'products' ? (
+          <>
+            <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-4 sm:p-5">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <p className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300"><PackageSearch size={14} />Products Manager</p>
+                <div className="flex gap-2">
                   <input
-                    value={item.deliveryLink}
-                    onChange={(event) => updateInbox(item.id, { deliveryLink: event.target.value })}
-                    className="rounded-md border border-cyan-500/35 bg-black/35 px-3 py-2 text-xs"
-                    placeholder="Paste delivery link to send customer"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    className="rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
+                    placeholder="Search file name"
                   />
-                  <button
-                    onClick={() => {
-                      void submitReview(item, 'approve');
-                    }}
-                    className="cyber-btn cyber-btn-primary"
-                    disabled={!item.deliveryLink.trim()}
-                  >
-                    <CheckCircle2 size={14} /> Approve
-                  </button>
-                  <button onClick={() => { void submitReview(item, 'reject'); }} className="cyber-btn cyber-btn-secondary">
-                    <ShieldAlert size={14} /> Reject
-                  </button>
+                  <button onClick={addProductRow} className="cyber-btn cyber-btn-primary">Add Product</button>
                 </div>
-              </motion.div>
-            ))}
-          </div>
-        </section>
+              </div>
+              <div className="mb-3 flex flex-wrap gap-2 rounded-md border border-cyan-500/20 bg-black/25 p-2">
+                <button onClick={selectAllProducts} className="cyber-btn cyber-btn-secondary">Select All</button>
+                <button onClick={clearSelectedProducts} className="cyber-btn cyber-btn-secondary">Remove Selected All</button>
+                <span className="inline-flex items-center px-2 text-xs text-cyan-200">Selected: {selectedCount}</span>
+                <input
+                  value={massAmount}
+                  onChange={(event) => setMassAmount(event.target.value)}
+                  type="number"
+                  className="rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
+                  placeholder="Mass amount"
+                />
+                <button disabled={selectedCount === 0} onClick={applyMassAmount} className="cyber-btn cyber-btn-secondary">Mass Edit Amount</button>
+                <input
+                  value={massOs}
+                  onChange={(event) => setMassOs(event.target.value)}
+                  className="rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
+                  placeholder="Mass OS"
+                />
+                <button disabled={selectedCount === 0} onClick={applyMassOs} className="cyber-btn cyber-btn-secondary">Mass Edit OS</button>
+                <button disabled={selectedCount === 0} onClick={deleteSelectedProducts} className="cyber-btn cyber-btn-secondary">Mass Delete</button>
+              </div>
+              <div className="max-h-[420px] overflow-auto rounded-lg border border-cyan-500/20">
+                <table className="w-full min-w-[980px] border-collapse text-xs">
+                  <thead className="bg-cyan-500/10 text-cyan-200">
+                    <tr>
+                      <th className="px-2 py-2 text-center"></th>
+                      <th className="px-2 py-2 text-left">File Name</th>
+                      <th className="px-2 py-2 text-left">File Link</th>
+                      <th className="px-2 py-2 text-left">OS</th>
+                      <th className="px-2 py-2 text-right">Amount</th>
+                      <th className="px-2 py-2 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredProducts.map((item) => (
+                      <tr key={item.id} className="border-t border-cyan-500/15">
+                        <td className="px-2 py-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => toggleSelectProduct(item.id)}
+                            className={`inline-flex h-5 w-5 items-center justify-center rounded-full border ${selectedProductIds.includes(item.id) ? 'border-cyan-300 bg-cyan-400/20' : 'border-cyan-500/35'}`}
+                            aria-label="Select row"
+                          >
+                            {selectedProductIds.includes(item.id) ? <span className="h-2 w-2 rounded-full bg-cyan-300" /> : null}
+                          </button>
+                        </td>
+                        <td className="px-2 py-2">
+                          <input value={item.name} onChange={(event) => updateProduct(item.id, { name: event.target.value })} className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1" />
+                        </td>
+                        <td className="px-2 py-2">
+                          <input value={item.fileLink} onChange={(event) => updateProduct(item.id, { fileLink: event.target.value })} className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1" placeholder="https://drive.google.com/..." />
+                        </td>
+                        <td className="px-2 py-2">
+                          <input value={item.os} onChange={(event) => updateProduct(item.id, { os: event.target.value })} className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1" />
+                        </td>
+                        <td className="px-2 py-2">
+                          <input type="number" value={item.amount} onChange={(event) => updateProduct(item.id, { amount: Number(event.target.value || 0) })} className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1 text-right" />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <button onClick={() => removeProduct(item.id)} className="inline-flex h-8 w-8 items-center justify-center rounded border border-red-400/45 text-red-300 hover:bg-red-500/10">
+                            <Trash2 size={13} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-4 sm:p-5">
+              <p className="mb-2 inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300"><Upload size={14} />Bulk Upload (CSV/TSV Paste)</p>
+              <p className="mb-3 text-xs text-cyan-100/80">Format: <span className="font-mono">File Name, File Link, Operating System, Amount</span>. Amount is optional and defaults to 99.</p>
+              <textarea
+                value={bulkData}
+                onChange={(event) => setBulkData(event.target.value)}
+                className="h-28 w-full rounded-md border border-cyan-500/35 bg-black/40 p-3 text-xs"
+                placeholder="Adobe Photoshop 2025 v26.0 for Windows(OS),https://drive.google.com/file/d/.../view,Windows,99"
+              />
+              <div className="mt-3 flex justify-end">
+                <button onClick={applyBulkImport} className="cyber-btn cyber-btn-primary">Import Rows</button>
+              </div>
+            </section>
+          </>
+        ) : null}
+
+        {activeTab === 'crm' ? (
+          <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-4 sm:p-5">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300"><UsersRound size={14} />CRM Orders</p>
+              <div className="flex flex-wrap gap-2">
+                <input
+                  value={crmSearch}
+                  onChange={(event) => setCrmSearch(event.target.value)}
+                  className="rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
+                  placeholder="Search username, email, product"
+                />
+                <select
+                  value={crmStatusFilter}
+                  onChange={(event) => setCrmStatusFilter(event.target.value as 'all' | 'pending' | 'approved' | 'rejected')}
+                  className="rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
+                >
+                  <option value="all">All Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+                <button onClick={() => { void refreshCrm(); }} className="cyber-btn cyber-btn-secondary">{crmLoading ? 'Refreshing...' : 'Refresh CRM'}</button>
+              </div>
+            </div>
+            <div className="max-h-[560px] overflow-auto rounded-lg border border-cyan-500/20">
+              <table className="w-full min-w-[1080px] border-collapse text-xs">
+                <thead className="bg-cyan-500/10 text-cyan-200">
+                  <tr>
+                    <th className="px-2 py-2 text-left">Username</th>
+                    <th className="px-2 py-2 text-left">Email</th>
+                    <th className="px-2 py-2 text-left">Purchased Products</th>
+                    <th className="px-2 py-2 text-right">Total Amount</th>
+                    <th className="px-2 py-2 text-center">Latest Status</th>
+                    <th className="px-2 py-2 text-left">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredCrmItems.length === 0 ? (
+                    <tr className="border-t border-cyan-500/15">
+                      <td className="px-3 py-4 text-cyan-200" colSpan={6}>No CRM records found.</td>
+                    </tr>
+                  ) : filteredCrmItems.map((item) => (
+                    <tr key={item.id} className="border-t border-cyan-500/15">
+                      <td className="px-2 py-2 text-cyan-100">{item.buyerName}</td>
+                      <td className="px-2 py-2 text-cyan-100">{item.buyerEmail}</td>
+                      <td className="px-2 py-2 text-gray-200">{item.products.join(' | ')}</td>
+                      <td className="px-2 py-2 text-right text-cyan-100">{toPhp(item.totalAmount)}</td>
+                      <td className="px-2 py-2 text-center">
+                        <span className={`rounded-full border px-2 py-1 text-[10px] font-mono uppercase ${item.status === 'pending' ? 'border-amber-400/40 text-amber-200' : item.status === 'approved' ? 'border-emerald-400/40 text-emerald-200' : 'border-red-400/40 text-red-200'}`}>
+                          {item.status}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2 text-cyan-100">{toReadableDate(item.submittedAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : null}
       </main>
     </div>
   );
