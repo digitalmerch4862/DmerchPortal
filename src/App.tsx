@@ -26,8 +26,76 @@ type VerificationApiResponse = {
   sequenceNo?: number;
   createdAt?: string;
   emailStatus?: string;
+  customerEmailStatus?: string;
+  adminEmailStatus?: string;
+  customerEmailDelivered?: boolean;
   totalAmount?: number;
   error?: string;
+};
+
+type UpsellCategory =
+  | 'Design Suite'
+  | 'Video & Audio'
+  | 'CAD & 3D'
+  | 'Office & Productivity'
+  | 'Utilities & Security'
+  | 'Gaming'
+  | 'Mobile Apps'
+  | 'Other';
+
+const getProductCategory = (productName: string): UpsellCategory => {
+  const name = productName.toLowerCase();
+
+  if (/(adobe|canva|coreldraw|lightroom|photoshop|illustrator|indesign|fresco|xd)/.test(name)) {
+    return 'Design Suite';
+  }
+
+  if (/(premiere|after effects|audition|media encoder|davinci|filmora|fl studio|protools|final cut|capcut|dehancer|topaz video|virtual dj)/.test(name)) {
+    return 'Video & Audio';
+  }
+
+  if (/(autocad|autodesk|revit|maya|naviswork|solidworks|sketchup|rhino|vray|lumion|enscape)/.test(name)) {
+    return 'CAD & 3D';
+  }
+
+  if (/(office|quickbooks|acrobat|foxit|wps|turbotax)/.test(name)) {
+    return 'Office & Productivity';
+  }
+
+  if (/(mcafee|norton|easeus|winrar|idm|download manager|deep freeze|partition|virus|utilities)/.test(name)) {
+    return 'Utilities & Security';
+  }
+
+  if (/(call of duty|nba|motogp|spider-man|sekiro|starcraft|red dead|cities - skylines)/.test(name)) {
+    return 'Gaming';
+  }
+
+  if (/(android|apk|pixelcut|mobile)/.test(name)) {
+    return 'Mobile Apps';
+  }
+
+  return 'Other';
+};
+
+const getUpsellSuggestion = (category: UpsellCategory) => {
+  switch (category) {
+    case 'Design Suite':
+      return 'Upsell: Design Bundle + premium templates';
+    case 'Video & Audio':
+      return 'Upsell: Creator FX pack + LUTs bundle';
+    case 'CAD & 3D':
+      return 'Upsell: CAD render plugin bundle';
+    case 'Office & Productivity':
+      return 'Upsell: Office + PDF pro toolkit';
+    case 'Utilities & Security':
+      return 'Upsell: Security and system care pack';
+    case 'Gaming':
+      return 'Upsell: Game combo and DLC pack';
+    case 'Mobile Apps':
+      return 'Upsell: Mobile creator apps bundle';
+    default:
+      return 'Upsell: Best-value software bundle';
+  }
 };
 
 type FlowStage = 1 | 2 | 3 | 4;
@@ -127,9 +195,13 @@ export default function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitProgress, setSubmitProgress] = useState(0);
   const [submitError, setSubmitError] = useState('');
+  const [submitNotice, setSubmitNotice] = useState('');
   const [submitResult, setSubmitResult] = useState<VerificationApiResponse | null>(null);
+  const [lastSubmittedProducts, setLastSubmittedProducts] = useState<ProductItem[]>([]);
   const productPickerRef = useRef<HTMLDivElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const uploadSfxIntervalRef = useRef<number | null>(null);
+  const uploadSfxStepRef = useRef(0);
   const sfxEnabled = true;
 
   const selectedQrSrc = selectedMethod === 'gcash' ? gcashQr : gotymeQr;
@@ -176,6 +248,52 @@ export default function App() {
     }
   }, []);
 
+  const playUploadSfx = useCallback(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) {
+        return;
+      }
+
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioCtx();
+      }
+
+      const context = audioContextRef.current;
+      if (context.state === 'suspended') {
+        context.resume().catch(() => undefined);
+      }
+
+      const now = context.currentTime;
+      const frequencies = [1450, 1180, 1560, 1280];
+      const step = uploadSfxStepRef.current % frequencies.length;
+      uploadSfxStepRef.current += 1;
+      const startFreq = frequencies[step];
+
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+
+      oscillator.type = 'square';
+      oscillator.frequency.setValueAtTime(startFreq, now);
+      oscillator.frequency.exponentialRampToValueAtTime(Math.max(540, startFreq * 0.55), now + 0.12);
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.03, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.13);
+
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start(now);
+      oscillator.stop(now + 0.14);
+    } catch {
+      // Upload SFX should fail silently in unsupported browsers
+    }
+  }, []);
+
   const selectedProduct = useMemo(() => {
     if (!selectedProductName) {
       return null;
@@ -198,6 +316,18 @@ export default function App() {
   const totalAmount = useMemo(() => {
     return selectedProducts.reduce((sum, item) => sum + item.amount, 0);
   }, [selectedProducts]);
+
+  const orderSummaryItems = useMemo(() => {
+    const source = selectedProducts.length > 0 ? selectedProducts : lastSubmittedProducts;
+    return source.map((item) => {
+      const category = getProductCategory(item.name);
+      return {
+        ...item,
+        category,
+        upsell: getUpsellSuggestion(category),
+      };
+    });
+  }, [lastSubmittedProducts, selectedProducts]);
 
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const isEmailValid = emailPattern.test(email.trim());
@@ -284,6 +414,28 @@ export default function App() {
       window.clearInterval(timer);
     };
   }, [isSubmitting]);
+
+  useEffect(() => {
+    if (!isSubmitting) {
+      if (uploadSfxIntervalRef.current !== null) {
+        window.clearInterval(uploadSfxIntervalRef.current);
+        uploadSfxIntervalRef.current = null;
+      }
+      return;
+    }
+
+    playUploadSfx();
+    uploadSfxIntervalRef.current = window.setInterval(() => {
+      playUploadSfx();
+    }, 170);
+
+    return () => {
+      if (uploadSfxIntervalRef.current !== null) {
+        window.clearInterval(uploadSfxIntervalRef.current);
+        uploadSfxIntervalRef.current = null;
+      }
+    };
+  }, [isSubmitting, playUploadSfx]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -399,6 +551,7 @@ export default function App() {
     }
 
     setSubmitError('');
+    setSubmitNotice('');
     setSubmitResult(null);
     setSubmitProgress(10);
     setIsSubmitting(true);
@@ -425,6 +578,12 @@ export default function App() {
 
       setSubmitProgress(100);
       setSubmitResult(payload);
+      if (payload.customerEmailDelivered === false) {
+        setSubmitNotice(`Reference code generated, but customer email failed to send (${payload.customerEmailStatus ?? 'delivery issue'}). Please recheck email settings.`);
+      } else {
+        setSubmitNotice('You will receive an email proof of purchase. We will send your purchased product link immediately after review.');
+      }
+      setLastSubmittedProducts(selectedProducts);
       setUsername('');
       setEmail('');
       setReferenceNo('');
@@ -744,10 +903,6 @@ export default function App() {
                                 <Download size={12} />
                                 Download QR
                               </button>
-                              <p className="text-[10px] font-mono text-gray-500 uppercase tracking-[0.3em] mb-1">Recipient Verified</p>
-                              <p className="text-xl font-black text-white tracking-widest uppercase italic bg-gradient-to-r from-white to-gray-500 bg-clip-text text-transparent">
-                                Robert Rich Garcia
-                              </p>
                             </div>
                           </div>
                         </div>
@@ -780,26 +935,34 @@ export default function App() {
               className="w-full"
             >
               <CyberCard title="Confirmation & Verification" icon={ShieldCheck} color="magenta">
-                <div className="mb-4 rounded-xl border border-cyan-500/40 bg-[#031018]/80 p-4 shadow-[0_0_30px_rgba(0,195,255,0.1)]">
-                  <table className="w-full border-collapse text-xs sm:text-sm font-mono uppercase tracking-[0.12em] text-cyan-100">
+                <div className="mb-4 rounded-xl border border-cyan-500/40 bg-[#031018]/80 p-4 shadow-[0_0_30px_rgba(0,195,255,0.1)] overflow-x-auto">
+                  <table className="w-full min-w-[720px] border-collapse text-xs sm:text-sm font-mono uppercase tracking-[0.12em] text-cyan-100">
                     <thead>
                       <tr className="border-b border-cyan-500/30 text-cyan-300">
-                        <th className="py-2 pr-3 text-left font-semibold">Field</th>
-                        <th className="py-2 text-right font-semibold">Value</th>
+                        <th className="py-2 px-2 text-center font-semibold">Product</th>
+                        <th className="py-2 px-2 text-center font-semibold">Category</th>
+                        <th className="py-2 px-2 text-center font-semibold">Amount</th>
+                        <th className="py-2 px-2 text-center font-semibold">Suggested Upsell</th>
                       </tr>
                     </thead>
                     <tbody>
-                      <tr className="border-b border-cyan-500/15">
-                        <td className="py-2 pr-3">Products</td>
-                        <td className="py-2 text-right">{selectedProducts.length} item(s)</td>
-                      </tr>
-                      <tr className="border-b border-cyan-500/15">
-                        <td className="py-2 pr-3">Portal</td>
-                        <td className="py-2 text-right">{selectedMethod === 'gcash' ? 'GCash' : 'GoTyme'}</td>
-                      </tr>
+                      {orderSummaryItems.length > 0 ? (
+                        orderSummaryItems.map((item) => (
+                          <tr key={`${item.name}-${item.amount}`} className="border-b border-cyan-500/15">
+                            <td className="py-2 px-2 text-left">{item.name}</td>
+                            <td className="py-2 px-2 text-left">{item.category}</td>
+                            <td className="py-2 px-2 text-right">PHP {item.amount}</td>
+                            <td className="py-2 px-2 text-left text-cyan-200">{item.upsell}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr className="border-b border-cyan-500/15">
+                          <td className="py-3 px-2 text-center text-gray-500" colSpan={4}>No products to review yet</td>
+                        </tr>
+                      )}
                       <tr>
-                        <td className="pt-2 pr-3">Total</td>
-                        <td className="pt-2 text-right">PHP {totalAmount}</td>
+                        <td className="pt-3 px-2 text-left text-cyan-200" colSpan={2}>Portal: {selectedMethod === 'gcash' ? 'GCash' : 'GoTyme'}</td>
+                        <td className="pt-3 px-2 text-right font-semibold" colSpan={2}>Total: PHP {submitResult?.totalAmount ?? totalAmount}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -833,14 +996,14 @@ export default function App() {
                       <div>
                         <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Total Amount</span>
                         <div className="rounded-md border border-[#ff8a00]/50 bg-black/30 px-4 py-3 text-sm font-mono uppercase tracking-[0.15em] text-[#ffc680]">
-                          PHP {totalAmount}
+                          PHP {submitResult?.totalAmount ?? totalAmount}
                         </div>
                       </div>
                     </div>
 
                     {isSubmitting ? (
                       <div className="mt-4 rounded-md border border-[#ff8a00]/60 bg-black/50 p-3">
-                        <p className="mb-2 text-xs font-mono uppercase tracking-[0.25em] text-[#ffb257]">Processing Transmission...</p>
+                        <p className="mb-2 text-xs font-mono uppercase tracking-[0.25em] text-[#ffb257]">Uploading Verification Packet...</p>
                         <div className="h-3 w-full overflow-hidden rounded-sm border border-[#ff8a00]/70 bg-[#2b1608]">
                           <motion.div
                             initial={{ width: '0%' }}
@@ -862,11 +1025,20 @@ export default function App() {
 
                   {submitResult?.ok ? (
                     <div className="rounded-md border border-cyan-500/40 bg-cyan-500/10 px-4 py-4">
-                      <p className="mb-2 text-xs font-mono uppercase tracking-[0.2em] text-cyan-300">Verification Submitted</p>
+                      <p className="mb-2 text-xs font-mono uppercase tracking-[0.2em] text-cyan-300">Reference Code</p>
                       <p className="text-lg font-black tracking-wider text-white">{submitResult.serialNo}</p>
-                      <p className="mt-2 text-xs text-gray-300">
-                        Sequence: {submitResult.sequenceNo} | Total: PHP {submitResult.totalAmount ?? totalAmount} | Email status: {submitResult.emailStatus}
+                      <p className="mt-2 text-xs text-gray-300 leading-relaxed">
+                        You will receive an email proof of purchase. We will send your purchased product link immediately after review.
                       </p>
+                      <p className="mt-2 text-xs text-gray-400">
+                        Sequence: {submitResult.sequenceNo} | Total: PHP {submitResult.totalAmount ?? totalAmount} | Email status: {submitResult.customerEmailStatus ?? submitResult.emailStatus}
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {submitNotice ? (
+                    <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs font-mono uppercase tracking-[0.12em] text-amber-200">
+                      {submitNotice}
                     </div>
                   ) : null}
 

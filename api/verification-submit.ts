@@ -85,6 +85,30 @@ const formatSubmittedDate = (dateIso: string) => {
   return `${dateText} | ${timeText}`;
 };
 
+const extractResendErrorMessage = (result: unknown) => {
+  if (!result || typeof result !== 'object') {
+    return null;
+  }
+
+  const maybeError = (result as { error?: unknown }).error;
+  if (!maybeError) {
+    return null;
+  }
+
+  if (typeof maybeError === 'string') {
+    return maybeError;
+  }
+
+  if (typeof maybeError === 'object' && maybeError !== null) {
+    const message = (maybeError as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) {
+      return message;
+    }
+  }
+
+  return 'Unknown email delivery error';
+};
+
 const buildEmailHtml = ({
   username,
   products,
@@ -385,25 +409,50 @@ export default async function handler(req: any, res: any) {
       adminCopy: true,
     });
 
-    let emailStatus = 'sent';
-    try {
-      await Promise.all([
-        resend.emails.send({
+    const sendEmailWithStatus = async ({
+      to,
+      mailSubject,
+      html,
+    }: {
+      to: string;
+      mailSubject: string;
+      html: string;
+    }) => {
+      try {
+        const response = await resend.emails.send({
           from: resendFromEmail,
-          to: email,
-          subject,
-          html: customerHtml,
-        }),
-        resend.emails.send({
-          from: resendFromEmail,
-          to: adminEmail,
-          subject: `[ADMIN] ${subject}`,
-          html: adminHtml,
-        }),
-      ]);
-    } catch (emailError) {
-      emailStatus = `failed: ${emailError instanceof Error ? emailError.message : 'Unknown email error'}`;
-    }
+          to,
+          subject: mailSubject,
+          html,
+        });
+        const resendError = extractResendErrorMessage(response);
+        if (resendError) {
+          return `failed: ${resendError}`;
+        }
+        return 'sent';
+      } catch (emailError) {
+        return `failed: ${emailError instanceof Error ? emailError.message : 'Unknown email error'}`;
+      }
+    };
+
+    const [customerEmailStatus, adminEmailStatus] = await Promise.all([
+      sendEmailWithStatus({
+        to: email,
+        mailSubject: subject,
+        html: customerHtml,
+      }),
+      sendEmailWithStatus({
+        to: adminEmail,
+        mailSubject: `[ADMIN] ${subject}`,
+        html: adminHtml,
+      }),
+    ]);
+
+    const statusParts = [];
+    statusParts.push(`customer:${customerEmailStatus}`);
+    statusParts.push(`admin:${adminEmailStatus}`);
+    const emailStatus = statusParts.join(' | ');
+    const customerEmailDelivered = customerEmailStatus === 'sent';
 
     await supabase
       .from('verification_orders')
@@ -417,6 +466,9 @@ export default async function handler(req: any, res: any) {
       sequenceNo,
       createdAt,
       emailStatus,
+      customerEmailStatus,
+      adminEmailStatus,
+      customerEmailDelivered,
       totalAmount,
     });
   } catch (error) {

@@ -57,9 +57,10 @@
 .cyber-btn::before {
   content: "";
   position: absolute;
-  inset: -22%;
-  background: linear-gradient(90deg, transparent 49.35%, rgba(255, 0, 255, 0.92) 50%, transparent 50.65%);
-  transform: translateX(-120%);
+  inset: -70%;
+  background: repeating-conic-gradient(from 0deg, transparent 0deg 26deg, rgba(255, 0, 255, 0.88) 26deg 31deg, transparent 31deg 72deg);
+  transform-origin: center;
+  transform: rotate(0deg);
   animation: cyber-saber-run 2.2s linear infinite;
   pointer-events: none;
 }
@@ -108,9 +109,10 @@
 .cyber-stage-chip::before {
   content: "";
   position: absolute;
-  inset: -22%;
-  background: linear-gradient(90deg, transparent 49.3%, rgba(255, 0, 255, 0.88) 50%, transparent 50.7%);
-  transform: translateX(-135%);
+  inset: -70%;
+  background: repeating-conic-gradient(from 0deg, transparent 0deg 28deg, rgba(255, 0, 255, 0.84) 28deg 33deg, transparent 33deg 76deg);
+  transform-origin: center;
+  transform: rotate(0deg);
   animation: cyber-saber-run 2.8s linear infinite;
   pointer-events: none;
   opacity: 0.72;
@@ -146,21 +148,23 @@
 .cyber-saber-frame::before {
   content: "";
   position: absolute;
-  inset: -1px;
+  inset: -70%;
   border-radius: 4px;
   pointer-events: none;
   z-index: 0;
-  background: linear-gradient(90deg, transparent 49.4%, rgba(255, 0, 255, 0.9) 50%, transparent 50.6%);
+  background: repeating-conic-gradient(from 0deg, transparent 0deg 25deg, rgba(255, 0, 255, 0.86) 25deg 30deg, transparent 30deg 70deg);
+  transform-origin: center;
+  transform: rotate(0deg);
   animation: cyber-saber-run 3s linear infinite;
   opacity: 0.75;
 }
 
 .cyber-saber-frame-magenta::before {
-  background: linear-gradient(90deg, transparent 49.4%, rgba(255, 0, 255, 0.9) 50%, transparent 50.6%);
+  background: repeating-conic-gradient(from 0deg, transparent 0deg 25deg, rgba(255, 0, 255, 0.9) 25deg 30deg, transparent 30deg 70deg);
 }
 
 .cyber-saber-frame-cyan::before {
-  background: linear-gradient(90deg, transparent 49.4%, rgba(255, 0, 255, 0.9) 50%, transparent 50.6%);
+  background: repeating-conic-gradient(from 0deg, transparent 0deg 25deg, rgba(255, 0, 255, 0.82) 25deg 30deg, transparent 30deg 70deg);
 }
 
 .cyber-tap {
@@ -169,10 +173,10 @@
 
 @keyframes cyber-saber-run {
   0% {
-    transform: translateX(-135%);
+    transform: rotate(0deg);
   }
   100% {
-    transform: translateX(135%);
+    transform: rotate(360deg);
   }
 }
 
