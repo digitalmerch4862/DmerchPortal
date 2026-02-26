@@ -138,10 +138,10 @@ function MethodCard({ method, id, compact = false, selectedMethod, onSelectMetho
       whileTap={{ scale: 0.95 }}
       onClick={() => onSelectMethod(method)}
       className={`relative cursor-pointer transition-all duration-300 border-2 overflow-hidden ${compact ? 'w-36 h-36' : 'w-44 h-64'} ${isActive
-          ? isGcash
-            ? 'border-blue-500 bg-blue-500/20 shadow-[0_0_40px_rgba(0,125,254,0.5)]'
-            : 'border-cyan-500 bg-cyan-500/20 shadow-[0_0_40px_rgba(0,229,255,0.5)]'
-          : 'border-white/10 bg-white/5 grayscale hover:grayscale-0 opacity-40 hover:opacity-100'
+        ? isGcash
+          ? 'border-blue-500 bg-blue-500/20 shadow-[0_0_40px_rgba(0,125,254,0.5)]'
+          : 'border-cyan-500 bg-cyan-500/20 shadow-[0_0_40px_rgba(0,229,255,0.5)]'
+        : 'border-white/10 bg-white/5 grayscale hover:grayscale-0 opacity-40 hover:opacity-100'
         }`}
     >
       <div className={`absolute top-0 left-0 w-full h-full flex flex-col items-center justify-between ${compact ? 'p-4' : 'p-6'}`}>
@@ -659,7 +659,8 @@ export default function App() {
             <div className="inline-block border-2 border-cyan-500 px-5 py-3 sm:px-8 sm:py-4 mb-4 relative">
               <div className="absolute -top-1 -left-1 w-3 h-3 bg-cyan-500" />
               <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-cyan-500" />
-              <h1 className="text-3xl sm:text-4xl md:text-6xl font-black tracking-tighter uppercase italic">
+              <h1 className="text-3xl sm:text-4xl md:text-6xl font-black tracking-tighter uppercase italic flex items-center justify-center gap-3">
+                <ShieldCheck size={48} className="text-cyan-400 drop-shadow-[0_0_8px_rgba(0,243,255,0.8)]" />
                 <GlitchText text="DMERCH" />
               </h1>
             </div>
