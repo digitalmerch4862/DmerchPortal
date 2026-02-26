@@ -2,16 +2,27 @@ import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Admin-User, X-Admin-Key',
+const resolveCorsOrigin = (req: any) => {
+  const appBase = process.env.APP_BASE_URL ?? 'https://paymentportal.digitalmerchs.store';
+  const allowed = new Set([appBase, 'http://localhost:3000', 'http://127.0.0.1:3000']);
+  const incoming = String(req.headers.origin ?? '').trim();
+  return allowed.has(incoming) ? incoming : appBase;
 };
 
-const isAdmin = (req: any) => {
-  const user = String(req.headers['x-admin-user'] ?? '').trim().toUpperCase();
-  const key = String(req.headers['x-admin-key'] ?? '').trim().toUpperCase();
-  return user === 'RAD' && key === 'DMERCHPAYMENTPORTAL';
+const setCors = (req: any, res: any) => {
+  const origin = resolveCorsOrigin(req);
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+};
+
+const getBearerToken = (req: any) => {
+  const raw = String(req.headers.authorization ?? req.headers.Authorization ?? '').trim();
+  if (!raw.toLowerCase().startsWith('bearer ')) {
+    return '';
+  }
+  return raw.slice(7).trim();
 };
 
 const readBody = async (req: any) => {
@@ -77,20 +88,40 @@ const buildApprovedEmailHtml = ({
 </body>
 </html>`;
 
+const requireAdmin = async (req: any, supabase: any) => {
+  const token = getBearerToken(req);
+  if (!token) {
+    return { ok: false as const, status: 401, error: 'Missing bearer token.' };
+  }
+
+  const userLookup = await supabase.auth.getUser(token);
+  if (userLookup.error || !userLookup.data.user) {
+    return { ok: false as const, status: 401, error: 'Invalid or expired admin session.' };
+  }
+
+  const roleLookup = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', userLookup.data.user.id)
+    .eq('role', 'admin')
+    .maybeSingle();
+
+  if (roleLookup.error || !roleLookup.data) {
+    return { ok: false as const, status: 403, error: 'Admin role required.' };
+  }
+
+  return { ok: true as const, user: userLookup.data.user };
+};
+
 export default async function handler(req: any, res: any) {
+  setCors(req, res);
+
   if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin']);
-    res.setHeader('Access-Control-Allow-Methods', corsHeaders['Access-Control-Allow-Methods']);
-    res.setHeader('Access-Control-Allow-Headers', corsHeaders['Access-Control-Allow-Headers']);
     return res.status(204).end();
   }
 
   if (req.method !== 'POST') {
     return res.status(405).json({ ok: false, error: 'Method not allowed.' });
-  }
-
-  if (!isAdmin(req)) {
-    return res.status(401).json({ ok: false, error: 'Unauthorized admin request.' });
   }
 
   const supabaseUrl = process.env.SUPABASE_URL;
@@ -105,6 +136,14 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const authCheck = await requireAdmin(req, supabase);
+    if (!authCheck.ok) {
+      return res.status(authCheck.status).json({ ok: false, error: authCheck.error });
+    }
+
     const body = await readBody(req);
     const serialNo = String(body.serialNo ?? '').trim().toUpperCase();
     const action = String(body.action ?? '').trim().toLowerCase();
@@ -118,9 +157,6 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ ok: false, error: 'Delivery link is required for approval.' });
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
     const resend = new Resend(resendApiKey);
 
     const lookup = await supabase
@@ -145,7 +181,6 @@ export default async function handler(req: any, res: any) {
     const updatedProducts = products.map((item: any) => ({
       ...item,
       fileLink: String(item?.fileLink ?? '').trim() || deliveryLink,
-      downloadCount: Number(item?.downloadCount ?? 0),
     }));
 
     const status = `${currentStatus} | review:approved`;
@@ -177,7 +212,7 @@ export default async function handler(req: any, res: any) {
             email: lookup.data.email,
             approved_product_count: approvedProductCount,
             download_limit: 10,
-            download_used: isUnlimited ? 0 : 0,
+            download_used: 0,
             is_unlimited: isUnlimited,
           },
           { onConflict: 'email' },
