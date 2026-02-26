@@ -709,7 +709,7 @@ export default function App() {
                 <img
                   src="/android-chrome-512x512.png"
                   alt="DMerch logo"
-                  className="h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14 object-contain drop-shadow-[0_0_10px_rgba(0,243,255,0.7)]"
+                  className="h-[52px] w-[52px] sm:h-[62px] sm:w-[62px] md:h-[73px] md:w-[73px] object-contain drop-shadow-[0_0_10px_rgba(0,243,255,0.7)]"
                 />
                 <GlitchText text="DMERCH" />
               </h1>

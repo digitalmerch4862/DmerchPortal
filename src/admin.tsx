@@ -179,9 +179,6 @@ export default function Admin() {
   }, [products]);
 
   useEffect(() => {
-    if (inboxItems.length === 0) {
-      return;
-    }
     window.localStorage.setItem(INBOX_KEY, JSON.stringify(inboxItems));
   }, [inboxItems]);
 
@@ -366,6 +363,41 @@ export default function Admin() {
     }
 
     setInboxItems((current) => current.map((row) => (row.id === item.id ? { ...row, status: action === 'approve' ? 'approved' : 'rejected' } : row)));
+  };
+
+  const clearInbox = async () => {
+    if (!accessToken) {
+      setLoginError('Admin session expired. Please log in again.');
+      setUnlocked(false);
+      return;
+    }
+
+    const confirmed = window.confirm('Archive all inbox items for all statuses? This will clear the inbox view but keep records in database history.');
+    if (!confirmed) {
+      return;
+    }
+
+    setInboxLoading(true);
+    try {
+      const response = await fetch('/api/admin-inbox-clear', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      const payload = (await response.json()) as { ok: boolean; archivedCount?: number; error?: string };
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error ?? 'Failed to clear inbox');
+      }
+
+      setInboxItems([]);
+      setLoginError('');
+      await refreshInbox();
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : 'Failed to clear inbox');
+    } finally {
+      setInboxLoading(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -569,7 +601,10 @@ export default function Admin() {
         <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-4 sm:p-5">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <p className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300"><Inbox size={14} />Buyer Approval Inbox</p>
-            <button onClick={() => { void refreshInbox(); }} className="cyber-btn cyber-btn-secondary">{inboxLoading ? 'Refreshing...' : 'Refresh Inbox'}</button>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => { void refreshInbox(); }} className="cyber-btn cyber-btn-secondary">{inboxLoading ? 'Refreshing...' : 'Refresh Inbox'}</button>
+              <button onClick={() => { void clearInbox(); }} className="cyber-btn cyber-btn-secondary">Clear Inbox</button>
+            </div>
           </div>
           <div className="space-y-3">
             {inboxItems.map((item) => (
