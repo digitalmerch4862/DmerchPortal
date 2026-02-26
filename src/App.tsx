@@ -43,6 +43,13 @@ type UpsellCategory =
   | 'Mobile Apps'
   | 'Other';
 
+type FakeAvailment = {
+  buyer: string;
+  location: string;
+  product: string;
+  timeLabel: string;
+};
+
 const getProductCategory = (productName: string): UpsellCategory => {
   const name = productName.toLowerCase();
 
@@ -77,26 +84,16 @@ const getProductCategory = (productName: string): UpsellCategory => {
   return 'Other';
 };
 
-const getUpsellSuggestion = (category: UpsellCategory) => {
-  switch (category) {
-    case 'Design Suite':
-      return 'Upsell: Design Bundle + premium templates';
-    case 'Video & Audio':
-      return 'Upsell: Creator FX pack + LUTs bundle';
-    case 'CAD & 3D':
-      return 'Upsell: CAD render plugin bundle';
-    case 'Office & Productivity':
-      return 'Upsell: Office + PDF pro toolkit';
-    case 'Utilities & Security':
-      return 'Upsell: Security and system care pack';
-    case 'Gaming':
-      return 'Upsell: Game combo and DLC pack';
-    case 'Mobile Apps':
-      return 'Upsell: Mobile creator apps bundle';
-    default:
-      return 'Upsell: Best-value software bundle';
-  }
-};
+const FAKE_AVAILMENTS: FakeAvailment[] = [
+  { buyer: 'R***', location: 'Quezon City', product: 'Adobe Photoshop 2025', timeLabel: 'just now' },
+  { buyer: 'M***', location: 'Cebu City', product: 'CANVA PREMIUM LIFE TIME', timeLabel: '9s ago' },
+  { buyer: 'J***', location: 'Davao City', product: 'Microsoft Office Professional Plus 2024', timeLabel: '21s ago' },
+  { buyer: 'A***', location: 'Pasig', product: 'Adobe Premiere Pro 2025', timeLabel: '34s ago' },
+  { buyer: 'K***', location: 'Baguio', product: 'Autodesk AutoCAD 2024', timeLabel: '48s ago' },
+  { buyer: 'P***', location: 'Iloilo', product: 'Wondershare Filmora 13', timeLabel: '1m ago' },
+  { buyer: 'S***', location: 'Taguig', product: 'GO HIGH LEVEL SUB ACCOUNT MONTHLY', timeLabel: '1m ago' },
+  { buyer: 'D***', location: 'Makati', product: 'Adobe Illustrator 2025', timeLabel: '2m ago' },
+];
 
 type FlowStage = 1 | 2 | 3 | 4;
 
@@ -198,6 +195,7 @@ export default function App() {
   const [submitNotice, setSubmitNotice] = useState('');
   const [submitResult, setSubmitResult] = useState<VerificationApiResponse | null>(null);
   const [lastSubmittedProducts, setLastSubmittedProducts] = useState<ProductItem[]>([]);
+  const [liveAvailmentIndex, setLiveAvailmentIndex] = useState(0);
   const productPickerRef = useRef<HTMLDivElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const uploadSfxIntervalRef = useRef<number | null>(null);
@@ -206,6 +204,7 @@ export default function App() {
 
   const selectedQrSrc = selectedMethod === 'gcash' ? gcashQr : gotymeQr;
   const selectedQrFilename = selectedMethod === 'gcash' ? 'dmerch-gcash-qr.png' : 'dmerch-gotyme-qr.png';
+  const activeAvailment = FAKE_AVAILMENTS[liveAvailmentIndex % FAKE_AVAILMENTS.length];
 
   const playTapSfx = useCallback((strength: 'soft' | 'strong' = 'soft') => {
     if (typeof window === 'undefined') {
@@ -328,7 +327,6 @@ export default function App() {
       return {
         ...item,
         category,
-        upsell: getUpsellSuggestion(category),
       };
     });
   }, [lastSubmittedProducts, selectedProducts]);
@@ -377,6 +375,16 @@ export default function App() {
     setSubmitError('');
     setStage((current) => (current > 1 ? ((current - 1) as FlowStage) : current));
   };
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setLiveAvailmentIndex((current) => (current + 1) % FAKE_AVAILMENTS.length);
+    }, 2600);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -658,6 +666,33 @@ export default function App() {
                 </span>
               </button>
             </motion.div>
+          </div>
+
+          <div className="mx-auto mt-3 w-full sm:max-w-md rounded-lg border border-cyan-500/25 bg-black/35 px-3 py-2">
+            <div className="mb-1 flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">
+              <span>Live Availment Feed</span>
+              <span className="inline-flex items-center gap-1 text-cyan-200">
+                <span className="h-1.5 w-1.5 rounded-full bg-cyan-300 animate-pulse" />
+                Live
+              </span>
+            </div>
+            <div className="min-h-[42px] overflow-hidden">
+              <AnimatePresence mode="wait">
+                <motion.p
+                  key={`${activeAvailment.buyer}-${liveAvailmentIndex}`}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.28 }}
+                  className="text-[11px] sm:text-xs text-cyan-100 leading-relaxed"
+                >
+                  <span className="font-mono uppercase tracking-[0.08em] text-cyan-300">{activeAvailment.timeLabel}</span>{' '}
+                  <span className="font-semibold text-cyan-50">{activeAvailment.buyer}</span> from{' '}
+                  <span className="text-cyan-200">{activeAvailment.location}</span> availed{' '}
+                  <span className="font-semibold text-cyan-50">{activeAvailment.product}</span>
+                </motion.p>
+              </AnimatePresence>
+            </div>
           </div>
         </div>
 
@@ -947,7 +982,6 @@ export default function App() {
                           <th className="py-2 px-2 text-center font-semibold">Product</th>
                           <th className="py-2 px-2 text-center font-semibold">Category</th>
                           <th className="py-2 px-2 text-center font-semibold">Amount</th>
-                          <th className="py-2 px-2 text-center font-semibold">Suggested Upsell</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -957,12 +991,11 @@ export default function App() {
                               <td className="py-2 px-2 text-left normal-case tracking-normal break-words">{item.name}</td>
                               <td className="py-2 px-2 text-left normal-case tracking-normal">{item.category}</td>
                               <td className="py-2 px-2 text-right">PHP {item.amount}</td>
-                              <td className="py-2 px-2 text-left normal-case tracking-normal text-cyan-200 break-words">{item.upsell}</td>
                             </tr>
                           ))
                         ) : (
                           <tr className="border-b border-cyan-500/15">
-                            <td className="py-3 px-2 text-center text-gray-500" colSpan={4}>No products to review yet</td>
+                            <td className="py-3 px-2 text-center text-gray-500" colSpan={3}>No products to review yet</td>
                           </tr>
                         )}
                       </tbody>
@@ -983,10 +1016,6 @@ export default function App() {
                             <div>
                               <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">Amount</p>
                               <p className="text-xs text-cyan-100">PHP {item.amount}</p>
-                            </div>
-                            <div>
-                              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">Suggested Upsell</p>
-                              <p className="text-xs text-cyan-200 normal-case tracking-normal break-words">{item.upsell}</p>
                             </div>
                           </div>
                         </div>
