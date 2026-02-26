@@ -12,7 +12,14 @@ type OrderProduct = {
   amount: number;
   os?: string;
   fileLink?: string;
-  downloadCount?: number;
+};
+
+type BuyerEntitlement = {
+  email: string;
+  approved_product_count: number;
+  download_used: number;
+  download_limit: number;
+  is_unlimited: boolean;
 };
 
 const readBody = async (req: any) => {
@@ -51,6 +58,44 @@ const verifyToken = (token: string, secret: string) => {
 };
 
 const isApprovedStatus = (status: string) => status.toLowerCase().includes('review:approved');
+
+const aggregateApprovedProducts = (rows: Array<{ products_json: unknown; serial_no: string }>) => {
+  const byKey = new Map<string, { name: string; amount: number; os?: string; fileLink?: string; serialNo: string }>();
+
+  for (const row of rows) {
+    const products = Array.isArray(row.products_json) ? (row.products_json as OrderProduct[]) : [];
+    for (const product of products) {
+      const name = String(product.name ?? '').trim();
+      if (!name) {
+        continue;
+      }
+
+      const key = name.toLowerCase();
+      const current = byKey.get(key);
+      const link = String(product.fileLink ?? '').trim();
+      if (!current) {
+        byKey.set(key, {
+          name,
+          amount: Number(product.amount ?? 0),
+          os: product.os,
+          fileLink: link,
+          serialNo: row.serial_no,
+        });
+        continue;
+      }
+
+      if (!current.fileLink && link) {
+        byKey.set(key, {
+          ...current,
+          fileLink: link,
+          serialNo: row.serial_no,
+        });
+      }
+    }
+  }
+
+  return Array.from(byKey.values());
+};
 
 export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') {
@@ -111,9 +156,28 @@ export default async function handler(req: any, res: any) {
       return res.status(403).json({ ok: false, error: 'Order is not approved for delivery yet.' });
     }
 
-    const products = Array.isArray(orderLookup.data.products_json)
-      ? (orderLookup.data.products_json as OrderProduct[])
-      : [];
+    const approvedOrders = await supabase
+      .from('verification_orders')
+      .select('serial_no, products_json, email_status')
+      .eq('email', email)
+      .ilike('email_status', '%review:approved%')
+      .order('created_at', { ascending: false })
+      .limit(300);
+
+    if (approvedOrders.error) {
+      return res.status(500).json({ ok: false, error: approvedOrders.error.message });
+    }
+
+    const approvedRows = (approvedOrders.data ?? []).filter((row) => isApprovedStatus(String(row.email_status ?? '')));
+    const products = aggregateApprovedProducts(approvedRows);
+
+    const entitlementLookup = await supabase
+      .from('buyer_entitlements')
+      .select('email, approved_product_count, download_used, download_limit, is_unlimited')
+      .eq('email', email)
+      .single();
+
+    const entitlement = entitlementLookup.data as BuyerEntitlement | null;
 
     const token = signPayload({ email, serialNo }, tokenSecret);
 
@@ -126,8 +190,22 @@ export default async function handler(req: any, res: any) {
         name: item.name,
         amount: item.amount,
         os: item.os,
-        downloadCount: item.downloadCount ?? 0,
       })),
+      entitlement: entitlement
+        ? {
+            approvedProductCount: Number(entitlement.approved_product_count ?? 0),
+            downloadUsed: Number(entitlement.download_used ?? 0),
+            downloadLimit: Number(entitlement.download_limit ?? 10),
+            isUnlimited: Boolean(entitlement.is_unlimited),
+          }
+        : {
+            approvedProductCount: 0,
+            downloadUsed: 0,
+            downloadLimit: 10,
+            isUnlimited: false,
+          },
+      authRule: 'email_plus_serial_required',
+      scope: 'all_approved_products_for_email',
     });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error instanceof Error ? error.message : 'Unexpected server error' });

@@ -23,6 +23,9 @@ type InboxItem = {
   paymentPortalUsed?: string;
   paymentDetailUsed?: string;
   totalDownloads?: number;
+  entitlementUsed?: number;
+  entitlementLimit?: number;
+  entitlementUnlimited?: boolean;
 };
 
 const ADMIN_USERNAME = 'RAD';
@@ -524,7 +527,9 @@ export default function Admin() {
                     {item.status}
                   </span>
                 </div>
-                <p className="mt-1 text-[11px] text-cyan-300/90">Downloads used (admin): {item.totalDownloads ?? 0}/10</p>
+                <p className="mt-1 text-[11px] text-cyan-300/90">
+                  Downloads entitlement (admin): {item.entitlementUnlimited ? 'UNLIMITED' : `${item.entitlementUsed ?? 0}/${item.entitlementLimit ?? 10}`}
+                </p>
 
                 <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
                   <input

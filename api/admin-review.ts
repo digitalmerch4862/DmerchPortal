@@ -30,6 +30,22 @@ const createToken = (payload: object, secret: string) => {
   return `${encoded}.${signature}`;
 };
 
+const isApprovedStatus = (status: string) => status.toLowerCase().includes('review:approved');
+
+const getDistinctApprovedProductCount = (rows: Array<{ products_json: unknown }>) => {
+  const distinct = new Set<string>();
+  for (const row of rows) {
+    const products = Array.isArray(row.products_json) ? row.products_json : [];
+    for (const item of products as Array<{ name?: unknown }>) {
+      const name = String(item?.name ?? '').trim().toLowerCase();
+      if (name) {
+        distinct.add(name);
+      }
+    }
+  }
+  return distinct.size;
+};
+
 const buildApprovedEmailHtml = ({
   username,
   serialNo,
@@ -141,6 +157,32 @@ export default async function handler(req: any, res: any) {
         products_json: updatedProducts,
       })
       .eq('id', lookup.data.id);
+
+    const approvedLookup = await supabase
+      .from('verification_orders')
+      .select('products_json, email_status')
+      .eq('email', lookup.data.email)
+      .ilike('email_status', '%review:approved%')
+      .limit(500);
+
+    if (!approvedLookup.error) {
+      const approvedRows = (approvedLookup.data ?? []).filter((row) => isApprovedStatus(String(row.email_status ?? '')));
+      const approvedProductCount = getDistinctApprovedProductCount(approvedRows);
+      const isUnlimited = approvedProductCount >= 3;
+
+      await supabase
+        .from('buyer_entitlements')
+        .upsert(
+          {
+            email: lookup.data.email,
+            approved_product_count: approvedProductCount,
+            download_limit: 10,
+            download_used: isUnlimited ? 0 : 0,
+            is_unlimited: isUnlimited,
+          },
+          { onConflict: 'email' },
+        );
+    }
 
     const token = createToken({ email: lookup.data.email, serialNo: lookup.data.serial_no }, tokenSecret);
     const accessUrl = `${appBaseUrl}/delivery?access=${encodeURIComponent(token)}`;

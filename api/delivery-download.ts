@@ -12,7 +12,14 @@ type OrderProduct = {
   amount: number;
   os?: string;
   fileLink?: string;
-  downloadCount?: number;
+};
+
+type BuyerEntitlement = {
+  email: string;
+  approved_product_count: number;
+  download_used: number;
+  download_limit: number;
+  is_unlimited: boolean;
 };
 
 const readBody = async (req: any) => {
@@ -42,6 +49,43 @@ const decodeToken = (token: string, secret: string) => {
 };
 
 const isApprovedStatus = (status: string) => status.toLowerCase().includes('review:approved');
+
+const aggregateApprovedProducts = (rows: Array<{ products_json: unknown; serial_no: string }>) => {
+  const byKey = new Map<string, { name: string; amount: number; os?: string; fileLink?: string; serialNo: string }>();
+  for (const row of rows) {
+    const products = Array.isArray(row.products_json) ? (row.products_json as OrderProduct[]) : [];
+    for (const product of products) {
+      const name = String(product.name ?? '').trim();
+      if (!name) {
+        continue;
+      }
+      const key = name.toLowerCase();
+      const existing = byKey.get(key);
+      const nextLink = String(product.fileLink ?? '').trim();
+
+      if (!existing) {
+        byKey.set(key, {
+          name,
+          amount: Number(product.amount ?? 0),
+          os: product.os,
+          fileLink: nextLink,
+          serialNo: row.serial_no,
+        });
+        continue;
+      }
+
+      if (!existing.fileLink && nextLink) {
+        byKey.set(key, {
+          ...existing,
+          fileLink: nextLink,
+          serialNo: row.serial_no,
+        });
+      }
+    }
+  }
+
+  return Array.from(byKey.values());
+};
 
 export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') {
@@ -83,7 +127,7 @@ export default async function handler(req: any, res: any) {
 
     const orderLookup = await supabase
       .from('verification_orders')
-      .select('id, serial_no, email, email_status, products_json')
+      .select('id, serial_no, email, email_status')
       .eq('serial_no', tokenPayload.serialNo)
       .eq('email', tokenPayload.email)
       .single();
@@ -97,51 +141,80 @@ export default async function handler(req: any, res: any) {
       return res.status(403).json({ ok: false, error: 'Order is not approved yet.' });
     }
 
-    const products = Array.isArray(orderLookup.data.products_json)
-      ? (orderLookup.data.products_json as OrderProduct[])
-      : [];
+    const approvedOrders = await supabase
+      .from('verification_orders')
+      .select('serial_no, products_json, email_status')
+      .eq('email', tokenPayload.email)
+      .ilike('email_status', '%review:approved%')
+      .order('created_at', { ascending: false })
+      .limit(300);
 
-    const totalDownloads = products.reduce((sum, item) => sum + Number(item.downloadCount ?? 0), 0);
-    if (totalDownloads >= 10) {
+    if (approvedOrders.error) {
+      return res.status(500).json({ ok: false, error: approvedOrders.error.message });
+    }
+
+    const approvedRows = (approvedOrders.data ?? []).filter((row) => isApprovedStatus(String(row.email_status ?? '')));
+    const products = aggregateApprovedProducts(approvedRows);
+
+    const entitlementLookup = await supabase
+      .from('buyer_entitlements')
+      .select('email, approved_product_count, download_used, download_limit, is_unlimited')
+      .eq('email', tokenPayload.email)
+      .single();
+
+    const entitlement: BuyerEntitlement = entitlementLookup.data ?? {
+      email: tokenPayload.email,
+      approved_product_count: 0,
+      download_used: 0,
+      download_limit: 10,
+      is_unlimited: false,
+    };
+
+    const used = Number(entitlement.download_used ?? 0);
+    const limit = Number(entitlement.download_limit ?? 10);
+    if (!entitlement.is_unlimited && used >= limit) {
       return res.status(403).json({ ok: false, error: 'Download limit reached. Please contact support.', code: 'DOWNLOAD_LIMIT_REACHED' });
     }
 
-    const targetIndex = products.findIndex((item) => String(item.name ?? '').trim() === productName);
-    if (targetIndex < 0) {
+    const target = products.find((item) => item.name === productName);
+    if (!target) {
       return res.status(404).json({ ok: false, error: 'Selected product is not mapped for this order.' });
     }
 
-    const target = products[targetIndex];
     const targetLink = String(target.fileLink ?? '').trim();
     if (!targetLink) {
       return res.status(400).json({ ok: false, error: 'No delivery link configured yet for this product.' });
     }
 
-    const updatedProducts = products.map((item, index) => {
-      if (index !== targetIndex) {
-        return item;
-      }
-      return {
-        ...item,
-        downloadCount: Number(item.downloadCount ?? 0) + 1,
-      };
-    });
+    if (!entitlement.is_unlimited) {
+      const nextUsed = used + 1;
+      await supabase
+        .from('buyer_entitlements')
+        .upsert({
+          email: tokenPayload.email,
+          approved_product_count: Number(entitlement.approved_product_count ?? 0),
+          download_used: nextUsed,
+          download_limit: limit,
+          is_unlimited: false,
+        }, { onConflict: 'email' });
+    }
 
-    await supabase
-      .from('verification_orders')
-      .update({ products_json: updatedProducts })
-      .eq('id', orderLookup.data.id);
+    const nextUsed = entitlement.is_unlimited ? used : used + 1;
 
     res.setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin']);
     return res.status(200).json({
       ok: true,
       redirectUrl: targetLink,
-      products: updatedProducts.map((item) => ({
+      products: products.map((item) => ({
         name: item.name,
         amount: item.amount,
         os: item.os,
-        downloadCount: item.downloadCount ?? 0,
       })),
+      entitlement: {
+        isUnlimited: Boolean(entitlement.is_unlimited),
+        downloadUsed: nextUsed,
+        downloadLimit: limit,
+      },
     });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error instanceof Error ? error.message : 'Unexpected server error' });
