@@ -97,17 +97,17 @@ const FAKE_AVAILMENTS: FakeAvailment[] = [
 
 type FlowStage = 1 | 2 | 3 | 4;
 
-function GlitchText({text, className = ''}: {text: string; className?: string}) {
+function GlitchText({ text, className = '' }: { text: string; className?: string }) {
   return (
     <div className={`relative inline-block ${className}`}>
       <span className="relative z-10">{text}</span>
-      <span className="absolute top-0 left-0 -ml-0.5 text-cyan-400 opacity-70 animate-pulse select-none z-0" style={{clipPath: 'inset(45% 0 30% 0)'}}>{text}</span>
-      <span className="absolute top-0 left-0 ml-0.5 text-magenta-400 opacity-70 animate-pulse select-none z-0" style={{clipPath: 'inset(10% 0 60% 0)'}}>{text}</span>
+      <span className="absolute top-0 left-0 -ml-0.5 text-cyan-400 opacity-70 animate-pulse select-none z-0" style={{ clipPath: 'inset(45% 0 30% 0)' }}>{text}</span>
+      <span className="absolute top-0 left-0 ml-0.5 text-magenta-400 opacity-70 animate-pulse select-none z-0" style={{ clipPath: 'inset(10% 0 60% 0)' }}>{text}</span>
     </div>
   );
 }
 
-function CyberCard({children, title, icon: Icon, color = 'cyan'}: {children: ReactNode; title: string; icon: ComponentType<{className?: string; size?: number}>; color?: 'cyan' | 'magenta'}) {
+function CyberCard({ children, title, icon: Icon, color = 'cyan' }: { children: ReactNode; title: string; icon: ComponentType<{ className?: string; size?: number }>; color?: 'cyan' | 'magenta' }) {
   void title;
   void Icon;
   const isMagenta = color === 'magenta';
@@ -116,8 +116,8 @@ function CyberCard({children, title, icon: Icon, color = 'cyan'}: {children: Rea
 
   return (
     <motion.div
-      initial={{opacity: 0, y: 20}}
-      animate={{opacity: 1, y: 0}}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
       className={`relative cyber-saber-frame ${isMagenta ? 'cyber-saber-frame-magenta' : 'cyber-saber-frame-cyan'} bg-black/80 p-4 sm:p-6 mb-4 sm:mb-6 ${shadowColor} backdrop-blur-md overflow-hidden ${isMagenta ? 'cyber-magenta-card border border-magenta-500/40' : `border-l-4 ${borderColor}`}`}
     >
       <div className="relative z-10 text-gray-300">{children}</div>
@@ -127,23 +127,22 @@ function CyberCard({children, title, icon: Icon, color = 'cyan'}: {children: Rea
   );
 }
 
-function MethodCard({method, id, compact = false, selectedMethod, onSelectMethod}: {method: 'gcash' | 'gotyme'; id: string; compact?: boolean; selectedMethod: 'gcash' | 'gotyme'; onSelectMethod: (method: 'gcash' | 'gotyme') => void}) {
+function MethodCard({ method, id, compact = false, selectedMethod, onSelectMethod }: { method: 'gcash' | 'gotyme'; id: string; compact?: boolean; selectedMethod: 'gcash' | 'gotyme'; onSelectMethod: (method: 'gcash' | 'gotyme') => void }) {
   const isActive = selectedMethod === method;
   const isGcash = method === 'gcash';
 
   return (
     <motion.button
       type="button"
-      whileHover={{scale: 1.05}}
-      whileTap={{scale: 0.95}}
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
       onClick={() => onSelectMethod(method)}
-      className={`relative cursor-pointer transition-all duration-300 border-2 overflow-hidden ${compact ? 'w-36 h-36' : 'w-44 h-64'} ${
-        isActive
+      className={`relative cursor-pointer transition-all duration-300 border-2 overflow-hidden ${compact ? 'w-36 h-36' : 'w-44 h-64'} ${isActive
           ? isGcash
             ? 'border-blue-500 bg-blue-500/20 shadow-[0_0_40px_rgba(0,125,254,0.5)]'
             : 'border-cyan-500 bg-cyan-500/20 shadow-[0_0_40px_rgba(0,229,255,0.5)]'
           : 'border-white/10 bg-white/5 grayscale hover:grayscale-0 opacity-40 hover:opacity-100'
-      }`}
+        }`}
     >
       <div className={`absolute top-0 left-0 w-full h-full flex flex-col items-center justify-between ${compact ? 'p-4' : 'p-6'}`}>
         <div className="w-full flex justify-between items-start">
@@ -167,8 +166,8 @@ function MethodCard({method, id, compact = false, selectedMethod, onSelectMethod
 
         <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
           <motion.div
-            initial={{width: 0}}
-            animate={{width: isActive ? '100%' : '30%'}}
+            initial={{ width: 0 }}
+            animate={{ width: isActive ? '100%' : '30%' }}
             className={`h-full ${isGcash ? 'bg-blue-500' : 'bg-cyan-400'}`}
           />
         </div>
@@ -642,10 +641,10 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-cyan-500/30 overflow-x-hidden">
       {/* Background Grid & Effects */}
-      <div className="fixed inset-0 z-0 opacity-20 pointer-events-none" 
-           style={{ backgroundImage: `linear-gradient(${COLORS.cyan}22 1px, transparent 1px), linear-gradient(90deg, ${COLORS.cyan}22 1px, transparent 1px)`, backgroundSize: '40px 40px' }} />
+      <div className="fixed inset-0 z-0 opacity-20 pointer-events-none"
+        style={{ backgroundImage: `linear-gradient(${COLORS.cyan}22 1px, transparent 1px), linear-gradient(90deg, ${COLORS.cyan}22 1px, transparent 1px)`, backgroundSize: '40px 40px' }} />
       <div className="fixed inset-0 z-0 bg-gradient-to-b from-transparent via-black/50 to-black pointer-events-none" />
-      
+
       {/* Scanline Effect */}
       <div className="fixed inset-0 z-50 pointer-events-none opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%]" />
 
@@ -661,7 +660,7 @@ export default function App() {
               <div className="absolute -top-1 -left-1 w-3 h-3 bg-cyan-500" />
               <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-cyan-500" />
               <h1 className="text-3xl sm:text-4xl md:text-6xl font-black tracking-tighter uppercase italic">
-                <GlitchText text="DMERCH_PORTAL" />
+                <GlitchText text="DMERCH" />
               </h1>
             </div>
             <p className="text-cyan-400/80 font-mono text-[11px] sm:text-sm tracking-[0.25em] sm:tracking-[0.3em] uppercase">

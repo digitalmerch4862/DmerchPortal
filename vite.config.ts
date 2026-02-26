@@ -1,10 +1,10 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig, loadEnv} from 'vite';
-import {VitePWA} from 'vite-plugin-pwa';
+import { defineConfig, loadEnv } from 'vite';
+import { VitePWA } from 'vite-plugin-pwa';
 
-export default defineConfig(({mode}) => {
+export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   return {
     plugins: [
@@ -14,8 +14,8 @@ export default defineConfig(({mode}) => {
         registerType: 'autoUpdate',
         injectRegister: false,
         manifest: {
-          name: 'DMerch|Portal',
-          short_name: 'DMerch|Portal',
+          name: 'DMERCH',
+          short_name: 'DMERCH',
           description: 'Secure transaction and verification portal for DMerch.',
           theme_color: '#050505',
           background_color: '#050505',

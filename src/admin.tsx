@@ -1,7 +1,8 @@
-import {useEffect, useMemo, useState} from 'react';
-import {motion} from 'motion/react';
-import {ArrowLeft, CheckCircle2, Inbox, PackageSearch, ShieldAlert, Trash2, Upload} from 'lucide-react';
-import {productCatalog} from './data/products';
+import { useEffect, useMemo, useState } from 'react';
+import { motion } from 'motion/react';
+import { ArrowLeft, CheckCircle2, Inbox, PackageSearch, ShieldAlert, Trash2, Upload } from 'lucide-react';
+import { productCatalog } from './data/products';
+import { getSupabaseBrowserClient } from './lib/supabase-browser';
 
 type AdminProduct = {
   id: string;
@@ -28,15 +29,8 @@ type InboxItem = {
   entitlementUnlimited?: boolean;
 };
 
-const ADMIN_USERNAME = 'RAD';
-const ADMIN_EMAIL = 'DMERCHPAYMENTPORTAL';
-const ADMIN_UNLOCK_KEY = 'dmerch_admin_unlocked';
 const PRODUCTS_KEY = 'dmerch_admin_products_v1';
 const INBOX_KEY = 'dmerch_admin_inbox_v1';
-const ADMIN_HEADERS = {
-  'X-Admin-User': ADMIN_USERNAME,
-  'X-Admin-Key': ADMIN_EMAIL,
-};
 
 const inferOs = (name: string) => {
   const lower = name.toLowerCase();
@@ -113,11 +107,15 @@ const parseBulkRows = (raw: string): AdminProduct[] => {
   return imported;
 };
 
+type InboxApiItem = Omit<InboxItem, 'id' | 'deliveryLink'>;
+
 export default function Admin() {
-  const [loginUser, setLoginUser] = useState('');
-  const [loginEmail, setLoginEmail] = useState('');
+  const [loginEmail, setLoginEmail] = useState('rad4862@gmail.com');
+  const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [authChecking, setAuthChecking] = useState(true);
   const [unlocked, setUnlocked] = useState(false);
+  const [accessToken, setAccessToken] = useState('');
 
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
@@ -129,9 +127,6 @@ export default function Admin() {
   const [inboxLoading, setInboxLoading] = useState(false);
 
   useEffect(() => {
-    const isUnlocked = window.sessionStorage.getItem(ADMIN_UNLOCK_KEY) === '1';
-    setUnlocked(isUnlocked);
-
     const storedProducts = window.localStorage.getItem(PRODUCTS_KEY);
     const storedInbox = window.localStorage.getItem(INBOX_KEY);
 
@@ -150,6 +145,33 @@ export default function Admin() {
       setInboxItems(seeded);
       window.localStorage.setItem(INBOX_KEY, JSON.stringify(seeded));
     }
+
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      setLoginError('Missing Supabase browser credentials. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
+      setAuthChecking(false);
+      return;
+    }
+
+    void supabase.auth.getSession().then(({ data }) => {
+      const token = data.session?.access_token ?? '';
+      setAccessToken(token);
+      setUnlocked(Boolean(token));
+      setAuthChecking(false);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const token = session?.access_token ?? '';
+      setAccessToken(token);
+      setUnlocked(Boolean(token));
+      if (!session) {
+        setLoginPassword('');
+      }
+    });
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -166,13 +188,6 @@ export default function Admin() {
     window.localStorage.setItem(INBOX_KEY, JSON.stringify(inboxItems));
   }, [inboxItems]);
 
-  useEffect(() => {
-    if (!unlocked) {
-      return;
-    }
-    void refreshInbox();
-  }, [unlocked]);
-
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) {
@@ -182,22 +197,74 @@ export default function Admin() {
   }, [products, search]);
 
   const pendingCount = useMemo(() => inboxItems.filter((item) => item.status === 'pending').length, [inboxItems]);
+  const selectedCount = selectedProductIds.length;
+  const areAllFilteredSelected = filteredProducts.length > 0 && filteredProducts.every((item) => selectedProductIds.includes(item.id));
 
-  const handleUnlock = () => {
-    const valid = loginUser.trim().toUpperCase() === ADMIN_USERNAME && loginEmail.trim().toUpperCase() === ADMIN_EMAIL;
-    if (!valid) {
-      setLoginError('Invalid admin credentials.');
+  const refreshInbox = async (tokenOverride?: string) => {
+    const token = tokenOverride ?? accessToken;
+    if (!token) {
+      return;
+    }
+
+    setInboxLoading(true);
+    try {
+      const response = await fetch('/api/admin-inbox', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const payload = (await response.json()) as { ok: boolean; inbox?: InboxApiItem[]; error?: string };
+      if (!response.ok || !payload.ok || !payload.inbox) {
+        throw new Error(payload.error ?? 'Could not load inbox');
+      }
+
+      setInboxItems(
+        payload.inbox.map((item) => ({
+          ...item,
+          id: item.referenceCode,
+          deliveryLink: '',
+        })),
+      );
+      setLoginError('');
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : 'Could not load inbox');
+    } finally {
+      setInboxLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!unlocked || !accessToken) {
+      return;
+    }
+    void refreshInbox(accessToken);
+  }, [unlocked, accessToken]);
+
+  const handleLogin = async () => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      setLoginError('Supabase browser auth is not configured.');
       return;
     }
 
     setLoginError('');
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: loginEmail.trim().toLowerCase(),
+      password: loginPassword,
+    });
+
+    if (error || !data.session) {
+      setLoginError(error?.message ?? 'Unable to sign in.');
+      return;
+    }
+
+    setAccessToken(data.session.access_token);
     setUnlocked(true);
-    window.sessionStorage.setItem(ADMIN_UNLOCK_KEY, '1');
-    void refreshInbox();
+    await refreshInbox(data.session.access_token);
   };
 
   const updateProduct = (id: string, patch: Partial<AdminProduct>) => {
-    setProducts((current) => current.map((item) => (item.id === id ? {...item, ...patch} : item)));
+    setProducts((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
   };
 
   const removeProduct = (id: string) => {
@@ -228,11 +295,8 @@ export default function Admin() {
   };
 
   const updateInbox = (id: string, patch: Partial<InboxItem>) => {
-    setInboxItems((current) => current.map((item) => (item.id === id ? {...item, ...patch} : item)));
+    setInboxItems((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
   };
-
-  const selectedCount = selectedProductIds.length;
-  const areAllFilteredSelected = filteredProducts.length > 0 && filteredProducts.every((item) => selectedProductIds.includes(item.id));
 
   const toggleSelectProduct = (id: string) => {
     setSelectedProductIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
@@ -279,37 +343,18 @@ export default function Admin() {
     setSelectedProductIds([]);
   };
 
-  const refreshInbox = async () => {
-    setInboxLoading(true);
-    try {
-      const response = await fetch('/api/admin-inbox', {
-        headers: {
-          ...ADMIN_HEADERS,
-        },
-      });
-      const payload = await response.json() as { ok: boolean; inbox?: Array<Omit<InboxItem, 'id' | 'deliveryLink'>>; error?: string };
-      if (!response.ok || !payload.ok || !payload.inbox) {
-        throw new Error(payload.error ?? 'Could not load inbox');
-      }
-
-      setInboxItems(payload.inbox.map((item) => ({
-        ...item,
-        id: item.referenceCode,
-        deliveryLink: '',
-      })));
-    } catch {
-      // Keep local fallback inbox when backend is unreachable.
-    } finally {
-      setInboxLoading(false);
-    }
-  };
-
   const submitReview = async (item: InboxItem, action: 'approve' | 'reject') => {
+    if (!accessToken) {
+      setLoginError('Admin session expired. Please log in again.');
+      setUnlocked(false);
+      return;
+    }
+
     const response = await fetch('/api/admin-review', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...ADMIN_HEADERS,
+        Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
         serialNo: item.referenceCode,
@@ -318,7 +363,7 @@ export default function Admin() {
       }),
     });
 
-    const payload = await response.json() as { ok: boolean; error?: string };
+    const payload = (await response.json()) as { ok: boolean; error?: string };
     if (!response.ok || !payload.ok) {
       throw new Error(payload.error ?? 'Review action failed');
     }
@@ -326,32 +371,48 @@ export default function Admin() {
     setInboxItems((current) => current.map((row) => (row.id === item.id ? { ...row, status: action === 'approve' ? 'approved' : 'rejected' } : row)));
   };
 
-  const handleLogout = () => {
-    window.sessionStorage.removeItem(ADMIN_UNLOCK_KEY);
+  const handleLogout = async () => {
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
+    setAccessToken('');
     setUnlocked(false);
   };
+
+  if (authChecking) {
+    return (
+      <div className="min-h-screen bg-[#050505] text-white px-4 py-10">
+        <div className="mx-auto max-w-md rounded-xl border border-cyan-500/30 bg-[#071018]/80 p-6 text-center">
+          <p className="text-sm font-mono uppercase tracking-[0.18em] text-cyan-200">Checking admin session...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!unlocked) {
     return (
       <div className="min-h-screen bg-[#050505] text-white px-4 py-10">
         <div className="mx-auto max-w-md rounded-xl border border-cyan-500/30 bg-[#071018]/80 p-6">
           <h1 className="text-xl font-black tracking-[0.12em] uppercase text-cyan-200">Admin Portal Access</h1>
-          <p className="mt-2 text-sm text-cyan-100/80">Enter admin credentials to unlock the dashboard.</p>
+          <p className="mt-2 text-sm text-cyan-100/80">Sign in using your admin email and password.</p>
           <div className="mt-5 space-y-3">
             <input
-              value={loginUser}
-              onChange={(event) => setLoginUser(event.target.value)}
-              className="w-full rounded-md border border-cyan-500/40 bg-black/40 px-3 py-2 text-sm"
-              placeholder="Username"
-            />
-            <input
+              type="email"
               value={loginEmail}
               onChange={(event) => setLoginEmail(event.target.value)}
               className="w-full rounded-md border border-cyan-500/40 bg-black/40 px-3 py-2 text-sm"
-              placeholder="Email key"
+              placeholder="rad4862@gmail.com"
+            />
+            <input
+              type="password"
+              value={loginPassword}
+              onChange={(event) => setLoginPassword(event.target.value)}
+              className="w-full rounded-md border border-cyan-500/40 bg-black/40 px-3 py-2 text-sm"
+              placeholder="Enter admin password"
             />
             {loginError ? <p className="text-xs text-red-300">{loginError}</p> : null}
-            <button onClick={handleUnlock} className="cyber-btn cyber-btn-primary w-full">Unlock Admin</button>
+            <button onClick={() => { void handleLogin(); }} className="cyber-btn cyber-btn-primary w-full">Sign In Admin</button>
             <button onClick={() => { window.location.href = '/'; }} className="cyber-btn cyber-btn-secondary w-full">Back to Portal</button>
           </div>
         </div>
@@ -371,7 +432,7 @@ export default function Admin() {
             </div>
             <div className="flex flex-wrap gap-2">
               <button onClick={() => { window.location.href = '/'; }} className="cyber-btn cyber-btn-secondary"><ArrowLeft size={14} />Main Portal</button>
-              <button onClick={handleLogout} className="cyber-btn cyber-btn-secondary">Logout</button>
+              <button onClick={() => { void handleLogout(); }} className="cyber-btn cyber-btn-secondary">Logout</button>
             </div>
           </div>
         </div>
@@ -454,14 +515,14 @@ export default function Admin() {
                     <td className="px-2 py-2">
                       <input
                         value={item.name}
-                        onChange={(event) => updateProduct(item.id, {name: event.target.value})}
+                        onChange={(event) => updateProduct(item.id, { name: event.target.value })}
                         className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1"
                       />
                     </td>
                     <td className="px-2 py-2">
                       <input
                         value={item.fileLink}
-                        onChange={(event) => updateProduct(item.id, {fileLink: event.target.value})}
+                        onChange={(event) => updateProduct(item.id, { fileLink: event.target.value })}
                         className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1"
                         placeholder="https://drive.google.com/..."
                       />
@@ -469,7 +530,7 @@ export default function Admin() {
                     <td className="px-2 py-2">
                       <input
                         value={item.os}
-                        onChange={(event) => updateProduct(item.id, {os: event.target.value})}
+                        onChange={(event) => updateProduct(item.id, { os: event.target.value })}
                         className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1"
                       />
                     </td>
@@ -477,7 +538,7 @@ export default function Admin() {
                       <input
                         type="number"
                         value={item.amount}
-                        onChange={(event) => updateProduct(item.id, {amount: Number(event.target.value || 0)})}
+                        onChange={(event) => updateProduct(item.id, { amount: Number(event.target.value || 0) })}
                         className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1 text-right"
                       />
                     </td>
@@ -534,7 +595,7 @@ export default function Admin() {
                 <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
                   <input
                     value={item.deliveryLink}
-                    onChange={(event) => updateInbox(item.id, {deliveryLink: event.target.value})}
+                    onChange={(event) => updateInbox(item.id, { deliveryLink: event.target.value })}
                     className="rounded-md border border-cyan-500/35 bg-black/35 px-3 py-2 text-xs"
                     placeholder="Paste delivery link to send customer"
                   />
