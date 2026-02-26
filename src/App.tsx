@@ -633,7 +633,7 @@ export default function App() {
 
       <main className="relative z-10 max-w-4xl mx-auto px-4 py-8 sm:py-12">
         {/* Header */}
-        <header className="text-center mb-10 sm:mb-16">
+        <header className="text-center mb-4 sm:mb-6">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -650,7 +650,7 @@ export default function App() {
               Secure Transaction Protocol v2.4.0
             </p>
 
-            <div className="mx-auto mt-4 w-full max-w-xl rounded-lg border border-cyan-500/25 bg-black/35 px-3 py-2 text-left">
+            <div className="mx-auto mt-2 w-full max-w-xl rounded-lg border border-cyan-500/25 bg-black/35 px-3 py-2 text-left">
               <div className="mb-1 flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">
                 <span>Live Availment Feed</span>
                 <span className="inline-flex items-center gap-1 text-cyan-200">
