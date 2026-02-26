@@ -193,7 +193,35 @@ export default function Admin() {
   const [massOs, setMassOs] = useState('');
   const [inboxLoading, setInboxLoading] = useState(false);
   const [crmLoading, setCrmLoading] = useState(false);
+  const [inboxError, setInboxError] = useState('');
+  const [crmError, setCrmError] = useState('');
+  const [lastInboxSyncAt, setLastInboxSyncAt] = useState('');
+  const [lastCrmSyncAt, setLastCrmSyncAt] = useState('');
+  const [inboxLastCount, setInboxLastCount] = useState(0);
+  const [crmLastCount, setCrmLastCount] = useState(0);
   const [activeTab, setActiveTab] = useState<AdminTab>('analytics');
+
+  const readApiPayload = async (response: Response) => {
+    try {
+      return (await response.json()) as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+  };
+
+  const logoutForAuthFailure = async (message: string) => {
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
+    setAccessToken('');
+    setUnlocked(false);
+    setInboxItems([]);
+    setCrmItems([]);
+    setInboxError('');
+    setCrmError('');
+    setLoginError(message);
+  };
 
   useEffect(() => {
     const storedProducts = window.localStorage.getItem(PRODUCTS_KEY);
@@ -268,15 +296,23 @@ export default function Admin() {
     }
 
     setInboxLoading(true);
+    setInboxError('');
     try {
       const response = await fetch('/api/admin-inbox', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      const payload = (await response.json()) as { ok: boolean; inbox?: InboxApiItem[]; error?: string };
+      const payload = (await readApiPayload(response)) as { ok?: boolean; inbox?: InboxApiItem[]; error?: string };
+
+      if (response.status === 401 || response.status === 403) {
+        const reason = payload.error ?? (response.status === 401 ? 'Admin session expired.' : 'Admin role required.');
+        await logoutForAuthFailure(reason);
+        return;
+      }
+
       if (!response.ok || !payload.ok || !payload.inbox) {
-        throw new Error(payload.error ?? 'Could not load inbox');
+        throw new Error(payload.error ?? `Inbox sync failed (${response.status}).`);
       }
 
       setInboxItems(
@@ -286,9 +322,13 @@ export default function Admin() {
           deliveryLink: '',
         })),
       );
+      setInboxLastCount(payload.inbox.length);
+      setLastInboxSyncAt(new Date().toISOString());
       setLoginError('');
     } catch (error) {
-      setLoginError(error instanceof Error ? error.message : 'Could not load inbox');
+      const message = error instanceof Error ? error.message : 'Could not load inbox';
+      setInboxError(message);
+      setLoginError(message);
     } finally {
       setInboxLoading(false);
     }
@@ -301,24 +341,40 @@ export default function Admin() {
     }
 
     setCrmLoading(true);
+    setCrmError('');
     try {
       const response = await fetch('/api/admin-crm', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      const payload = (await response.json()) as { ok: boolean; rows?: CrmApiItem[]; error?: string };
+      const payload = (await readApiPayload(response)) as { ok?: boolean; rows?: CrmApiItem[]; error?: string };
+
+      if (response.status === 401 || response.status === 403) {
+        const reason = payload.error ?? (response.status === 401 ? 'Admin session expired.' : 'Admin role required.');
+        await logoutForAuthFailure(reason);
+        return;
+      }
+
       if (!response.ok || !payload.ok || !payload.rows) {
-        throw new Error(payload.error ?? 'Could not load CRM records');
+        throw new Error(payload.error ?? `CRM sync failed (${response.status}).`);
       }
 
       setCrmItems(payload.rows.map((item) => ({ ...item, id: item.referenceCode })));
+      setCrmLastCount(payload.rows.length);
+      setLastCrmSyncAt(new Date().toISOString());
       setLoginError('');
     } catch (error) {
-      setLoginError(error instanceof Error ? error.message : 'Could not load CRM records');
+      const message = error instanceof Error ? error.message : 'Could not load CRM records';
+      setCrmError(message);
+      setLoginError(message);
     } finally {
       setCrmLoading(false);
     }
+  };
+
+  const refreshAdminData = async () => {
+    await Promise.all([refreshInbox(), refreshCrm()]);
   };
 
   useEffect(() => {
@@ -676,19 +732,24 @@ export default function Admin() {
         </div>
 
         <div className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-3">
-          <div className="flex gap-2 overflow-x-auto">
-            {tabItems.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`cyber-btn whitespace-nowrap ${activeTab === tab.key ? 'cyber-btn-primary' : 'cyber-btn-secondary'}`}
-                >
-                  <Icon size={14} /> {tab.label}
-                </button>
-              );
-            })}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex gap-2 overflow-x-auto">
+              {tabItems.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key)}
+                    className={`cyber-btn whitespace-nowrap ${activeTab === tab.key ? 'cyber-btn-primary' : 'cyber-btn-secondary'}`}
+                  >
+                    <Icon size={14} /> {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+            <button onClick={() => { void refreshAdminData(); }} className="cyber-btn cyber-btn-secondary whitespace-nowrap">
+              {inboxLoading || crmLoading ? 'Syncing...' : 'Sync Inbox + CRM'}
+            </button>
           </div>
         </div>
 
@@ -731,8 +792,16 @@ export default function Admin() {
                 <button onClick={() => { void clearInbox(); }} className="cyber-btn cyber-btn-secondary">Clear Inbox</button>
               </div>
             </div>
+            <p className="mb-3 text-[11px] font-mono uppercase tracking-[0.16em] text-cyan-200">
+              Last sync: {lastInboxSyncAt ? toReadableDate(lastInboxSyncAt) : 'Never'} | Rows fetched: {inboxLastCount}
+            </p>
+            {inboxError ? (
+              <div className="mb-3 rounded-md border border-red-400/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                Inbox sync error: {inboxError}
+              </div>
+            ) : null}
             <div className="space-y-3">
-              {inboxItems.length === 0 ? <p className="rounded-md border border-cyan-500/20 bg-black/25 px-3 py-4 text-xs text-cyan-200">No inbox records found.</p> : null}
+              {inboxItems.length === 0 ? <p className="rounded-md border border-cyan-500/20 bg-black/25 px-3 py-4 text-xs text-cyan-200">No active inbox records. Click Refresh Inbox. If still empty, check sync error above.</p> : null}
               {inboxItems.map((item) => (
                 <motion.div key={item.id} layout className="rounded-lg border border-cyan-500/20 bg-black/35 p-3">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -899,6 +968,14 @@ export default function Admin() {
                 <button onClick={() => { void refreshCrm(); }} className="cyber-btn cyber-btn-secondary">{crmLoading ? 'Refreshing...' : 'Refresh CRM'}</button>
               </div>
             </div>
+            <p className="mb-3 text-[11px] font-mono uppercase tracking-[0.16em] text-cyan-200">
+              Last sync: {lastCrmSyncAt ? toReadableDate(lastCrmSyncAt) : 'Never'} | Rows fetched: {crmLastCount}
+            </p>
+            {crmError ? (
+              <div className="mb-3 rounded-md border border-red-400/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                CRM sync error: {crmError}
+              </div>
+            ) : null}
             <div className="max-h-[560px] overflow-auto rounded-lg border border-cyan-500/20">
               <table className="w-full min-w-[1080px] border-collapse text-xs">
                 <thead className="bg-cyan-500/10 text-cyan-200">
@@ -914,7 +991,7 @@ export default function Admin() {
                 <tbody>
                   {filteredCrmItems.length === 0 ? (
                     <tr className="border-t border-cyan-500/15">
-                      <td className="px-3 py-4 text-cyan-200" colSpan={6}>No CRM records found.</td>
+                      <td className="px-3 py-4 text-cyan-200" colSpan={6}>No CRM records found. Try Refresh CRM or use Sync Inbox + CRM.</td>
                     </tr>
                   ) : filteredCrmItems.map((item) => (
                     <tr key={item.id} className="border-t border-cyan-500/15">
