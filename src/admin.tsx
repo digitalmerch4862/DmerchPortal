@@ -32,6 +32,7 @@ type InboxItem = {
 
 const PRODUCTS_KEY = 'dmerch_admin_products_v1';
 const INBOX_KEY = 'dmerch_admin_inbox_v1';
+const COUNTERS_RESET_DAY_KEY = 'dmerch_counters_reset_day_v1';
 const ALLOWED_ADMIN_EMAILS = new Set(['rad4862@gmail.com', 'digitalmerch4862@gmail.com']);
 
 const isAllowedAdminEmail = (value: string | null | undefined) => {
@@ -264,6 +265,7 @@ export default function Admin() {
   const [activeTab, setActiveTab] = useState<AdminTab>('analytics');
   const [processingId, setProcessingId] = useState<string | null>(null);
   const inboxAutoMappedRef = useRef(false);
+  const [counterResetDayKey, setCounterResetDayKey] = useState('');
 
   const readApiPayload = async (response: Response) => {
     try {
@@ -297,6 +299,8 @@ export default function Admin() {
       setInboxItems([]);
       window.localStorage.setItem(INBOX_KEY, JSON.stringify([]));
     }
+
+    setCounterResetDayKey(String(window.localStorage.getItem(COUNTERS_RESET_DAY_KEY) ?? '').trim());
 
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
@@ -839,13 +843,22 @@ export default function Admin() {
 
   const todayManilaKey = toManilaDayKey(new Date());
   const pendingTodayCount = useMemo(
-    () => inboxItems.filter((item) => item.status === 'pending' && toManilaDayKey(item.submittedAt) === todayManilaKey).length,
-    [inboxItems, todayManilaKey],
+    () => (counterResetDayKey === todayManilaKey
+      ? 0
+      : inboxItems.filter((item) => item.status === 'pending' && toManilaDayKey(item.submittedAt) === todayManilaKey).length),
+    [inboxItems, todayManilaKey, counterResetDayKey],
   );
   const approvedTodayCount = useMemo(
-    () => crmItems.filter((item) => item.status === 'approved' && toManilaDayKey(item.submittedAt) === todayManilaKey).length,
-    [crmItems, todayManilaKey],
+    () => (counterResetDayKey === todayManilaKey
+      ? 0
+      : crmItems.filter((item) => item.status === 'approved' && toManilaDayKey(item.submittedAt) === todayManilaKey).length),
+    [crmItems, todayManilaKey, counterResetDayKey],
   );
+
+  const resetTodayCounters = () => {
+    window.localStorage.setItem(COUNTERS_RESET_DAY_KEY, todayManilaKey);
+    setCounterResetDayKey(todayManilaKey);
+  };
 
   const analyticsCards = useMemo(() => {
     const now = new Date();
@@ -1057,6 +1070,7 @@ export default function Admin() {
               <p className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300"><Inbox size={14} />Buyer Approval Inbox</p>
               <div className="flex flex-wrap gap-2">
                 <button onClick={() => { void refreshInbox(); }} className="cyber-btn cyber-btn-secondary">{inboxLoading ? 'Refreshing...' : 'Refresh Inbox'}</button>
+                <button onClick={resetTodayCounters} className="cyber-btn cyber-btn-secondary">Reset Today Counters</button>
                 <button onClick={() => { void clearInbox(); }} className="cyber-btn cyber-btn-secondary">Clear Inbox</button>
               </div>
             </div>
