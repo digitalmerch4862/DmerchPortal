@@ -1,5 +1,5 @@
-import {FormEvent, useEffect, useMemo, useState} from 'react';
-import {Download, ShieldCheck} from 'lucide-react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { Download, ShieldCheck } from 'lucide-react';
 
 type DeliveryProduct = {
   name: string;
@@ -25,6 +25,7 @@ export default function Delivery() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [downloadingIndex, setDownloadingIndex] = useState<number | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<Record<number, number>>({});
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -103,7 +104,9 @@ export default function Delivery() {
 
   const handleDownload = async (productName: string, index: number) => {
     setDownloadingIndex(index);
+    setDownloadProgress(prev => ({ ...prev, [index]: 0 }));
     setError('');
+
     try {
       const response = await fetch('/api/delivery-download', {
         method: 'POST',
@@ -117,16 +120,43 @@ export default function Delivery() {
         if (payload.products) {
           setProducts(payload.products);
         }
+        setDownloadingIndex(null);
         return;
       }
 
       if (payload.products) {
         setProducts(payload.products);
       }
-      window.location.href = payload.redirectUrl;
+
+      // Progress animation (Fake Security Scan / Download Prep)
+      const duration = 2000; // 2 seconds
+      const interval = 50;   // Update every 50ms
+      const steps = duration / interval;
+      let currentStep = 0;
+
+      const timer = setInterval(() => {
+        currentStep++;
+        const progress = Math.min(Math.round((currentStep / steps) * 100), 100);
+        setDownloadProgress(prev => ({ ...prev, [index]: progress }));
+
+        if (currentStep >= steps) {
+          clearInterval(timer);
+          // Trigger actual download
+          window.location.href = payload.redirectUrl as string;
+          // Keep progress at 100 for a moment then reset
+          setTimeout(() => {
+            setDownloadingIndex(null);
+            setDownloadProgress(prev => {
+              const next = { ...prev };
+              delete next[index];
+              return next;
+            });
+          }, 1000);
+        }
+      }, interval);
+
     } catch {
       setError('Download failed. Please try again.');
-    } finally {
       setDownloadingIndex(null);
     }
   };
@@ -178,16 +208,34 @@ export default function Delivery() {
                 <div key={`${product.name}-${index}`} className="rounded-md border border-cyan-500/25 bg-black/35 px-3 py-3">
                   <p className="text-sm font-semibold text-cyan-50">{product.name}</p>
                   <p className="mt-1 text-xs text-cyan-200">OS: {product.os ?? 'Multi'} | Amount: PHP {product.amount}</p>
-                  <button
-                    type="button"
-                    className="mt-2 cyber-btn cyber-btn-primary"
-                    disabled={downloadingIndex === index}
-                    onClick={() => {
-                      void handleDownload(product.name, index);
-                    }}
-                  >
-                    <Download size={14} /> {downloadingIndex === index ? 'Preparing...' : 'Download'}
-                  </button>
+                  <div className="mt-3">
+                    {downloadingIndex === index ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="download-status-tag">
+                            {downloadProgress[index] < 100 ? 'Securing Channel...' : 'Verified. Starting Download...'}
+                          </span>
+                          <span className="text-[10px] text-cyan-400 font-mono">{downloadProgress[index]}%</span>
+                        </div>
+                        <div className="cyber-progress-container">
+                          <div
+                            className="cyber-progress-bar"
+                            style={{ width: `${downloadProgress[index]}%` }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="cyber-btn cyber-btn-primary"
+                        onClick={() => {
+                          void handleDownload(product.name, index);
+                        }}
+                      >
+                        <Download size={14} /> Download
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
