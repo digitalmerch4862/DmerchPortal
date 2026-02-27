@@ -9,8 +9,16 @@ import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plu
 import gcashQr from './gcash-qr.png';
 import gotymeQr from './gotyme-qr.png';
 import { productCatalog, type ProductItem } from './data/products';
+import { getSupabaseBrowserClient } from './lib/supabase-browser';
 
 const ADMIN_PRODUCTS_KEY = 'dmerch_admin_products_v1';
+const ADMIN_GOOGLE_SHORTCUT_KEY = 'dmerch_admin_google_shortcut_v1';
+const ALLOWED_ADMIN_EMAILS = new Set(['rad4862@gmail.com', 'digitalmerch4862@gmail.com']);
+
+const isAllowedAdminEmail = (value: string | null | undefined) => {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return normalized.length > 0 && ALLOWED_ADMIN_EMAILS.has(normalized);
+};
 
 // Cyberpunk Theme Constants
 const COLORS = {
@@ -198,6 +206,7 @@ export default function App() {
   const [submitProgress, setSubmitProgress] = useState(0);
   const [submitError, setSubmitError] = useState('');
   const [submitNotice, setSubmitNotice] = useState('');
+  const [adminShortcutError, setAdminShortcutError] = useState('');
   const [submitResult, setSubmitResult] = useState<VerificationApiResponse | null>(null);
   const [lastSubmittedProducts, setLastSubmittedProducts] = useState<ProductItem[]>([]);
   const [liveAvailmentIndex, setLiveAvailmentIndex] = useState(0);
@@ -253,6 +262,77 @@ export default function App() {
       window.removeEventListener('storage', handleStorageSync);
     };
   }, []);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      return;
+    }
+
+    let mounted = true;
+
+    const evaluateSession = async (session: { user?: { email?: string | null } } | null | undefined) => {
+      if (!mounted) {
+        return;
+      }
+
+      const shouldHandleShortcut = window.localStorage.getItem(ADMIN_GOOGLE_SHORTCUT_KEY) === '1';
+      const emailValue = session?.user?.email;
+      if (!emailValue) {
+        return;
+      }
+
+      if (isAllowedAdminEmail(emailValue)) {
+        window.localStorage.removeItem(ADMIN_GOOGLE_SHORTCUT_KEY);
+        window.location.href = '/admin';
+        return;
+      }
+
+      if (shouldHandleShortcut) {
+        window.localStorage.removeItem(ADMIN_GOOGLE_SHORTCUT_KEY);
+        await supabase.auth.signOut();
+        if (!mounted) {
+          return;
+        }
+        setAdminShortcutError('Google account not allowed for admin portal. Continue normal checkout.');
+      }
+    };
+
+    void supabase.auth.getSession().then(({ data }) => {
+      void evaluateSession(data.session);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      void evaluateSession(session);
+    });
+
+    return () => {
+      mounted = false;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  const handleAdminGoogleShortcut = async () => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      setAdminShortcutError('Admin Google sign-in is unavailable. Missing Supabase configuration.');
+      return;
+    }
+
+    setAdminShortcutError('');
+    window.localStorage.setItem(ADMIN_GOOGLE_SHORTCUT_KEY, '1');
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}${window.location.pathname}${window.location.search}`,
+      },
+    });
+
+    if (error) {
+      window.localStorage.removeItem(ADMIN_GOOGLE_SHORTCUT_KEY);
+      setAdminShortcutError(error.message);
+    }
+  };
 
   const playTapSfx = useCallback((strength: 'soft' | 'strong' = 'soft') => {
     if (typeof window === 'undefined') {
@@ -381,7 +461,6 @@ export default function App() {
 
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const isEmailValid = emailPattern.test(email.trim());
-  const isAdminAccessTrigger = username.trim().toUpperCase() === 'RAD' && email.trim().toUpperCase() === 'DMERCHPAYMENTPORTAL';
 
   const canProceedFrom = (fromStage: FlowStage) => {
     if (fromStage === 1) {
@@ -930,20 +1009,24 @@ export default function App() {
                   </motion.button>
                 </div>
 
-                {isAdminAccessTrigger ? (
-                  <div className="mt-3 rounded-md border border-amber-400/35 bg-amber-500/10 px-4 py-3">
-                    <p className="text-[11px] font-mono uppercase tracking-[0.18em] text-amber-200">Admin Access Detected</p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        window.location.href = '/admin';
-                      }}
-                      className="mt-2 cyber-btn cyber-btn-secondary"
-                    >
-                      Open Admin Portal
-                    </button>
-                  </div>
-                ) : null}
+                <div className="mt-4 flex flex-col items-center gap-2">
+                  <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-cyan-300/80">OR</p>
+                  <button
+                    type="button"
+                    onClick={() => { void handleAdminGoogleShortcut(); }}
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-cyan-400/35 bg-black/45 transition hover:border-cyan-300/70"
+                    aria-label="Admin sign in with Google"
+                    title="Admin sign in with Google"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="h-6 w-6" aria-hidden="true" focusable="false">
+                      <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303C33.655 32.657 29.196 36 24 36c-6.627 0-12-5.373-12-12S17.373 12 24 12c3.059 0 5.842 1.154 7.959 3.041l5.657-5.657C34.053 6.053 29.274 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" />
+                      <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 16.109 19.002 12 24 12c3.059 0 5.842 1.154 7.959 3.041l5.657-5.657C34.053 6.053 29.274 4 24 4c-7.682 0-14.319 4.337-17.694 10.691z" />
+                      <path fill="#4CAF50" d="M24 44c5.176 0 9.86-1.977 13.409-5.191l-6.19-5.238C29.148 35.091 26.715 36 24 36c-5.176 0-9.617-3.318-11.266-7.946l-6.522 5.025C9.548 39.556 16.227 44 24 44z" />
+                      <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.084 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" />
+                    </svg>
+                  </button>
+                  {adminShortcutError ? <p className="text-center text-[11px] text-amber-200">{adminShortcutError}</p> : null}
+                </div>
               </CyberCard>
             </motion.div>
           ) : stage === 3 ? (

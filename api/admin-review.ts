@@ -2,6 +2,8 @@ import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 
+const ALLOWED_ADMIN_EMAILS = new Set(['rad4862@gmail.com', 'digitalmerch4862@gmail.com']);
+
 const resolveCorsOrigin = (req: any) => {
   const appBase = process.env.APP_BASE_URL ?? 'https://paymentportal.digitalmerchs.store';
   const allowed = new Set([appBase, 'http://localhost:3000', 'http://127.0.0.1:3000']);
@@ -97,6 +99,11 @@ const requireAdmin = async (req: any, supabase: any) => {
   const userLookup = await supabase.auth.getUser(token);
   if (userLookup.error || !userLookup.data.user) {
     return { ok: false as const, status: 401, error: 'Invalid or expired admin session.' };
+  }
+
+  const adminEmail = String(userLookup.data.user.email ?? '').trim().toLowerCase();
+  if (!ALLOWED_ADMIN_EMAILS.has(adminEmail)) {
+    return { ok: false as const, status: 403, error: 'Admin account is not allowlisted.' };
   }
 
   const roleLookup = await supabase

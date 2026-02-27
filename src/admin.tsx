@@ -31,6 +31,12 @@ type InboxItem = {
 
 const PRODUCTS_KEY = 'dmerch_admin_products_v1';
 const INBOX_KEY = 'dmerch_admin_inbox_v1';
+const ALLOWED_ADMIN_EMAILS = new Set(['rad4862@gmail.com', 'digitalmerch4862@gmail.com']);
+
+const isAllowedAdminEmail = (value: string | null | undefined) => {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return normalized.length > 0 && ALLOWED_ADMIN_EMAILS.has(normalized);
+};
 
 const inferOs = (name: string) => {
   const lower = name.toLowerCase();
@@ -174,8 +180,6 @@ const toReadableDate = (value: string) => {
 };
 
 export default function Admin() {
-  const [loginEmail, setLoginEmail] = useState('rad4862@gmail.com');
-  const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [authChecking, setAuthChecking] = useState(true);
   const [unlocked, setUnlocked] = useState(false);
@@ -249,20 +253,37 @@ export default function Admin() {
       return;
     }
 
-    void supabase.auth.getSession().then(({ data }) => {
-      const token = data.session?.access_token ?? '';
+    const applySession = async (session: { access_token?: string; user?: { email?: string | null } } | null | undefined) => {
+      const token = session?.access_token ?? '';
+      if (!token) {
+        setAccessToken('');
+        setUnlocked(false);
+        setAuthChecking(false);
+        return;
+      }
+
+      const sessionEmail = session?.user?.email;
+      if (!isAllowedAdminEmail(sessionEmail)) {
+        await supabase.auth.signOut();
+        setAccessToken('');
+        setUnlocked(false);
+        setLoginError('This Google account is not allowed for admin access.');
+        setAuthChecking(false);
+        return;
+      }
+
       setAccessToken(token);
-      setUnlocked(Boolean(token));
+      setUnlocked(true);
+      setLoginError('');
       setAuthChecking(false);
+    };
+
+    void supabase.auth.getSession().then(({ data }) => {
+      void applySession(data.session);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      const token = session?.access_token ?? '';
-      setAccessToken(token);
-      setUnlocked(Boolean(token));
-      if (!session) {
-        setLoginPassword('');
-      }
+      void applySession(session);
     });
 
     return () => {
@@ -385,7 +406,7 @@ export default function Admin() {
     void refreshCrm(accessToken);
   }, [unlocked, accessToken]);
 
-  const handleLogin = async () => {
+  const handleGoogleLogin = async () => {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
       setLoginError('Supabase browser auth is not configured.');
@@ -393,19 +414,16 @@ export default function Admin() {
     }
 
     setLoginError('');
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: loginEmail.trim().toLowerCase(),
-      password: loginPassword,
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/admin`,
+      },
     });
 
-    if (error || !data.session) {
+    if (error) {
       setLoginError(error?.message ?? 'Unable to sign in.');
-      return;
     }
-
-    setAccessToken(data.session.access_token);
-    setUnlocked(true);
-    await Promise.all([refreshInbox(data.session.access_token), refreshCrm(data.session.access_token)]);
   };
 
   const updateProduct = (id: string, patch: Partial<AdminProduct>) => {
@@ -689,24 +707,18 @@ export default function Admin() {
       <div className="min-h-screen bg-[#050505] text-white px-4 py-10">
         <div className="mx-auto max-w-md rounded-xl border border-cyan-500/30 bg-[#071018]/80 p-6">
           <h1 className="text-xl font-black tracking-[0.12em] uppercase text-cyan-200">Admin Portal Access</h1>
-          <p className="mt-2 text-sm text-cyan-100/80">Sign in using your admin email and password.</p>
+          <p className="mt-2 text-sm text-cyan-100/80">Sign in with Google to continue.</p>
           <div className="mt-5 space-y-3">
-            <input
-              type="email"
-              value={loginEmail}
-              onChange={(event) => setLoginEmail(event.target.value)}
-              className="w-full rounded-md border border-cyan-500/40 bg-black/40 px-3 py-2 text-sm"
-              placeholder="rad4862@gmail.com"
-            />
-            <input
-              type="password"
-              value={loginPassword}
-              onChange={(event) => setLoginPassword(event.target.value)}
-              className="w-full rounded-md border border-cyan-500/40 bg-black/40 px-3 py-2 text-sm"
-              placeholder="Enter admin password"
-            />
             {loginError ? <p className="text-xs text-red-300">{loginError}</p> : null}
-            <button onClick={() => { void handleLogin(); }} className="cyber-btn cyber-btn-primary w-full">Sign In Admin</button>
+            <button onClick={() => { void handleGoogleLogin(); }} className="cyber-btn cyber-btn-primary w-full">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="h-4 w-4" aria-hidden="true" focusable="false">
+                <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303C33.655 32.657 29.196 36 24 36c-6.627 0-12-5.373-12-12S17.373 12 24 12c3.059 0 5.842 1.154 7.959 3.041l5.657-5.657C34.053 6.053 29.274 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" />
+                <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 16.109 19.002 12 24 12c3.059 0 5.842 1.154 7.959 3.041l5.657-5.657C34.053 6.053 29.274 4 24 4c-7.682 0-14.319 4.337-17.694 10.691z" />
+                <path fill="#4CAF50" d="M24 44c5.176 0 9.86-1.977 13.409-5.191l-6.19-5.238C29.148 35.091 26.715 36 24 36c-5.176 0-9.617-3.318-11.266-7.946l-6.522 5.025C9.548 39.556 16.227 44 24 44z" />
+                <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.084 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" />
+              </svg>
+              Sign In with Google
+            </button>
             <button onClick={() => { window.location.href = '/'; }} className="cyber-btn cyber-btn-secondary w-full">Back to Portal</button>
           </div>
         </div>
