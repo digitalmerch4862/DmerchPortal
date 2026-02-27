@@ -765,16 +765,11 @@ export default function Admin() {
       }
 
       const nextStatus = action === 'approve' ? 'approved' : 'rejected';
-      if (action === 'approve') {
-        setInboxItems((current) => current.filter((row) => row.id !== item.id));
-      } else {
-        setInboxItems((current) => current.map((row) => (row.id === item.id ? { ...row, status: nextStatus } : row)));
-      }
+      // Remove from inbox immediately for both approve and reject
+      setInboxItems((current) => current.filter((row) => row.id !== item.id));
       setCrmItems((current) => current.map((row) => (row.referenceCode === item.referenceCode ? { ...row, status: nextStatus } : row)));
 
-      if (action === 'approve') {
-        alert(`Successfully approved ${item.referenceCode}`);
-      }
+      alert(`Successfully ${action === 'approve' ? 'approved' : 'rejected'} ${item.referenceCode}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Review action failed';
       alert(`Approval Error: ${message}`);
