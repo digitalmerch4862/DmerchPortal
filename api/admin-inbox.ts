@@ -54,17 +54,6 @@ const requireAdmin = async (req: any, supabase: any) => {
     return { ok: false as const, status: 403, error: 'Admin account is not allowlisted.' };
   }
 
-  const roleLookup = await supabase
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', userLookup.data.user.id)
-    .eq('role', 'admin')
-    .maybeSingle();
-
-  if (roleLookup.error || !roleLookup.data) {
-    return { ok: false as const, status: 403, error: 'Admin role required.' };
-  }
-
   return { ok: true as const, user: userLookup.data.user };
 };
 
