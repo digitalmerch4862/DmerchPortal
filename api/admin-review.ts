@@ -223,13 +223,17 @@ export default async function handler(req: any, res: any) {
 
     const status = `${currentStatus} | review:approved`;
 
-    await supabase
+    const { error: updateError } = await supabase
       .from('verification_orders')
       .update({
         email_status: status,
         products_json: updatedProducts,
       })
       .eq('id', lookup.data.id);
+
+    if (updateError) {
+      return res.status(500).json({ ok: false, error: `Database update failed: ${updateError.message}` });
+    }
 
     const approvedLookup = await supabase
       .from('verification_orders')
@@ -260,16 +264,23 @@ export default async function handler(req: any, res: any) {
     const token = createToken({ email: lookup.data.email, serialNo: lookup.data.serial_no }, tokenSecret);
     const accessUrl = `${appBaseUrl}/delivery?access=${encodeURIComponent(token)}`;
 
-    await resend.emails.send({
-      from: resendFromEmail,
-      to: lookup.data.email,
-      subject: `DMerch Delivery Access (${lookup.data.serial_no})`,
-      html: buildApprovedEmailHtml({
-        username: String(lookup.data.username ?? 'Customer'),
-        serialNo: lookup.data.serial_no,
-        accessUrl,
-      }),
-    });
+    try {
+      await resend.emails.send({
+        from: resendFromEmail,
+        to: lookup.data.email,
+        subject: `DMerch Delivery Access (${lookup.data.serial_no})`,
+        html: buildApprovedEmailHtml({
+          username: String(lookup.data.username ?? 'Customer'),
+          serialNo: lookup.data.serial_no,
+          accessUrl,
+        }),
+      });
+    } catch (emailError) {
+      return res.status(500).json({
+        ok: false,
+        error: `Order approved but email failed to send: ${emailError instanceof Error ? emailError.message : 'Unknown email error'}`
+      });
+    }
 
     return res.status(200).json({ ok: true, status: 'approved' });
   } catch (error) {

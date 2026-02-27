@@ -249,6 +249,7 @@ export default function Admin() {
   const [inboxLastCount, setInboxLastCount] = useState(0);
   const [crmLastCount, setCrmLastCount] = useState(0);
   const [activeTab, setActiveTab] = useState<AdminTab>('analytics');
+  const [processingId, setProcessingId] = useState<string | null>(null);
   const inboxAutoMappedRef = useRef(false);
 
   const readApiPayload = async (response: Response) => {
@@ -724,33 +725,45 @@ export default function Admin() {
 
   const submitReview = async (item: InboxItem, action: 'approve' | 'reject') => {
     if (!accessToken) {
-      setLoginError('Admin session expired. Please log in again.');
+      alert('Admin session expired. Please log in again.');
       setUnlocked(false);
       return;
     }
 
-    const response = await fetch('/api/admin-review', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        serialNo: item.referenceCode,
-        action,
-        deliveryLink: item.deliveryLink,
-        productLinks: item.deliveryLinksByProduct ?? {},
-      }),
-    });
+    setProcessingId(item.id);
+    try {
+      const response = await fetch('/api/admin-review', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          serialNo: item.referenceCode,
+          action,
+          deliveryLink: item.deliveryLink,
+          productLinks: item.deliveryLinksByProduct ?? {},
+        }),
+      });
 
-    const payload = (await response.json()) as { ok: boolean; error?: string };
-    if (!response.ok || !payload.ok) {
-      throw new Error(payload.error ?? 'Review action failed');
+      const payload = (await response.json()) as { ok: boolean; error?: string };
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error ?? `Review action failed (${response.status})`);
+      }
+
+      const nextStatus = action === 'approve' ? 'approved' : 'rejected';
+      setInboxItems((current) => current.map((row) => (row.id === item.id ? { ...row, status: nextStatus } : row)));
+      setCrmItems((current) => current.map((row) => (row.referenceCode === item.referenceCode ? { ...row, status: nextStatus } : row)));
+
+      if (action === 'approve') {
+        alert(`Successfully approved ${item.referenceCode}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Review action failed';
+      alert(`Approval Error: ${message}`);
+    } finally {
+      setProcessingId(null);
     }
-
-    const nextStatus = action === 'approve' ? 'approved' : 'rejected';
-    setInboxItems((current) => current.map((row) => (row.id === item.id ? { ...row, status: nextStatus } : row)));
-    setCrmItems((current) => current.map((row) => (row.referenceCode === item.referenceCode ? { ...row, status: nextStatus } : row)));
   };
 
   const clearInbox = async () => {
@@ -1078,11 +1091,15 @@ export default function Admin() {
                     <button
                       onClick={() => { void submitReview(item, 'approve'); }}
                       className="cyber-btn cyber-btn-primary"
-                      disabled={!item.deliveryLink.trim()}
+                      disabled={!item.deliveryLink.trim() || processingId === item.id}
                     >
-                      <CheckCircle2 size={14} /> Approve
+                      {processingId === item.id ? 'Processing...' : <><CheckCircle2 size={14} /> Approve</>}
                     </button>
-                    <button onClick={() => { void submitReview(item, 'reject'); }} className="cyber-btn cyber-btn-secondary">
+                    <button
+                      onClick={() => { void submitReview(item, 'reject'); }}
+                      className="cyber-btn cyber-btn-secondary"
+                      disabled={processingId === item.id}
+                    >
                       <ShieldAlert size={14} /> Reject
                     </button>
                   </div>
