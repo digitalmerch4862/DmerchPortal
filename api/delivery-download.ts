@@ -50,6 +50,17 @@ const decodeToken = (token: string, secret: string) => {
 
 const isApprovedStatus = (status: string) => status.toLowerCase().includes('review:approved');
 
+const toDirectDownloadLink = (url: string) => {
+  if (!url.includes('drive.google.com')) return url;
+
+  // Match /file/d/ID/view or /file/d/ID
+  const match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (match && match[1]) {
+    return `https://drive.google.com/uc?export=download&id=${match[1]}&confirm=t`;
+  }
+  return url;
+};
+
 const aggregateApprovedProducts = (rows: Array<{ products_json: unknown; serial_no: string }>) => {
   const byKey = new Map<string, { name: string; amount: number; os?: string; fileLink?: string; serialNo: string }>();
   for (const row of rows) {
@@ -204,7 +215,7 @@ export default async function handler(req: any, res: any) {
     res.setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin']);
     return res.status(200).json({
       ok: true,
-      redirectUrl: targetLink,
+      redirectUrl: toDirectDownloadLink(targetLink),
       products: products.map((item) => ({
         name: item.name,
         amount: item.amount,

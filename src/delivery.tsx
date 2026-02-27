@@ -141,8 +141,15 @@ export default function Delivery() {
 
         if (currentStep >= steps) {
           clearInterval(timer);
-          // Trigger actual download
-          window.location.href = payload.redirectUrl as string;
+          // Trigger actual download via hidden iframe to stay on portal
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          iframe.src = payload.redirectUrl as string;
+          document.body.appendChild(iframe);
+
+          // Cleanup iframe
+          setTimeout(() => document.body.removeChild(iframe), 30000);
+
           // Keep progress at 100 for a moment then reset
           setTimeout(() => {
             setDownloadingIndex(null);
