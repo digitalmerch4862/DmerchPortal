@@ -156,6 +156,23 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // Fetch all products from Supabase to fill in missing links automatically
+    const supabaseProducts = await supabase
+      .from('products')
+      .select('name, file_url');
+
+    if (!supabaseProducts.error && supabaseProducts.data) {
+      for (const p of supabaseProducts.data) {
+        const key = normalizeProductName(String(p.name ?? ''));
+        if (key && p.file_url) {
+          // Only use if not explicitly provided by admin (though normally provided by admin is better)
+          if (!productLinksByName.has(key)) {
+            productLinksByName.set(key, String(p.file_url));
+          }
+        }
+      }
+    }
+
     if (!serialNo || !action) {
       return res.status(400).json({ ok: false, error: 'serialNo and action are required.' });
     }

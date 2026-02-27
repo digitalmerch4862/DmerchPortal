@@ -265,23 +265,7 @@ export default function Admin() {
   };
 
   useEffect(() => {
-    const storedProducts = window.localStorage.getItem(PRODUCTS_KEY);
     const storedInbox = window.localStorage.getItem(INBOX_KEY);
-
-    if (storedProducts) {
-      const parsedStoredProducts = parseStoredProducts(storedProducts);
-      if (parsedStoredProducts.length > 0) {
-        setProducts(parsedStoredProducts);
-      } else {
-        const seeded = toSeedProducts();
-        setProducts(seeded);
-        window.localStorage.setItem(PRODUCTS_KEY, JSON.stringify(seeded));
-      }
-    } else {
-      const seeded = toSeedProducts();
-      setProducts(seeded);
-      window.localStorage.setItem(PRODUCTS_KEY, JSON.stringify(seeded));
-    }
 
     if (storedInbox) {
       setInboxItems(JSON.parse(storedInbox) as InboxItem[]);
@@ -296,6 +280,23 @@ export default function Admin() {
       setAuthChecking(false);
       return;
     }
+
+    const fetchSupabaseProducts = async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('name');
+
+      if (!error && data) {
+        setProducts(data.map(p => ({
+          id: p.id,
+          name: p.name,
+          amount: Number(p.price || 0),
+          os: p.os || inferOs(p.name),
+          fileLink: p.file_url || '',
+        })));
+      }
+    };
 
     const applySession = async (session: { access_token?: string; user?: { email?: string | null } } | null | undefined) => {
       const token = session?.access_token ?? '';
@@ -320,6 +321,7 @@ export default function Admin() {
       setUnlocked(true);
       setLoginError('');
       setAuthChecking(false);
+      void fetchSupabaseProducts();
     };
 
     void supabase.auth.getSession().then(({ data }) => {
@@ -335,9 +337,10 @@ export default function Admin() {
     };
   }, []);
 
-  useEffect(() => {
-    window.localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
-  }, [products]);
+  // No longer using LocalStorage for products
+  // useEffect(() => {
+  //   window.localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+  // }, [products]);
 
   useEffect(() => {
     window.localStorage.setItem(INBOX_KEY, JSON.stringify(inboxItems));
@@ -511,35 +514,130 @@ export default function Admin() {
     }
   };
 
-  const updateProduct = (id: string, patch: Partial<AdminProduct>) => {
+  const updateProduct = async (id: string, patch: Partial<AdminProduct>) => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+
     setProducts((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+
+    const updateMap: any = {};
+    if (patch.name !== undefined) updateMap.name = patch.name;
+    if (patch.amount !== undefined) updateMap.price = patch.amount;
+    if (patch.os !== undefined) updateMap.os = patch.os;
+    if (patch.fileLink !== undefined) updateMap.file_url = patch.fileLink;
+
+    if (Object.keys(updateMap).length > 0) {
+      await supabase.from('products').update(updateMap).eq('id', id);
+    }
   };
 
-  const removeProduct = (id: string) => {
+  const removeProduct = async (id: string) => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+
     setProducts((current) => current.filter((item) => item.id !== id));
     setSelectedProductIds((current) => current.filter((itemId) => itemId !== id));
+    await supabase.from('products').delete().eq('id', id);
   };
 
-  const addProductRow = () => {
-    setProducts((current) => [
-      {
-        id: `manual-${Date.now()}`,
-        name: 'New Product',
-        amount: 99,
-        os: 'Windows',
-        fileLink: '',
-      },
-      ...current,
-    ]);
+  const addProductRow = async () => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+
+    const newProduct = {
+      name: 'New Product',
+      price: 99,
+      os: 'Windows',
+      file_url: '',
+    };
+
+    const { data, error } = await supabase.from('products').insert(newProduct).select().single();
+    if (!error && data) {
+      setProducts((current) => [
+        {
+          id: data.id,
+          name: data.name,
+          amount: Number(data.price || 0),
+          os: data.os || 'Windows',
+          fileLink: data.file_url || '',
+        },
+        ...current,
+      ]);
+    }
   };
 
-  const applyBulkImport = () => {
+  const migrateProductsToSupabase = async () => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+
+    const localProducts = parseStoredProducts(window.localStorage.getItem(PRODUCTS_KEY));
+    if (localProducts.length === 0) {
+      alert('No local products found to migrate.');
+      return;
+    }
+
+    if (!window.confirm(`Migrate ${localProducts.length} products to Supabase?`)) {
+      return;
+    }
+
+    const toInsert = localProducts.map(p => ({
+      name: p.name,
+      price: p.amount,
+      os: p.os,
+      file_url: p.fileLink,
+    }));
+
+    const { error } = await supabase.from('products').insert(toInsert);
+    if (error) {
+      alert(`Migration error: ${error.message}`);
+    } else {
+      alert('Migration successful!');
+      window.localStorage.removeItem(PRODUCTS_KEY);
+      // Refresh
+      const { data } = await supabase.from('products').select('*').order('name');
+      if (data) {
+        setProducts(data.map(p => ({
+          id: p.id,
+          name: p.name,
+          amount: Number(p.price || 0),
+          os: p.os || inferOs(p.name),
+          fileLink: p.file_url || '',
+        })));
+      }
+    }
+  };
+
+  const applyBulkImport = async () => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+
     const imported = parseBulkRows(bulkData);
     if (imported.length === 0) {
       return;
     }
-    setProducts((current) => [...imported, ...current]);
-    setBulkData('');
+
+    const toInsert = imported.map(p => ({
+      name: p.name,
+      price: p.amount,
+      os: p.os,
+      file_url: p.fileLink,
+    }));
+
+    const { error } = await supabase.from('products').insert(toInsert);
+    if (!error) {
+      setBulkData('');
+      // Refresh
+      const { data } = await supabase.from('products').select('*').order('name');
+      if (data) {
+        setProducts(data.map(p => ({
+          id: p.id,
+          name: p.name,
+          amount: Number(p.price || 0),
+          os: p.os || inferOs(p.name),
+          fileLink: p.file_url || '',
+        })));
+      }
+    }
   };
 
   const updateInbox = (id: string, patch: Partial<InboxItem>) => {
@@ -561,25 +659,36 @@ export default function Admin() {
     setSelectedProductIds([]);
   };
 
-  const applyMassAmount = () => {
+  const applyMassAmount = async () => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+
     const parsed = Number(massAmount);
     if (Number.isNaN(parsed)) {
       return;
     }
     setProducts((current) => current.map((item) => (selectedProductIds.includes(item.id) ? { ...item, amount: parsed } : item)));
+    await supabase.from('products').update({ price: parsed }).in('id', selectedProductIds);
     setMassAmount('');
   };
 
-  const applyMassOs = () => {
+  const applyMassOs = async () => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+
     const nextOs = massOs.trim();
     if (!nextOs) {
       return;
     }
     setProducts((current) => current.map((item) => (selectedProductIds.includes(item.id) ? { ...item, os: nextOs } : item)));
+    await supabase.from('products').update({ os: nextOs }).in('id', selectedProductIds);
     setMassOs('');
   };
 
-  const deleteSelectedProducts = () => {
+  const deleteSelectedProducts = async () => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+
     if (selectedProductIds.length === 0) {
       return;
     }
@@ -588,6 +697,7 @@ export default function Admin() {
       return;
     }
     setProducts((current) => current.filter((item) => !selectedProductIds.includes(item.id)));
+    await supabase.from('products').delete().in('id', selectedProductIds);
     setSelectedProductIds([]);
   };
 
@@ -922,12 +1032,28 @@ export default function Admin() {
                     Downloads entitlement (admin): {item.entitlementUnlimited ? 'UNLIMITED' : `${item.entitlementUsed ?? 0}/${item.entitlementLimit ?? 10}`}
                   </p>
                   <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
-                    <input
-                      value={item.deliveryLink}
-                      onChange={(event) => updateInbox(item.id, { deliveryLink: event.target.value })}
-                      className="rounded-md border border-cyan-500/35 bg-black/35 px-3 py-2 text-xs"
-                      placeholder="Paste delivery link to send customer"
-                    />
+                    <div className="relative group">
+                      <input
+                        value={item.deliveryLink}
+                        onChange={(event) => updateInbox(item.id, { deliveryLink: event.target.value })}
+                        className="w-full rounded-md border border-cyan-500/35 bg-black/35 px-3 py-2 text-xs focus:border-cyan-400 focus:outline-none pr-10"
+                        placeholder={item.deliveryLink ? "Auto-mapped link detected..." : "Paste delivery link to send customer"}
+                      />
+                      {item.deliveryLink && (
+                        <div className="absolute right-2 top-1.5 text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+                          <CheckCircle2 size={12} /> Sync
+                        </div>
+                      )}
+                      {item.deliveryLinksByProduct && Object.keys(item.deliveryLinksByProduct).length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-2">
+                          {Object.entries(item.deliveryLinksByProduct).map(([prod, link]) => (
+                            <div key={prod} className="text-[9px] text-cyan-400/70 border border-cyan-500/20 px-1 rounded truncate max-w-[120px]" title={`${prod}: ${link}`}>
+                              {prod}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <button
                       onClick={() => { void submitReview(item, 'approve'); }}
                       className="cyber-btn cyber-btn-primary"
@@ -957,7 +1083,10 @@ export default function Admin() {
                     className="rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
                     placeholder="Search file name"
                   />
-                  <button onClick={addProductRow} className="cyber-btn cyber-btn-primary">Add Product</button>
+                  <button onClick={() => { void addProductRow(); }} className="cyber-btn cyber-btn-primary">Add Product</button>
+                  <button onClick={() => { void migrateProductsToSupabase(); }} className="cyber-btn cyber-btn-secondary border-amber-500/40 text-amber-200">
+                    <Upload size={14} /> Migrate Local
+                  </button>
                 </div>
               </div>
               <div className="mb-3 flex flex-wrap gap-2 rounded-md border border-cyan-500/20 bg-black/25 p-2">

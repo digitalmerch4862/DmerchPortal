@@ -95,6 +95,22 @@ export default async function handler(req: any, res: any) {
       return res.status(500).json({ ok: false, error: lookup.error.message });
     }
 
+    // Fetch all products to enable auto-mapping
+    const productsLookup = await supabase
+      .from('products')
+      .select('name, file_url')
+      .order('name');
+
+    const productUrlMap = new Map<string, string>();
+    if (!productsLookup.error && productsLookup.data) {
+      for (const p of productsLookup.data) {
+        const key = String(p.name ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+        if (key && p.file_url) {
+          productUrlMap.set(key, String(p.file_url));
+        }
+      }
+    }
+
     const emails = Array.from(new Set((lookup.data ?? []).map((row) => String(row.email ?? '').trim().toLowerCase()).filter(Boolean)));
     const entitlementMap = new Map<string, { download_used: number; download_limit: number; is_unlimited: boolean }>();
 
@@ -132,6 +148,15 @@ export default async function handler(req: any, res: any) {
         entitlementUsed: entitlement?.download_used ?? 0,
         entitlementLimit: entitlement?.download_limit ?? 10,
         entitlementUnlimited: entitlement?.is_unlimited ?? false,
+        deliveryLinksByProduct: products.reduce((acc: any, item: any) => {
+          const name = String(item?.name ?? '').trim();
+          const key = name.toLowerCase().replace(/\s+/g, ' ');
+          const url = productUrlMap.get(key);
+          if (url) {
+            acc[name] = url;
+          }
+          return acc;
+        }, {}),
       };
     });
 

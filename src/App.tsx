@@ -9,6 +9,7 @@ import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plu
 import gcashQr from './gcash-qr.png';
 import gotymeQr from './gotyme-qr.png';
 import { productCatalog, type ProductItem } from './data/products';
+import { getSupabaseBrowserClient } from './lib/supabase-browser';
 import { supabase } from './supabaseClient.js';
 
 const ADMIN_PRODUCTS_KEY = 'dmerch_admin_products_v1';
@@ -250,40 +251,57 @@ export default function App() {
   const activeAvailment = FAKE_AVAILMENTS[liveAvailmentIndex % FAKE_AVAILMENTS.length];
 
   useEffect(() => {
-    const parseAdminProducts = (raw: string | null): ProductItem[] => {
-      if (raw === null) {
-        return productCatalog;
-      }
+    const logVisit = async () => {
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) return;
 
-      try {
-        const parsed = JSON.parse(raw);
-        if (!Array.isArray(parsed)) {
-          return productCatalog;
-        }
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
 
-        return parsed
-          .map((item) => ({
-            name: String((item as any)?.name ?? '').trim(),
-            amount: Number((item as any)?.amount ?? 0),
-          }))
-          .filter((item) => item.name && Number.isFinite(item.amount) && item.amount > 0);
-      } catch {
-        return productCatalog;
+      const page = window.location.pathname;
+      const userAgent = window.navigator.userAgent;
+
+      await supabase.from('analytics_visits').insert({
+        page,
+        user_agent: userAgent,
+        username: user?.user_metadata?.full_name || user?.email || 'Anonymous',
+        user_id: user?.id || null,
+      });
+    };
+
+    const fetchSupabaseProducts = async () => {
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) return;
+
+      const { data, error } = await supabase
+        .from('products')
+        .select('name, price')
+        .order('name');
+
+      if (!error && data && data.length > 0) {
+        setAvailableProducts(data.map(p => ({
+          name: String(p.name ?? '').trim(),
+          amount: Number(p.price || 0),
+        })));
       }
     };
 
-    const loadAvailableProducts = () => {
-      const next = parseAdminProducts(window.localStorage.getItem(ADMIN_PRODUCTS_KEY));
-      setAvailableProducts(next);
-    };
+    void logVisit();
+    void fetchSupabaseProducts();
 
-    loadAvailableProducts();
-
+    // Still listen for storage sync for compatibility
     const handleStorageSync = (event: StorageEvent) => {
-      if (event.key !== ADMIN_PRODUCTS_KEY) {
-        return;
-      }
-      setAvailableProducts(parseAdminProducts(event.newValue));
+      if (event.key !== ADMIN_PRODUCTS_KEY) return;
+      // If we got a local update, we might still want to respect it
+      try {
+        const parsed = JSON.parse(event.newValue || '[]');
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setAvailableProducts(parsed.map((item: any) => ({
+            name: String(item?.name ?? '').trim(),
+            amount: Number(item?.amount ?? 0),
+          })).filter(i => i.name));
+        }
+      } catch { /* ignore */ }
     };
 
     window.addEventListener('storage', handleStorageSync);
@@ -1086,9 +1104,9 @@ export default function App() {
 
                   <div className="mt-6 flex flex-col items-center gap-3">
                     <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-cyan-300/80">OR</p>
-                  <button
-                    type="button"
-                    onClick={() => { void handleAdminGoogleShortcut(); }}
+                    <button
+                      type="button"
+                      onClick={() => { void handleAdminGoogleShortcut(); }}
                       className="inline-flex h-11 w-full max-w-[260px] items-center justify-center gap-2 rounded-md border border-cyan-400/40 bg-black/45 px-4 text-sm font-semibold text-cyan-100 transition hover:border-cyan-300/70 hover:text-white"
                       aria-label="Admin sign in with Google"
                       title="Admin sign in with Google"
@@ -1099,13 +1117,13 @@ export default function App() {
                         <path fill="#4CAF50" d="M24 44c5.176 0 9.86-1.977 13.409-5.191l-6.19-5.238C29.148 35.091 26.715 36 24 36c-5.176 0-9.617-3.318-11.266-7.946l-6.522 5.025C9.548 39.556 16.227 44 24 44z" />
                         <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.084 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" />
                       </svg>
-                    Continue with Google
-                  </button>
-                  <p className="text-center text-[11px] text-cyan-200/85">
-                    We recommend signing in with Google to avoid typo errors in your email.
-                  </p>
-                  {adminShortcutError ? <p className="text-center text-[11px] text-amber-200">{adminShortcutError}</p> : null}
-                </div>
+                      Continue with Google
+                    </button>
+                    <p className="text-center text-[11px] text-cyan-200/85">
+                      We recommend signing in with Google to avoid typo errors in your email.
+                    </p>
+                    {adminShortcutError ? <p className="text-center text-[11px] text-amber-200">{adminShortcutError}</p> : null}
+                  </div>
                 </div>
 
                 <div className="mt-7 flex flex-col sm:flex-row items-center justify-between gap-3">
