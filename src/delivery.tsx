@@ -153,7 +153,7 @@ export default function Delivery() {
 
     const timer = setInterval(() => {
       currentStep++;
-      let progress = Math.min(Math.round((currentStep / steps) * 100), 100);
+      const progress = Math.min(Math.round((currentStep / steps) * 100), 100);
       setDownloadProgress(prev => ({ ...prev, [productName]: progress }));
 
       if (currentStep >= steps) {
