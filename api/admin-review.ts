@@ -59,6 +59,8 @@ const getDistinctApprovedProductCount = (rows: Array<{ products_json: unknown }>
   return distinct.size;
 };
 
+const normalizeProductName = (value: string) => value.trim().toLowerCase().replace(/\s+/g, ' ');
+
 const buildApprovedEmailHtml = ({
   username,
   serialNo,
@@ -144,13 +146,18 @@ export default async function handler(req: any, res: any) {
     const serialNo = String(body.serialNo ?? '').trim().toUpperCase();
     const action = String(body.action ?? '').trim().toLowerCase();
     const deliveryLink = String(body.deliveryLink ?? '').trim();
+    const rawProductLinks = body.productLinks && typeof body.productLinks === 'object' ? body.productLinks : {};
+    const productLinksByName = new Map<string, string>();
+    for (const [rawName, rawLink] of Object.entries(rawProductLinks as Record<string, unknown>)) {
+      const key = normalizeProductName(String(rawName ?? ''));
+      const link = String(rawLink ?? '').trim();
+      if (key && link && !productLinksByName.has(key)) {
+        productLinksByName.set(key, link);
+      }
+    }
 
     if (!serialNo || !action) {
       return res.status(400).json({ ok: false, error: 'serialNo and action are required.' });
-    }
-
-    if (action === 'approve' && !deliveryLink) {
-      return res.status(400).json({ ok: false, error: 'Delivery link is required for approval.' });
     }
 
     const resend = new Resend(resendApiKey);
@@ -174,10 +181,28 @@ export default async function handler(req: any, res: any) {
     }
 
     const products = Array.isArray(lookup.data.products_json) ? lookup.data.products_json : [];
-    const updatedProducts = products.map((item: any) => ({
-      ...item,
-      fileLink: String(item?.fileLink ?? '').trim() || deliveryLink,
-    }));
+    const missingLinks: string[] = [];
+    const updatedProducts = products.map((item: any) => {
+      const productName = String(item?.name ?? '').trim();
+      const normalizedName = normalizeProductName(productName);
+      const resolvedLink = String(item?.fileLink ?? '').trim() || productLinksByName.get(normalizedName) || deliveryLink;
+
+      if (!resolvedLink) {
+        missingLinks.push(productName || 'Unnamed product');
+      }
+
+      return {
+        ...item,
+        fileLink: resolvedLink,
+      };
+    });
+
+    if (missingLinks.length > 0) {
+      return res.status(400).json({
+        ok: false,
+        error: `Missing file link for: ${missingLinks.join(' | ')}`,
+      });
+    }
 
     const status = `${currentStatus} | review:approved`;
 

@@ -27,6 +27,7 @@ type InboxItem = {
   entitlementUsed?: number;
   entitlementLimit?: number;
   entitlementUnlimited?: boolean;
+  deliveryLinksByProduct?: Record<string, string>;
 };
 
 const PRODUCTS_KEY = 'dmerch_admin_products_v1';
@@ -49,6 +50,8 @@ const inferOs = (name: string) => {
   if (lower.includes('android') || lower.includes('.apk')) return 'Android';
   return 'Multi';
 };
+
+const normalizeProductName = (value: string) => value.trim().toLowerCase().replace(/\s+/g, ' ');
 
 const toSeedProducts = () => {
   return productCatalog.slice(0, 120).map((item, index) => ({
@@ -340,12 +343,36 @@ export default function Admin() {
         throw new Error(payload.error ?? `Inbox sync failed (${response.status}).`);
       }
 
+      const productLinkMap = new Map<string, string>();
+      for (const product of products) {
+        const key = normalizeProductName(product.name);
+        const link = String(product.fileLink ?? '').trim();
+        if (key && link && !productLinkMap.has(key)) {
+          productLinkMap.set(key, link);
+        }
+      }
+
       setInboxItems(
-        payload.inbox.map((item) => ({
-          ...item,
-          id: item.referenceCode,
-          deliveryLink: '',
-        })),
+        payload.inbox.map((item) => {
+          const deliveryLinksByProduct: Record<string, string> = {};
+          for (const name of item.products) {
+            const matched = productLinkMap.get(normalizeProductName(name)) ?? '';
+            if (matched) {
+              deliveryLinksByProduct[name] = matched;
+            }
+          }
+
+          const firstMatchedLink = item.products
+            .map((name) => deliveryLinksByProduct[name] ?? '')
+            .find((link) => Boolean(link)) ?? '';
+
+          return {
+            ...item,
+            id: item.referenceCode,
+            deliveryLink: firstMatchedLink,
+            deliveryLinksByProduct,
+          };
+        }),
       );
       setInboxLastCount(payload.inbox.length);
       setLastInboxSyncAt(new Date().toISOString());
@@ -528,6 +555,7 @@ export default function Admin() {
         serialNo: item.referenceCode,
         action,
         deliveryLink: item.deliveryLink,
+        productLinks: item.deliveryLinksByProduct ?? {},
       }),
     });
 
