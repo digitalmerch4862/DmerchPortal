@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, BarChart3, CheckCircle2, Inbox, PackageSearch, ShieldAlert, Trash2, Upload, UsersRound } from 'lucide-react';
+import { ArrowLeft, BarChart3, CheckCircle2, Download, Inbox, PackageSearch, ShieldAlert, Trash2, Upload, UsersRound } from 'lucide-react';
 import { productCatalog } from './data/products';
 import { getSupabaseBrowserClient } from './lib/supabase-browser';
 
@@ -1272,6 +1272,30 @@ export default function Admin() {
                   <option value="rejected">Rejected</option>
                 </select>
                 <button onClick={() => { void refreshCrm(); }} className="cyber-btn cyber-btn-secondary">{crmLoading ? 'Refreshing...' : 'Refresh CRM'}</button>
+                <button
+                  onClick={() => {
+                    // Build CSV from all crmItems (unfiltered)
+                    const header = 'Serial No,Username,Email,Products,Amount (PHP),Status,Date\n';
+                    const rowsCsv = filteredCrmItems.map((item) => {
+                      const products = item.products.join(' | ');
+                      const amount = item.totalAmount.toFixed(2);
+                      const date = new Date(item.submittedAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' });
+                      return `"${item.referenceCode}","${item.buyerName}","${item.buyerEmail}","${products}","${amount}","${item.status}","${date}"`;
+                    }).join('\n');
+                    const csv = header + rowsCsv;
+                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `dmerch-crm-${new Date().toISOString().slice(0, 10)}.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+                  }}
+                  className="cyber-btn cyber-btn-secondary"
+                >
+                  <Download size={13} /> Export CSV
+                </button>
               </div>
             </div>
             <p className="mb-3 text-[11px] font-mono uppercase tracking-[0.16em] text-cyan-200">
