@@ -20,6 +20,18 @@ const isAllowedAdminEmail = (value: string | null | undefined) => {
   return normalized.length > 0 && ALLOWED_ADMIN_EMAILS.has(normalized);
 };
 
+const extractGoogleName = (rawMetadata: unknown) => {
+  const metadata = rawMetadata && typeof rawMetadata === 'object' ? (rawMetadata as Record<string, unknown>) : {};
+  const candidates = [metadata.full_name, metadata.name, metadata.preferred_username];
+  for (const candidate of candidates) {
+    const value = String(candidate ?? '').trim();
+    if (value) {
+      return value;
+    }
+  }
+  return '';
+};
+
 const resolveAuthRedirectBaseUrl = () => {
   return window.location.origin.replace(/\/+$/, '');
 };
@@ -270,7 +282,7 @@ export default function App() {
   useEffect(() => {
     let mounted = true;
 
-    const evaluateSession = async (session: { user?: { email?: string | null } } | null | undefined) => {
+    const evaluateSession = async (session: { user?: { email?: string | null; user_metadata?: unknown } } | null | undefined) => {
       if (!mounted) {
         return;
       }
@@ -280,6 +292,19 @@ export default function App() {
       if (!emailValue) {
         return;
       }
+
+      const normalizedEmail = String(emailValue).trim().toLowerCase();
+      setEmail(normalizedEmail);
+      setUsername((current) => {
+        if (current.trim()) {
+          return current;
+        }
+        const suggestedName = extractGoogleName(session?.user?.user_metadata);
+        if (suggestedName) {
+          return suggestedName;
+        }
+        return normalizedEmail.split('@')[0] ?? '';
+      });
 
       if (isAllowedAdminEmail(emailValue)) {
         window.localStorage.removeItem(ADMIN_GOOGLE_SHORTCUT_KEY);
@@ -996,9 +1021,9 @@ export default function App() {
 
                   <div className="mt-6 flex flex-col items-center gap-3">
                     <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-cyan-300/80">OR</p>
-                    <button
-                      type="button"
-                      onClick={() => { void handleAdminGoogleShortcut(); }}
+                  <button
+                    type="button"
+                    onClick={() => { void handleAdminGoogleShortcut(); }}
                       className="inline-flex h-11 w-full max-w-[260px] items-center justify-center gap-2 rounded-md border border-cyan-400/40 bg-black/45 px-4 text-sm font-semibold text-cyan-100 transition hover:border-cyan-300/70 hover:text-white"
                       aria-label="Admin sign in with Google"
                       title="Admin sign in with Google"
@@ -1009,10 +1034,13 @@ export default function App() {
                         <path fill="#4CAF50" d="M24 44c5.176 0 9.86-1.977 13.409-5.191l-6.19-5.238C29.148 35.091 26.715 36 24 36c-5.176 0-9.617-3.318-11.266-7.946l-6.522 5.025C9.548 39.556 16.227 44 24 44z" />
                         <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.084 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" />
                       </svg>
-                      Continue with Google
-                    </button>
-                    {adminShortcutError ? <p className="text-center text-[11px] text-amber-200">{adminShortcutError}</p> : null}
-                  </div>
+                    Continue with Google
+                  </button>
+                  <p className="text-center text-[11px] text-cyan-200/85">
+                    We recommend signing in with Google to avoid typo errors in your email.
+                  </p>
+                  {adminShortcutError ? <p className="text-center text-[11px] text-amber-200">{adminShortcutError}</p> : null}
+                </div>
                 </div>
 
                 <div className="mt-7 flex flex-col sm:flex-row items-center justify-between gap-3">
