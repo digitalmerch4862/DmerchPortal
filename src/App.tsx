@@ -20,6 +20,12 @@ const isAllowedAdminEmail = (value: string | null | undefined) => {
   return normalized.length > 0 && ALLOWED_ADMIN_EMAILS.has(normalized);
 };
 
+const resolveAuthRedirectBaseUrl = () => {
+  const configured = String(import.meta.env.VITE_APP_BASE_URL ?? '').trim();
+  const fallback = window.location.origin;
+  return (configured || fallback).replace(/\/+$/, '');
+};
+
 // Cyberpunk Theme Constants
 const COLORS = {
   bg: '#050505',
@@ -310,10 +316,12 @@ export default function App() {
   const handleAdminGoogleShortcut = async () => {
     setAdminShortcutError('');
     window.localStorage.setItem(ADMIN_GOOGLE_SHORTCUT_KEY, '1');
+    const redirectBaseUrl = resolveAuthRedirectBaseUrl();
+    const returnPath = `${window.location.pathname}${window.location.search}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}${window.location.pathname}${window.location.search}`,
+        redirectTo: `${redirectBaseUrl}${returnPath}`,
       },
     });
 
