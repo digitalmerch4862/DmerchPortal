@@ -56,6 +56,7 @@ type VerificationApiResponse = {
   adminEmailStatus?: string;
   customerEmailDelivered?: boolean;
   totalAmount?: number;
+  notice?: string;
   error?: string;
 };
 
@@ -750,7 +751,9 @@ export default function App() {
 
       setSubmitProgress(100);
       setSubmitResult(payload);
-      if (payload.customerEmailDelivered === false) {
+      if (payload.notice) {
+        setSubmitNotice(payload.notice);
+      } else if (payload.customerEmailDelivered === false) {
         setSubmitNotice(`Reference code generated, but customer email failed to send (${payload.customerEmailStatus ?? 'delivery issue'}). Please recheck email settings.`);
       } else {
         setSubmitNotice('');

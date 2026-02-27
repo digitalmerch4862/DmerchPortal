@@ -417,14 +417,6 @@ export default async function handler(req: any, res: any) {
       .map((row) => getBlockedUntilFromStatus(String(row.email_status ?? '')))
       .find((date) => date && date.getTime() > Date.now());
 
-    if (activeBlock) {
-      return res.status(403).json({
-        ok: false,
-        error: `Verification is temporarily restricted until ${formatSubmittedDate(activeBlock.toISOString())}. If you want to contest this decision, email digitalmerch4862@gmail.com with subject: Contest.`,
-        code: 'SOFT_BLOCKED',
-      });
-    }
-
     const existingByReference = await supabase
       .from('verification_orders')
       .select('email, total_amount, serial_no, email_status')
@@ -442,6 +434,15 @@ export default async function handler(req: any, res: any) {
       }
       return String(row.email ?? '').toLowerCase() !== email.toLowerCase() || Number(row.total_amount ?? 0) !== totalAmount;
     });
+
+    const manualReviewReasons: string[] = [];
+    if (activeBlock) {
+      manualReviewReasons.push('prior_hold');
+    }
+    if (mismatchedReference) {
+      manualReviewReasons.push('reference_mismatch');
+    }
+    const requiresManualReview = manualReviewReasons.length > 0;
 
     const sequenceResponse = await supabase.rpc('next_verification_sequence');
     const sequenceNo = rpcToNumber(sequenceResponse.data);
@@ -509,7 +510,9 @@ export default async function handler(req: any, res: any) {
           payment_portal_used: paymentPortalUsed,
           payment_detail_used: paymentDetailUsed,
           admin_email: adminEmail,
-          email_status: 'pending',
+          email_status: requiresManualReview
+            ? `review:pending_manual | reason:${manualReviewReasons.join(',')}`
+            : 'pending',
         })
         .select('id, created_at')
         .single();
@@ -532,44 +535,6 @@ export default async function handler(req: any, res: any) {
 
     if (!serialNo || !createdAt || !insertedOrderId) {
       return res.status(500).json({ ok: false, error: 'Could not generate monthly purchase code sequence. Please try again.' });
-    }
-
-    if (mismatchedReference) {
-      const blockedUntilDate = new Date(Date.now() + THREE_DAYS_MS);
-      const blockedUntilIso = blockedUntilDate.toISOString();
-      const blockedUntilText = formatSubmittedDate(blockedUntilIso);
-      const rejectionStatus = `review:rejected_fake | blocked_until:${blockedUntilIso}`;
-
-      await supabase
-        .from('verification_orders')
-        .update({ email_status: rejectionStatus })
-        .eq('id', insertedOrderId);
-
-      const rejectedHtml = buildFraudRejectedHtml({
-        username,
-        serialNo,
-        referenceNo,
-        blockedUntil: blockedUntilText,
-      });
-
-      const rejectedEmailStatus = await sendEmailWithStatus({
-        resend,
-        from: resendFromEmail,
-        to: email,
-        mailSubject: `Verification Rejected: Reference Validation Issue (${serialNo})`,
-        html: rejectedHtml,
-      });
-
-      await supabase
-        .from('verification_orders')
-        .update({ email_status: `${rejectionStatus} | customer:${rejectedEmailStatus}` })
-        .eq('id', insertedOrderId);
-
-      return res.status(403).json({
-        ok: false,
-        code: 'FAKE_REFERENCE',
-        error: `Reference validation failed. Your email is under temporary review hold until ${blockedUntilText}. You may contest by emailing digitalmerch4862@gmail.com with subject: Contest.`,
-      });
     }
 
     const submittedOn = formatSubmittedDate(createdAt);
@@ -610,7 +575,10 @@ export default async function handler(req: any, res: any) {
     ]);
 
     const statusParts = [];
-    statusParts.push('review:pending');
+    statusParts.push(requiresManualReview ? 'review:pending_manual' : 'review:pending');
+    if (requiresManualReview) {
+      statusParts.push(`reason:${manualReviewReasons.join(',')}`);
+    }
     statusParts.push(`customer:${customerEmailStatus}`);
     statusParts.push(`admin:${adminEmailStatus}`);
     const emailStatus = statusParts.join(' | ');
@@ -632,6 +600,9 @@ export default async function handler(req: any, res: any) {
       adminEmailStatus,
       customerEmailDelivered,
       totalAmount,
+      notice: requiresManualReview
+        ? 'Submitted for manual verification. Your purchase is queued for admin review.'
+        : undefined,
     });
   } catch (error) {
     return res.status(500).json({
