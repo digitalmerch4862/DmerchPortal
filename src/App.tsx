@@ -318,7 +318,8 @@ export default function App() {
         if (!mounted) {
           return;
         }
-        setAdminShortcutError('Google account not allowed for admin portal. Continue normal checkout.');
+        setAdminShortcutError('Google account is not an admin. Proceeding to next stage.');
+        setStage(3);
       }
     };
 
