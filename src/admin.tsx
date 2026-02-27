@@ -92,22 +92,32 @@ const toSeedProducts = () => {
 };
 
 const parseBulkRows = (raw: string): AdminProduct[] => {
-  const rows = raw
+  const lines = raw
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
 
   const imported: AdminProduct[] = [];
-  for (const row of rows) {
-    const parts = row.includes('\t') ? row.split('\t') : row.split(',');
+  for (const line of lines) {
+    // Try to split by tab, then common space-delimiters/commas
+    // Regex: split by tab OR 2+ spaces OR comma
+    let parts = line.split(/\t| {2,}|,/);
+
+    // Fallback: if only one part found, maybe it's single-space separated?
+    if (parts.length < 2) {
+      parts = line.split(' ');
+    }
+
     if (parts.length < 2) {
       continue;
     }
 
     const name = String(parts[0] ?? '').trim();
     const fileLink = String(parts[1] ?? '').trim();
+    // Default OS to 'Multi' or infer, default amount to 99
     const os = String(parts[2] ?? '').trim() || inferOs(name);
-    const amount = Number(String(parts[3] ?? '').trim() || '99');
+    const amountStr = String(parts[3] ?? '').trim();
+    const amount = amountStr ? Number(amountStr) : 99;
 
     if (!name || Number.isNaN(amount)) {
       continue;
@@ -547,12 +557,18 @@ export default function Admin() {
     const newProduct = {
       name: 'New Product',
       price: 99,
+      price_usd: 1.99,
       os: 'Windows',
       file_url: '',
     };
 
     const { data, error } = await supabase.from('products').insert(newProduct).select().single();
-    if (!error && data) {
+    if (error) {
+      alert(`Error adding product: ${error.message}`);
+      return;
+    }
+
+    if (data) {
       setProducts((current) => [
         {
           id: data.id,
@@ -583,6 +599,7 @@ export default function Admin() {
     const toInsert = localProducts.map(p => ({
       name: p.name,
       price: p.amount,
+      price_usd: Math.max(0.99, Number((p.amount / 50).toFixed(2))),
       os: p.os,
       file_url: p.fileLink,
     }));
@@ -619,12 +636,15 @@ export default function Admin() {
     const toInsert = imported.map(p => ({
       name: p.name,
       price: p.amount,
+      price_usd: Math.max(0.99, Number((p.amount / 50).toFixed(2))),
       os: p.os,
       file_url: p.fileLink,
     }));
 
     const { error } = await supabase.from('products').insert(toInsert);
-    if (!error) {
+    if (error) {
+      alert(`Import error: ${error.message}`);
+    } else {
       setBulkData('');
       // Refresh
       const { data } = await supabase.from('products').select('*').order('name');
@@ -637,6 +657,7 @@ export default function Admin() {
           fileLink: p.file_url || '',
         })));
       }
+      alert('Successfully imported products!');
     }
   };
 
