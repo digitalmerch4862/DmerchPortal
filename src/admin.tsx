@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, BarChart3, CheckCircle2, Inbox, PackageSearch, ShieldAlert, Trash2, Upload, UsersRound } from 'lucide-react';
 import { productCatalog } from './data/products';
@@ -51,7 +51,35 @@ const inferOs = (name: string) => {
   return 'Multi';
 };
 
-const normalizeProductName = (value: string) => value.trim().toLowerCase().replace(/\s+/g, ' ');
+const normalizeProductName = (value: string) => value
+  .toLowerCase()
+  .normalize('NFKD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-z0-9]+/g, ' ')
+  .trim();
+
+const parseStoredProducts = (raw: string | null): AdminProduct[] => {
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.map((item, index) => ({
+      id: String((item as any)?.id ?? `stored-${index}`),
+      name: String((item as any)?.name ?? '').trim(),
+      amount: Number((item as any)?.amount ?? 0),
+      os: String((item as any)?.os ?? '').trim() || inferOs(String((item as any)?.name ?? '')),
+      fileLink: String((item as any)?.fileLink ?? '').trim(),
+    })).filter((item) => item.name.length > 0 && Number.isFinite(item.amount));
+  } catch {
+    return [];
+  }
+};
 
 const toSeedProducts = () => {
   return productCatalog.slice(0, 120).map((item, index) => ({
@@ -211,6 +239,7 @@ export default function Admin() {
   const [inboxLastCount, setInboxLastCount] = useState(0);
   const [crmLastCount, setCrmLastCount] = useState(0);
   const [activeTab, setActiveTab] = useState<AdminTab>('analytics');
+  const inboxAutoMappedRef = useRef(false);
 
   const readApiPayload = async (response: Response) => {
     try {
@@ -225,6 +254,7 @@ export default function Admin() {
     if (supabase) {
       await supabase.auth.signOut();
     }
+    inboxAutoMappedRef.current = false;
     setAccessToken('');
     setUnlocked(false);
     setInboxItems([]);
@@ -239,7 +269,14 @@ export default function Admin() {
     const storedInbox = window.localStorage.getItem(INBOX_KEY);
 
     if (storedProducts) {
-      setProducts(JSON.parse(storedProducts) as AdminProduct[]);
+      const parsedStoredProducts = parseStoredProducts(storedProducts);
+      if (parsedStoredProducts.length > 0) {
+        setProducts(parsedStoredProducts);
+      } else {
+        const seeded = toSeedProducts();
+        setProducts(seeded);
+        window.localStorage.setItem(PRODUCTS_KEY, JSON.stringify(seeded));
+      }
     } else {
       const seeded = toSeedProducts();
       setProducts(seeded);
@@ -343,8 +380,9 @@ export default function Admin() {
         throw new Error(payload.error ?? `Inbox sync failed (${response.status}).`);
       }
 
+      const localProducts = parseStoredProducts(window.localStorage.getItem(PRODUCTS_KEY));
       const productLinkMap = new Map<string, string>();
-      for (const product of products) {
+      for (const product of [...products, ...localProducts]) {
         const key = normalizeProductName(product.name);
         const link = String(product.fileLink ?? '').trim();
         if (key && link && !productLinkMap.has(key)) {
@@ -431,11 +469,26 @@ export default function Admin() {
 
   useEffect(() => {
     if (!unlocked || !accessToken) {
+      inboxAutoMappedRef.current = false;
       return;
     }
     void refreshInbox(accessToken);
     void refreshCrm(accessToken);
   }, [unlocked, accessToken]);
+
+  useEffect(() => {
+    if (!unlocked || !accessToken || inboxAutoMappedRef.current) {
+      return;
+    }
+
+    const hasAnyLinkedProduct = products.some((item) => String(item.fileLink ?? '').trim().length > 0);
+    if (!hasAnyLinkedProduct) {
+      return;
+    }
+
+    inboxAutoMappedRef.current = true;
+    void refreshInbox(accessToken);
+  }, [products, unlocked, accessToken]);
 
   const handleGoogleLogin = async () => {
     const supabase = getSupabaseBrowserClient();
@@ -714,6 +767,7 @@ export default function Admin() {
     if (supabase) {
       await supabase.auth.signOut();
     }
+    inboxAutoMappedRef.current = false;
     setAccessToken('');
     setUnlocked(false);
   };
