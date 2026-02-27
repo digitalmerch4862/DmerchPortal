@@ -24,8 +24,8 @@ export default function Delivery() {
   const [status, setStatus] = useState('Authenticate using your email and order serial to access your downloads.');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [downloadingIndex, setDownloadingIndex] = useState<number | null>(null);
-  const [downloadProgress, setDownloadProgress] = useState<Record<number, number>>({});
+  const [downloadingProduct, setDownloadingProduct] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -102,70 +102,96 @@ export default function Delivery() {
     }
   };
 
-  const handleDownload = async (productName: string, index: number) => {
-    setDownloadingIndex(index);
-    setDownloadProgress(prev => ({ ...prev, [index]: 0 }));
+  const handleDownload = (productName: string) => {
+    setDownloadingProduct(productName);
+    setDownloadProgress(prev => ({ ...prev, [productName]: 0 }));
     setError('');
 
-    try {
-      const response = await fetch('/api/delivery-download', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, productName }),
-      });
+    let redirectUrl: string | null = null;
+    let fetchError: string | null = null;
+    let fetchDone = false;
 
-      const payload = (await response.json()) as { ok: boolean; redirectUrl?: string; error?: string; products?: DeliveryProduct[] };
-      if (!response.ok || !payload.ok || !payload.redirectUrl) {
-        setError(payload.error ?? 'Download is not available.');
-        if (payload.products) {
-          setProducts(payload.products);
+    // Start background fetch immediately
+    const startFetch = async () => {
+      try {
+        const response = await fetch('/api/delivery-download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, productName }),
+        });
+
+        const payload = (await response.json()) as { ok: boolean; redirectUrl?: string; error?: string; products?: DeliveryProduct[] };
+        if (!response.ok || !payload.ok || !payload.redirectUrl) {
+          fetchError = payload.error ?? 'Download is not available.';
+          if (payload.products) {
+            setProducts(payload.products);
+          }
+        } else {
+          redirectUrl = payload.redirectUrl;
+          if (payload.products) {
+            setProducts(payload.products);
+          }
         }
-        setDownloadingIndex(null);
-        return;
+      } catch {
+        fetchError = 'Download failed. Please try again.';
+      } finally {
+        fetchDone = true;
       }
+    };
 
-      if (payload.products) {
-        setProducts(payload.products);
-      }
+    void startFetch();
 
-      // Progress animation (Fake Security Scan / Download Prep)
-      const duration = 2000; // 2 seconds
-      const interval = 50;   // Update every 50ms
-      const steps = duration / interval;
-      let currentStep = 0;
+    // Progress animation (Fake Security Scan / Download Prep)
+    const duration = 2000; // 2 seconds target
+    const interval = 50;   // Update every 50ms
+    const steps = duration / interval;
+    let currentStep = 0;
 
-      const timer = setInterval(() => {
-        currentStep++;
-        const progress = Math.min(Math.round((currentStep / steps) * 100), 100);
-        setDownloadProgress(prev => ({ ...prev, [index]: progress }));
+    const timer = setInterval(() => {
+      currentStep++;
+      let progress = Math.min(Math.round((currentStep / steps) * 100), 99);
 
-        if (currentStep >= steps) {
+      // If fetch is done and we reached 100%, trigger
+      if (fetchDone) {
+        if (fetchError) {
           clearInterval(timer);
-          // Trigger actual download via hidden iframe to stay on portal
+          setError(fetchError);
+          setDownloadingProduct(null);
+          return;
+        }
+
+        // Final transition to 100
+        progress = 100;
+        setDownloadProgress(prev => ({ ...prev, [productName]: progress }));
+        clearInterval(timer);
+
+        // Trigger actual download via hidden iframe
+        if (redirectUrl) {
           const iframe = document.createElement('iframe');
           iframe.style.display = 'none';
-          iframe.src = payload.redirectUrl as string;
+          iframe.src = redirectUrl;
           document.body.appendChild(iframe);
-
-          // Cleanup iframe
-          setTimeout(() => document.body.removeChild(iframe), 30000);
-
-          // Keep progress at 100 for a moment then reset
           setTimeout(() => {
-            setDownloadingIndex(null);
-            setDownloadProgress(prev => {
-              const next = { ...prev };
-              delete next[index];
-              return next;
-            });
-          }, 1000);
+            if (document.body.contains(iframe)) {
+              document.body.removeChild(iframe);
+            }
+          }, 60000);
         }
-      }, interval);
 
-    } catch {
-      setError('Download failed. Please try again.');
-      setDownloadingIndex(null);
-    }
+        // Keep progress at 100 for a moment then reset
+        setTimeout(() => {
+          setDownloadingProduct(prev => prev === productName ? null : prev);
+          setDownloadProgress(prev => {
+            const next = { ...prev };
+            delete next[productName];
+            return next;
+          });
+        }, 1500);
+      } else {
+        // Hold at 99 if fetch is slow
+        setDownloadProgress(prev => ({ ...prev, [productName]: progress }));
+      }
+    }, interval);
   };
 
   return (
@@ -216,18 +242,18 @@ export default function Delivery() {
                   <p className="text-sm font-semibold text-cyan-50">{product.name}</p>
                   <p className="mt-1 text-xs text-cyan-200">OS: {product.os ?? 'Multi'} | Amount: PHP {product.amount}</p>
                   <div className="mt-3">
-                    {downloadingIndex === index ? (
+                    {downloadingProduct === product.name ? (
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="download-status-tag">
-                            {downloadProgress[index] < 100 ? 'Securing Channel...' : 'Verified. Starting Download...'}
+                            {downloadProgress[product.name] < 100 ? 'Securing Channel...' : 'Verified. Starting Download...'}
                           </span>
-                          <span className="text-[10px] text-cyan-400 font-mono">{downloadProgress[index]}%</span>
+                          <span className="text-[10px] text-cyan-400 font-mono">{downloadProgress[product.name]}%</span>
                         </div>
                         <div className="cyber-progress-container">
                           <div
                             className="cyber-progress-bar"
-                            style={{ width: `${downloadProgress[index]}%` }}
+                            style={{ width: `${downloadProgress[product.name]}%` }}
                           />
                         </div>
                       </div>
@@ -236,7 +262,7 @@ export default function Delivery() {
                         type="button"
                         className="cyber-btn cyber-btn-primary"
                         onClick={() => {
-                          void handleDownload(product.name, index);
+                          handleDownload(product.name);
                         }}
                       >
                         <Download size={14} /> Download
