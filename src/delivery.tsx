@@ -26,6 +26,8 @@ export default function Delivery() {
   const [loading, setLoading] = useState(false);
   const [downloadingProduct, setDownloadingProduct] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({});
+  const [showModal, setShowModal] = useState(false);
+  const [activeProduct, setActiveProduct] = useState<DeliveryProduct | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -102,7 +104,13 @@ export default function Delivery() {
     }
   };
 
-  const handleDownload = (productName: string) => {
+  const handleDownload = (product: DeliveryProduct) => {
+    setActiveProduct(product);
+    setShowModal(true);
+    setDownloadingProduct(null); // Reset from previous if any
+  };
+
+  const triggerSecureDownload = (productName: string) => {
     setDownloadingProduct(productName);
     setDownloadProgress(prev => ({ ...prev, [productName]: 0 }));
     setError('');
@@ -111,7 +119,7 @@ export default function Delivery() {
     let fetchError: string | null = null;
     let fetchDone = false;
 
-    // Start background fetch immediately
+    // Start background fetch immediately (simulating link generation)
     const startFetch = async () => {
       try {
         const response = await fetch('/api/delivery-download', {
@@ -123,14 +131,10 @@ export default function Delivery() {
         const payload = (await response.json()) as { ok: boolean; redirectUrl?: string; error?: string; products?: DeliveryProduct[] };
         if (!response.ok || !payload.ok || !payload.redirectUrl) {
           fetchError = payload.error ?? 'Download is not available.';
-          if (payload.products) {
-            setProducts(payload.products);
-          }
+          if (payload.products) setProducts(payload.products);
         } else {
           redirectUrl = payload.redirectUrl;
-          if (payload.products) {
-            setProducts(payload.products);
-          }
+          if (payload.products) setProducts(payload.products);
         }
       } catch {
         fetchError = 'Download failed. Please try again.';
@@ -141,55 +145,46 @@ export default function Delivery() {
 
     void startFetch();
 
-    // Progress animation (Fake Security Scan / Download Prep)
-    const duration = 2000; // 2 seconds target
-    const interval = 50;   // Update every 50ms
+    // Progress animation (Visual Secure Scan)
+    const duration = 2000;
+    const interval = 50;
     const steps = duration / interval;
     let currentStep = 0;
 
     const timer = setInterval(() => {
       currentStep++;
-      let progress = Math.min(Math.round((currentStep / steps) * 100), 99);
+      let progress = Math.min(Math.round((currentStep / steps) * 100), 100);
+      setDownloadProgress(prev => ({ ...prev, [productName]: progress }));
 
-      // If fetch is done and we reached 100%, trigger
-      if (fetchDone) {
-        if (fetchError) {
-          clearInterval(timer);
-          setError(fetchError);
-          setDownloadingProduct(null);
-          return;
-        }
-
-        // Final transition to 100
-        progress = 100;
-        setDownloadProgress(prev => ({ ...prev, [productName]: progress }));
+      if (currentStep >= steps) {
         clearInterval(timer);
 
-        // Trigger actual download via hidden iframe
-        if (redirectUrl) {
-          const iframe = document.createElement('iframe');
-          iframe.style.display = 'none';
-          iframe.src = redirectUrl;
-          document.body.appendChild(iframe);
-          setTimeout(() => {
-            if (document.body.contains(iframe)) {
-              document.body.removeChild(iframe);
-            }
-          }, 60000);
-        }
+        // Wait for fetch to complete if it's slow
+        const checkDone = setInterval(() => {
+          if (fetchDone) {
+            clearInterval(checkDone);
+            if (fetchError) {
+              setError(fetchError);
+              setDownloadingProduct(null);
+            } else if (redirectUrl) {
+              // Trigger actual download via hidden iframe
+              const iframe = document.createElement('iframe');
+              iframe.style.display = 'none';
+              iframe.src = redirectUrl;
+              document.body.appendChild(iframe);
+              setTimeout(() => {
+                if (document.body.contains(iframe)) document.body.removeChild(iframe);
+              }, 60000);
 
-        // Keep progress at 100 for a moment then reset
-        setTimeout(() => {
-          setDownloadingProduct(prev => prev === productName ? null : prev);
-          setDownloadProgress(prev => {
-            const next = { ...prev };
-            delete next[productName];
-            return next;
-          });
-        }, 1500);
-      } else {
-        // Hold at 99 if fetch is slow
-        setDownloadProgress(prev => ({ ...prev, [productName]: progress }));
+              // Auto-close modal after success
+              setTimeout(() => {
+                setShowModal(false);
+                setDownloadingProduct(null);
+                setActiveProduct(null);
+              }, 2000);
+            }
+          }
+        }, 100);
       }
     }, interval);
   };
@@ -242,32 +237,15 @@ export default function Delivery() {
                   <p className="text-sm font-semibold text-cyan-50">{product.name}</p>
                   <p className="mt-1 text-xs text-cyan-200">OS: {product.os ?? 'Multi'} | Amount: PHP {product.amount}</p>
                   <div className="mt-3">
-                    {downloadingProduct === product.name ? (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="download-status-tag">
-                            {downloadProgress[product.name] < 100 ? 'Securing Channel...' : 'Verified. Starting Download...'}
-                          </span>
-                          <span className="text-[10px] text-cyan-400 font-mono">{downloadProgress[product.name]}%</span>
-                        </div>
-                        <div className="cyber-progress-container">
-                          <div
-                            className="cyber-progress-bar"
-                            style={{ width: `${downloadProgress[product.name]}%` }}
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        className="cyber-btn cyber-btn-primary"
-                        onClick={() => {
-                          handleDownload(product.name);
-                        }}
-                      >
-                        <Download size={14} /> Download
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      className="cyber-btn cyber-btn-primary"
+                      onClick={() => {
+                        handleDownload(product);
+                      }}
+                    >
+                      <Download size={14} /> Download
+                    </button>
                   </div>
                 </div>
               ))}
@@ -275,6 +253,54 @@ export default function Delivery() {
           </section>
         )}
       </main>
+
+      {/* Download Modal */}
+      {showModal && activeProduct && (
+        <div className="cyber-modal-overlay">
+          <div className="cyber-modal-content">
+            <h3 className="text-lg font-bold text-cyan-100 uppercase tracking-wider">Secure File Export</h3>
+            <p className="mt-2 text-sm text-cyan-200/80">
+              You are about to export: <span className="text-white font-semibold">{activeProduct.name}</span>
+            </p>
+
+            <div className="mt-6">
+              {downloadingProduct === activeProduct.name ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="download-status-tag">
+                      {downloadProgress[activeProduct.name] < 100 ? 'Securing Link & Encrypting...' : 'Encrypted. Starting Save...'}
+                    </span>
+                    <span className="text-xs text-cyan-400 font-mono">{downloadProgress[activeProduct.name]}%</span>
+                  </div>
+                  <div className="cyber-progress-container h-2">
+                    <div
+                      className="cyber-progress-bar"
+                      style={{ width: `${downloadProgress[activeProduct.name]}%` }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowModal(false)}
+                    className="flex-1 px-4 py-2 text-xs font-bold uppercase tracking-widest text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/10 transition-colors rounded"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => triggerSecureDownload(activeProduct.name)}
+                    className="flex-1 cyber-btn cyber-btn-primary"
+                  >
+                    <Download size={14} /> Save File
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {error ? <p className="mt-4 text-xs text-red-400 text-center">{error}</p> : null}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
