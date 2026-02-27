@@ -998,26 +998,26 @@ export default function App() {
                       />
                     </label>
                   </div>
-                </div>
 
-                <div className="mt-6 flex flex-col items-center gap-3">
-                  <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-cyan-300/80">OR</p>
-                  <button
-                    type="button"
-                    onClick={() => { void handleAdminGoogleShortcut(); }}
-                    className="inline-flex h-11 w-full max-w-[260px] items-center justify-center gap-2 rounded-md border border-cyan-400/40 bg-black/45 px-4 text-sm font-semibold text-cyan-100 transition hover:border-cyan-300/70 hover:text-white"
-                    aria-label="Admin sign in with Google"
-                    title="Admin sign in with Google"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="h-5 w-5" aria-hidden="true" focusable="false">
-                      <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303C33.655 32.657 29.196 36 24 36c-6.627 0-12-5.373-12-12S17.373 12 24 12c3.059 0 5.842 1.154 7.959 3.041l5.657-5.657C34.053 6.053 29.274 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" />
-                      <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 16.109 19.002 12 24 12c3.059 0 5.842 1.154 7.959 3.041l5.657-5.657C34.053 6.053 29.274 4 24 4c-7.682 0-14.319 4.337-17.694 10.691z" />
-                      <path fill="#4CAF50" d="M24 44c5.176 0 9.86-1.977 13.409-5.191l-6.19-5.238C29.148 35.091 26.715 36 24 36c-5.176 0-9.617-3.318-11.266-7.946l-6.522 5.025C9.548 39.556 16.227 44 24 44z" />
-                      <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.084 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" />
-                    </svg>
-                    Continue with Google
-                  </button>
-                  {adminShortcutError ? <p className="text-center text-[11px] text-amber-200">{adminShortcutError}</p> : null}
+                  <div className="mt-6 flex flex-col items-center gap-3">
+                    <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-cyan-300/80">OR</p>
+                    <button
+                      type="button"
+                      onClick={() => { void handleAdminGoogleShortcut(); }}
+                      className="inline-flex h-11 w-full max-w-[260px] items-center justify-center gap-2 rounded-md border border-cyan-400/40 bg-black/45 px-4 text-sm font-semibold text-cyan-100 transition hover:border-cyan-300/70 hover:text-white"
+                      aria-label="Admin sign in with Google"
+                      title="Admin sign in with Google"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="h-5 w-5" aria-hidden="true" focusable="false">
+                        <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303C33.655 32.657 29.196 36 24 36c-6.627 0-12-5.373-12-12S17.373 12 24 12c3.059 0 5.842 1.154 7.959 3.041l5.657-5.657C34.053 6.053 29.274 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" />
+                        <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 16.109 19.002 12 24 12c3.059 0 5.842 1.154 7.959 3.041l5.657-5.657C34.053 6.053 29.274 4 24 4c-7.682 0-14.319 4.337-17.694 10.691z" />
+                        <path fill="#4CAF50" d="M24 44c5.176 0 9.86-1.977 13.409-5.191l-6.19-5.238C29.148 35.091 26.715 36 24 36c-5.176 0-9.617-3.318-11.266-7.946l-6.522 5.025C9.548 39.556 16.227 44 24 44z" />
+                        <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.084 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" />
+                      </svg>
+                      Continue with Google
+                    </button>
+                    {adminShortcutError ? <p className="text-center text-[11px] text-amber-200">{adminShortcutError}</p> : null}
+                  </div>
                 </div>
 
                 <div className="mt-7 flex flex-col sm:flex-row items-center justify-between gap-3">
