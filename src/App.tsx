@@ -13,6 +13,7 @@ import { supabase } from './supabaseClient.js';
 
 const ADMIN_PRODUCTS_KEY = 'dmerch_admin_products_v1';
 const ADMIN_GOOGLE_SHORTCUT_KEY = 'dmerch_admin_google_shortcut_v1';
+const CHECKOUT_DRAFT_KEY = 'dmerch_checkout_draft_v1';
 const ALLOWED_ADMIN_EMAILS = new Set(['rad4862@gmail.com', 'digitalmerch4862@gmail.com']);
 
 const isAllowedAdminEmail = (value: string | null | undefined) => {
@@ -58,6 +59,17 @@ type VerificationApiResponse = {
   totalAmount?: number;
   notice?: string;
   error?: string;
+};
+
+type CheckoutDraft = {
+  username: string;
+  email: string;
+  referenceNo: string;
+  selectedMethod: 'gcash' | 'gotyme';
+  paymentPortalUsed: 'gcash' | 'gotyme';
+  gcashNumberUsed: string;
+  gotymeAccountNameUsed: string;
+  selectedProducts: ProductItem[];
 };
 
 type UpsellCategory =
@@ -281,6 +293,42 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const rawDraft = window.localStorage.getItem(CHECKOUT_DRAFT_KEY);
+    if (!rawDraft) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(rawDraft) as Partial<CheckoutDraft>;
+      const products = Array.isArray(parsed.selectedProducts)
+        ? parsed.selectedProducts
+          .map((item) => ({
+            name: String((item as ProductItem)?.name ?? '').trim(),
+            amount: Number((item as ProductItem)?.amount ?? 0),
+          }))
+          .filter((item) => item.name && Number.isFinite(item.amount) && item.amount > 0)
+        : [];
+
+      if (products.length > 0) {
+        setSelectedProducts(products);
+      }
+
+      const selectedMethodValue = parsed.selectedMethod === 'gotyme' ? 'gotyme' : 'gcash';
+      const paymentPortalValue = parsed.paymentPortalUsed === 'gotyme' ? 'gotyme' : 'gcash';
+
+      setSelectedMethod(selectedMethodValue);
+      setPaymentPortalUsed(paymentPortalValue);
+      setUsername(String(parsed.username ?? '').trim());
+      setEmail(String(parsed.email ?? '').trim());
+      setReferenceNo(String(parsed.referenceNo ?? '').trim());
+      setGcashNumberUsed(String(parsed.gcashNumberUsed ?? '').trim());
+      setGotymeAccountNameUsed(String(parsed.gotymeAccountNameUsed ?? '').trim());
+    } catch {
+      window.localStorage.removeItem(CHECKOUT_DRAFT_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
     let mounted = true;
 
     const evaluateSession = async (session: { user?: { email?: string | null; user_metadata?: unknown } } | null | undefined) => {
@@ -308,6 +356,7 @@ export default function App() {
       });
 
       if (isAllowedAdminEmail(emailValue)) {
+        window.localStorage.removeItem(CHECKOUT_DRAFT_KEY);
         window.localStorage.removeItem(ADMIN_GOOGLE_SHORTCUT_KEY);
         window.location.href = '/admin';
         return;
@@ -340,6 +389,17 @@ export default function App() {
 
   const handleAdminGoogleShortcut = async () => {
     setAdminShortcutError('');
+    const draft: CheckoutDraft = {
+      username: username.trim(),
+      email: email.trim(),
+      referenceNo: referenceNo.trim(),
+      selectedMethod,
+      paymentPortalUsed,
+      gcashNumberUsed: gcashNumberUsed.trim(),
+      gotymeAccountNameUsed: gotymeAccountNameUsed.trim(),
+      selectedProducts,
+    };
+    window.localStorage.setItem(CHECKOUT_DRAFT_KEY, JSON.stringify(draft));
     window.localStorage.setItem(ADMIN_GOOGLE_SHORTCUT_KEY, '1');
     const redirectBaseUrl = resolveAuthRedirectBaseUrl();
     const returnPath = `${window.location.pathname}${window.location.search}`;
@@ -768,6 +828,7 @@ export default function App() {
       setProductQuery('');
       setSelectedProductName('');
       setSelectedProducts([]);
+      window.localStorage.removeItem(CHECKOUT_DRAFT_KEY);
     } catch (error) {
       setSubmitProgress(100);
       setSubmitError(error instanceof Error ? error.message : 'Unexpected error while submitting the form.');
