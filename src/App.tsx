@@ -9,7 +9,7 @@ import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plu
 import gcashQr from './gcash-qr.png';
 import gotymeQr from './gotyme-qr.png';
 import { productCatalog, type ProductItem } from './data/products';
-import { getSupabaseBrowserClient } from './lib/supabase-browser';
+import { supabase } from './supabaseClient.js';
 
 const ADMIN_PRODUCTS_KEY = 'dmerch_admin_products_v1';
 const ADMIN_GOOGLE_SHORTCUT_KEY = 'dmerch_admin_google_shortcut_v1';
@@ -264,11 +264,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const supabase = getSupabaseBrowserClient();
-    if (!supabase) {
-      return;
-    }
-
     let mounted = true;
 
     const evaluateSession = async (session: { user?: { email?: string | null } } | null | undefined) => {
@@ -313,12 +308,6 @@ export default function App() {
   }, []);
 
   const handleAdminGoogleShortcut = async () => {
-    const supabase = getSupabaseBrowserClient();
-    if (!supabase) {
-      setAdminShortcutError('Admin Google sign-in is unavailable. Missing Supabase configuration.');
-      return;
-    }
-
     setAdminShortcutError('');
     window.localStorage.setItem(ADMIN_GOOGLE_SHORTCUT_KEY, '1');
     const { error } = await supabase.auth.signInWithOAuth({
