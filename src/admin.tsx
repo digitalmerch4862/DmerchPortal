@@ -251,6 +251,7 @@ export default function Admin() {
   const [search, setSearch] = useState('');
   const [crmSearch, setCrmSearch] = useState('');
   const [crmStatusFilter, setCrmStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [expandedCrmUser, setExpandedCrmUser] = useState<string | null>(null);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [massAmount, setMassAmount] = useState('');
   const [massOs, setMassOs] = useState('');
@@ -1281,40 +1282,97 @@ export default function Admin() {
                 CRM sync error: {crmError}
               </div>
             ) : null}
-            <div className="max-h-[560px] overflow-auto rounded-lg border border-cyan-500/20">
-              <table className="w-full min-w-[1080px] border-collapse text-xs">
-                <thead className="bg-cyan-500/10 text-cyan-200">
-                  <tr>
-                    <th className="px-2 py-2 text-left">Username</th>
-                    <th className="px-2 py-2 text-left">Email</th>
-                    <th className="px-2 py-2 text-left">Purchased Products</th>
-                    <th className="px-2 py-2 text-right">Total Amount</th>
-                    <th className="px-2 py-2 text-center">Latest Status</th>
-                    <th className="px-2 py-2 text-left">Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredCrmItems.length === 0 ? (
-                    <tr className="border-t border-cyan-500/15">
-                      <td className="px-3 py-4 text-cyan-200" colSpan={6}>No CRM records found. Try Refresh CRM or use Sync Inbox + CRM.</td>
-                    </tr>
-                  ) : filteredCrmItems.map((item) => (
-                    <tr key={item.id} className="border-t border-cyan-500/15">
-                      <td className="px-2 py-2 text-cyan-100">{item.buyerName}</td>
-                      <td className="px-2 py-2 text-cyan-100">{item.buyerEmail}</td>
-                      <td className="px-2 py-2 text-gray-200">{item.products.join(' | ')}</td>
-                      <td className="px-2 py-2 text-right text-cyan-100">{toPhp(item.totalAmount)}</td>
-                      <td className="px-2 py-2 text-center">
-                        <span className={`rounded-full border px-2 py-1 text-[10px] font-mono uppercase ${item.status === 'pending' ? 'border-amber-400/40 text-amber-200' : item.status === 'approved' ? 'border-emerald-400/40 text-emerald-200' : 'border-red-400/40 text-red-200'}`}>
-                          {item.status}
-                        </span>
-                      </td>
-                      <td className="px-2 py-2 text-cyan-100">{toReadableDate(item.submittedAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {/* Grouped by buyer */}
+            {(() => {
+              // Group filteredCrmItems by buyerEmail
+              const grouped = new Map<string, typeof filteredCrmItems>();
+              for (const item of filteredCrmItems) {
+                const key = item.buyerEmail.toLowerCase();
+                if (!grouped.has(key)) grouped.set(key, []);
+                grouped.get(key)!.push(item);
+              }
+              // Sort each group newest-first
+              for (const [, rows] of grouped) {
+                rows.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+              }
+              // Sort groups by latest transaction (newest first)
+              const sortedGroups = [...grouped.entries()].sort(
+                ([, a], [, b]) => new Date(b[0].submittedAt).getTime() - new Date(a[0].submittedAt).getTime()
+              );
+
+              if (sortedGroups.length === 0) {
+                return (
+                  <div className="rounded-lg border border-cyan-500/20 px-4 py-6 text-xs text-cyan-200">
+                    No CRM records found. Try Refresh CRM or use Sync Inbox + CRM.
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-2 max-h-[560px] overflow-auto">
+                  {sortedGroups.map(([emailKey, rows]) => {
+                    const latest = rows[0];
+                    const totalSpend = rows.reduce((s, r) => s + r.totalAmount, 0);
+                    const isExpanded = expandedCrmUser === emailKey;
+                    const statusColor = latest.status === 'approved'
+                      ? 'border-emerald-400/40 text-emerald-200'
+                      : latest.status === 'rejected'
+                        ? 'border-red-400/40 text-red-200'
+                        : 'border-amber-400/40 text-amber-200';
+
+                    return (
+                      <div key={emailKey} className="rounded-lg border border-cyan-500/20 bg-black/30">
+                        {/* Buyer row — click to expand */}
+                        <button
+                          type="button"
+                          onClick={() => setExpandedCrmUser(isExpanded ? null : emailKey)}
+                          className="w-full flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-left hover:bg-cyan-500/5 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs font-bold text-cyan-100">{latest.buyerName}</span>
+                            <span className="text-[10px] text-cyan-400/70">{latest.buyerEmail}</span>
+                            <span className="text-[10px] font-mono text-cyan-500/60">{rows.length} order{rows.length > 1 ? 's' : ''}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs font-mono text-cyan-100">{toPhp(totalSpend)}</span>
+                            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-mono uppercase ${statusColor}`}>
+                              {latest.status}
+                            </span>
+                            <span className="text-[10px] text-cyan-500">{isExpanded ? '▲' : '▼'}</span>
+                          </div>
+                        </button>
+
+                        {/* Expanded transaction list */}
+                        {isExpanded && (
+                          <div className="border-t border-cyan-500/15 px-4 pb-3 pt-2 space-y-2">
+                            <p className="text-[10px] font-mono uppercase tracking-widest text-cyan-400/60 mb-2">Transaction History — {latest.buyerName}</p>
+                            {rows.map((tx) => {
+                              const txColor = tx.status === 'approved'
+                                ? 'border-emerald-400/20 text-emerald-200'
+                                : tx.status === 'rejected'
+                                  ? 'border-red-400/20 text-red-200'
+                                  : 'border-amber-400/20 text-amber-200';
+                              return (
+                                <div key={tx.id} className="rounded-md border border-cyan-500/15 bg-cyan-500/5 px-3 py-2">
+                                  <div className="flex flex-wrap items-start justify-between gap-1">
+                                    <p className="text-xs text-gray-200 flex-1">{tx.products.join(' • ')}</p>
+                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                      <span className="text-xs font-mono text-cyan-100">{toPhp(tx.totalAmount)}</span>
+                                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-mono uppercase ${txColor}`}>{tx.status}</span>
+                                    </div>
+                                  </div>
+                                  <p className="mt-1 text-[10px] text-cyan-400/50 font-mono">{toReadableDate(tx.submittedAt)} · {tx.referenceCode}</p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </section>
         ) : null}
       </main>
