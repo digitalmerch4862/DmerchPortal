@@ -557,7 +557,7 @@ export default function Admin() {
     const newProduct = {
       name: 'New Product',
       price: 99,
-      price_usd: 1.99,
+      price_usd: 1.00,
       os: 'Windows',
       file_url: '',
     };
@@ -599,7 +599,7 @@ export default function Admin() {
     const toInsert = localProducts.map(p => ({
       name: p.name,
       price: p.amount,
-      price_usd: Math.max(0.99, Number((p.amount / 50).toFixed(2))),
+      price_usd: Math.max(1.00, Number((p.amount / 50).toFixed(2))),
       os: p.os,
       file_url: p.fileLink,
     }));
@@ -636,7 +636,7 @@ export default function Admin() {
     const toInsert = imported.map(p => ({
       name: p.name,
       price: p.amount,
-      price_usd: Math.max(0.99, Number((p.amount / 50).toFixed(2))),
+      price_usd: Math.max(1.00, Number((p.amount / 50).toFixed(2))),
       os: p.os,
       file_url: p.fileLink,
     }));
