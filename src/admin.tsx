@@ -39,16 +39,7 @@ const isAllowedAdminEmail = (value: string | null | undefined) => {
 };
 
 const resolveAuthRedirectBaseUrl = () => {
-  const configured = String(import.meta.env.VITE_APP_BASE_URL ?? '').trim();
-  const fallback = window.location.origin;
-
-  // If we're on a Vercel domain or localhost, window.location.origin is usually safer 
-  // than a potentially stale environment variable.
-  if (fallback.includes('localhost') || fallback.includes('vercel.app')) {
-    return fallback.replace(/\/+$/, '');
-  }
-
-  return (configured || fallback).replace(/\/+$/, '');
+  return window.location.origin.replace(/\/+$/, '');
 };
 
 const inferOs = (name: string) => {
