@@ -386,8 +386,8 @@ export default function App() {
         if (!mounted) {
           return;
         }
-        setAdminShortcutError('Google account is not an admin. Proceeding to next stage.');
-        setStage(3);
+        setAdminShortcutError('Google sign-in complete. Email auto-filled. Continue checkout.');
+        setStage(2);
       }
     };
 
