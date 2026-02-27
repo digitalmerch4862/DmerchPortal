@@ -1,5 +1,5 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Download, ShieldCheck } from 'lucide-react';
+import { FormEvent, useEffect, useMemo, useState, useCallback } from 'react';
+import { Download, ShieldCheck, X } from 'lucide-react';
 
 type DeliveryProduct = {
   name: string;
@@ -24,10 +24,13 @@ export default function Delivery() {
   const [status, setStatus] = useState('Authenticate using your email and order serial to access your downloads.');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [downloadingProduct, setDownloadingProduct] = useState<string | null>(null);
-  const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({});
+
+  // Modal state
   const [showModal, setShowModal] = useState(false);
   const [activeProduct, setActiveProduct] = useState<DeliveryProduct | null>(null);
+  const [modalPhase, setModalPhase] = useState<'confirm' | 'progress' | 'done' | 'error'>('confirm');
+  const [progress, setProgress] = useState(0);
+  const [modalError, setModalError] = useState('');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -104,22 +107,35 @@ export default function Delivery() {
     }
   };
 
-  const handleDownload = (product: DeliveryProduct) => {
+  const openDownloadModal = (product: DeliveryProduct) => {
     setActiveProduct(product);
     setShowModal(true);
-    setDownloadingProduct(null); // Reset from previous if any
+    setModalPhase('confirm');
+    setProgress(0);
+    setModalError('');
   };
 
-  const triggerSecureDownload = (productName: string) => {
-    setDownloadingProduct(productName);
-    setDownloadProgress(prev => ({ ...prev, [productName]: 0 }));
-    setError('');
+  const closeModal = useCallback(() => {
+    setShowModal(false);
+    setActiveProduct(null);
+    setModalPhase('confirm');
+    setProgress(0);
+    setModalError('');
+  }, []);
+
+  const triggerSecureDownload = useCallback(() => {
+    if (!activeProduct) return;
+    const productName = activeProduct.name;
+
+    setModalPhase('progress');
+    setProgress(0);
+    setModalError('');
 
     let redirectUrl: string | null = null;
     let fetchError: string | null = null;
     let fetchDone = false;
 
-    // Start background fetch immediately (simulating link generation)
+    // Start background fetch
     const startFetch = async () => {
       try {
         const response = await fetch('/api/delivery-download', {
@@ -145,48 +161,104 @@ export default function Delivery() {
 
     void startFetch();
 
-    // Progress animation (Visual Secure Scan)
-    const duration = 2000;
+    // Progress animation
+    const duration = 2500;
     const interval = 50;
     const steps = duration / interval;
     let currentStep = 0;
 
     const timer = setInterval(() => {
       currentStep++;
-      const progress = Math.min(Math.round((currentStep / steps) * 100), 100);
-      setDownloadProgress(prev => ({ ...prev, [productName]: progress }));
+      const p = Math.min(Math.round((currentStep / steps) * 100), 100);
+      setProgress(p);
 
       if (currentStep >= steps) {
         clearInterval(timer);
 
-        // Wait for fetch to complete if it's slow
+        // Wait for fetch to complete
         const checkDone = setInterval(() => {
           if (fetchDone) {
             clearInterval(checkDone);
             if (fetchError) {
-              setError(fetchError);
-              setDownloadingProduct(null);
+              setModalError(fetchError);
+              setModalPhase('error');
             } else if (redirectUrl) {
-              // Trigger actual download via hidden iframe
-              const iframe = document.createElement('iframe');
-              iframe.style.display = 'none';
-              iframe.src = redirectUrl;
-              document.body.appendChild(iframe);
-              setTimeout(() => {
-                if (document.body.contains(iframe)) document.body.removeChild(iframe);
-              }, 60000);
+              setModalPhase('done');
 
-              // Auto-close modal after success
+              // Trigger the actual download via a hidden <a> tag
+              const a = document.createElement('a');
+              a.href = redirectUrl;
+              a.target = '_blank';
+              a.rel = 'noopener noreferrer';
+              a.style.display = 'none';
+              document.body.appendChild(a);
+              a.click();
+              setTimeout(() => document.body.removeChild(a), 1000);
+
+              // Auto close modal after 3 seconds
               setTimeout(() => {
-                setShowModal(false);
-                setDownloadingProduct(null);
-                setActiveProduct(null);
-              }, 2000);
+                closeModal();
+              }, 3000);
             }
           }
         }, 100);
       }
     }, interval);
+  }, [activeProduct, token, closeModal]);
+
+  // ---- INLINE MODAL STYLES (guaranteed to work, no CSS dependency) ----
+  const overlayStyle: React.CSSProperties = {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'rgba(0, 5, 10, 0.9)',
+    backdropFilter: 'blur(10px)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 9999,
+    padding: '20px',
+  };
+
+  const modalStyle: React.CSSProperties = {
+    width: '100%',
+    maxWidth: '460px',
+    background: '#071018',
+    border: '1px solid rgba(0, 243, 255, 0.4)',
+    boxShadow: '0 0 60px rgba(0, 243, 255, 0.2), inset 0 0 20px rgba(0, 243, 255, 0.05)',
+    borderRadius: '16px',
+    padding: '28px',
+    position: 'relative',
+    overflow: 'hidden',
+  };
+
+  const topBarStyle: React.CSSProperties = {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '2px',
+    background: 'linear-gradient(90deg, transparent, #00f3ff, transparent)',
+  };
+
+  const progressContainerStyle: React.CSSProperties = {
+    width: '100%',
+    height: '8px',
+    background: 'rgba(0, 243, 255, 0.1)',
+    borderRadius: '4px',
+    overflow: 'hidden',
+    border: '1px solid rgba(0, 243, 255, 0.2)',
+  };
+
+  const progressBarStyle: React.CSSProperties = {
+    height: '100%',
+    width: `${progress}%`,
+    background: 'linear-gradient(90deg, #00f3ff, #39f4b8, #ff00ff)',
+    backgroundSize: '200% 100%',
+    boxShadow: '0 0 12px rgba(0, 243, 255, 0.5)',
+    transition: 'width 0.08s linear',
   };
 
   return (
@@ -240,9 +312,7 @@ export default function Delivery() {
                     <button
                       type="button"
                       className="cyber-btn cyber-btn-primary"
-                      onClick={() => {
-                        handleDownload(product);
-                      }}
+                      onClick={() => openDownloadModal(product)}
                     >
                       <Download size={14} /> Download
                     </button>
@@ -254,50 +324,126 @@ export default function Delivery() {
         )}
       </main>
 
-      {/* Download Modal */}
+      {/* ===== DOWNLOAD MODAL (inline styles for reliability) ===== */}
       {showModal && activeProduct && (
-        <div className="cyber-modal-overlay">
-          <div className="cyber-modal-content">
-            <h3 className="text-lg font-bold text-cyan-100 uppercase tracking-wider">Secure File Export</h3>
-            <p className="mt-2 text-sm text-cyan-200/80">
-              You are about to export: <span className="text-white font-semibold">{activeProduct.name}</span>
+        <div style={overlayStyle} onClick={() => { if (modalPhase === 'confirm') closeModal(); }}>
+          <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+            <div style={topBarStyle} />
+
+            {/* Close button */}
+            {modalPhase === 'confirm' && (
+              <button
+                onClick={closeModal}
+                style={{
+                  position: 'absolute', top: '12px', right: '12px',
+                  background: 'none', border: 'none', color: '#67e8f9',
+                  cursor: 'pointer', padding: '4px',
+                }}
+              >
+                <X size={18} />
+              </button>
+            )}
+
+            <h3 style={{
+              fontSize: '16px', fontWeight: 700, color: '#e0f2fe',
+              textTransform: 'uppercase', letterSpacing: '0.15em',
+            }}>
+              Secure File Export
+            </h3>
+
+            <p style={{ marginTop: '10px', fontSize: '13px', color: 'rgba(186, 230, 253, 0.75)' }}>
+              {modalPhase === 'confirm' && <>You are about to download: <strong style={{ color: '#fff' }}>{activeProduct.name}</strong></>}
+              {modalPhase === 'progress' && 'Securing download channel...'}
+              {modalPhase === 'done' && 'Download started! Check your browser downloads.'}
+              {modalPhase === 'error' && 'An error occurred during the download.'}
             </p>
 
-            <div className="mt-6">
-              {downloadingProduct === activeProduct.name ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="download-status-tag">
-                      {downloadProgress[activeProduct.name] < 100 ? 'Securing Link & Encrypting...' : 'Encrypted. Starting Save...'}
-                    </span>
-                    <span className="text-xs text-cyan-400 font-mono">{downloadProgress[activeProduct.name]}%</span>
-                  </div>
-                  <div className="cyber-progress-container h-2">
-                    <div
-                      className="cyber-progress-bar"
-                      style={{ width: `${downloadProgress[activeProduct.name]}%` }}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="flex gap-3">
+            <div style={{ marginTop: '24px' }}>
+              {/* CONFIRM phase: Cancel + Save buttons */}
+              {modalPhase === 'confirm' && (
+                <div style={{ display: 'flex', gap: '12px' }}>
                   <button
-                    onClick={() => setShowModal(false)}
-                    className="flex-1 px-4 py-2 text-xs font-bold uppercase tracking-widest text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/10 transition-colors rounded"
+                    onClick={closeModal}
+                    style={{
+                      flex: 1, padding: '10px 16px', fontSize: '11px', fontWeight: 700,
+                      textTransform: 'uppercase', letterSpacing: '0.15em',
+                      color: '#67e8f9', background: 'transparent',
+                      border: '1px solid rgba(0, 243, 255, 0.3)',
+                      borderRadius: '8px', cursor: 'pointer',
+                      transition: 'background 0.2s',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 243, 255, 0.08)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                   >
                     Cancel
                   </button>
                   <button
-                    onClick={() => triggerSecureDownload(activeProduct.name)}
-                    className="flex-1 cyber-btn cyber-btn-primary"
+                    onClick={triggerSecureDownload}
+                    className="cyber-btn cyber-btn-primary"
+                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                   >
                     <Download size={14} /> Save File
                   </button>
                 </div>
               )}
-            </div>
 
-            {error ? <p className="mt-4 text-xs text-red-400 text-center">{error}</p> : null}
+              {/* PROGRESS phase: Progress bar */}
+              {modalPhase === 'progress' && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{
+                      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                      fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase',
+                      color: '#00f3ff', textShadow: '0 0 8px rgba(0, 243, 255, 0.3)',
+                    }}>
+                      {progress < 100 ? 'Encrypting & Securing...' : 'Verified. Initiating Save...'}
+                    </span>
+                    <span style={{ fontSize: '12px', color: '#22d3ee', fontFamily: 'monospace' }}>
+                      {progress}%
+                    </span>
+                  </div>
+                  <div style={progressContainerStyle}>
+                    <div style={progressBarStyle} />
+                  </div>
+                </div>
+              )}
+
+              {/* DONE phase: Success */}
+              {modalPhase === 'done' && (
+                <div style={{ textAlign: 'center' }}>
+                  <p style={{
+                    fontSize: '11px', color: '#34d399', fontFamily: 'monospace',
+                    textTransform: 'uppercase', letterSpacing: '0.15em',
+                  }}>
+                    ✓ Download Complete — 100%
+                  </p>
+                  <p style={{ fontSize: '11px', color: 'rgba(186, 230, 253, 0.5)', marginTop: '8px' }}>
+                    This modal will close automatically...
+                  </p>
+                </div>
+              )}
+
+              {/* ERROR phase */}
+              {modalPhase === 'error' && (
+                <div>
+                  <p style={{ fontSize: '12px', color: '#f87171', textAlign: 'center', marginBottom: '12px' }}>
+                    {modalError}
+                  </p>
+                  <button
+                    onClick={closeModal}
+                    style={{
+                      width: '100%', padding: '10px', fontSize: '11px', fontWeight: 700,
+                      textTransform: 'uppercase', letterSpacing: '0.1em',
+                      color: '#67e8f9', background: 'transparent',
+                      border: '1px solid rgba(0, 243, 255, 0.3)',
+                      borderRadius: '8px', cursor: 'pointer',
+                    }}
+                  >
+                    Close
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
