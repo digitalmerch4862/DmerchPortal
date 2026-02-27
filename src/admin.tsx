@@ -224,6 +224,19 @@ const toReadableDate = (value: string) => {
   });
 };
 
+const toManilaDayKey = (value: string | Date) => {
+  const date = typeof value === 'string' ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+};
+
 export default function Admin() {
   const [loginError, setLoginError] = useState('');
   const [authChecking, setAuthChecking] = useState(true);
@@ -752,7 +765,11 @@ export default function Admin() {
       }
 
       const nextStatus = action === 'approve' ? 'approved' : 'rejected';
-      setInboxItems((current) => current.map((row) => (row.id === item.id ? { ...row, status: nextStatus } : row)));
+      if (action === 'approve') {
+        setInboxItems((current) => current.filter((row) => row.id !== item.id));
+      } else {
+        setInboxItems((current) => current.map((row) => (row.id === item.id ? { ...row, status: nextStatus } : row)));
+      }
       setCrmItems((current) => current.map((row) => (row.referenceCode === item.referenceCode ? { ...row, status: nextStatus } : row)));
 
       if (action === 'approve') {
@@ -823,6 +840,16 @@ export default function Admin() {
   const totalApprovedSales = useMemo(
     () => crmItems.filter((item) => item.status === 'approved').reduce((sum, item) => sum + item.totalAmount, 0),
     [crmItems],
+  );
+
+  const todayManilaKey = toManilaDayKey(new Date());
+  const pendingTodayCount = useMemo(
+    () => inboxItems.filter((item) => item.status === 'pending' && toManilaDayKey(item.submittedAt) === todayManilaKey).length,
+    [inboxItems, todayManilaKey],
+  );
+  const approvedTodayCount = useMemo(
+    () => crmItems.filter((item) => item.status === 'approved' && toManilaDayKey(item.submittedAt) === todayManilaKey).length,
+    [crmItems, todayManilaKey],
   );
 
   const analyticsCards = useMemo(() => {
@@ -1039,7 +1066,7 @@ export default function Admin() {
               </div>
             </div>
             <p className="mb-3 text-[11px] font-mono uppercase tracking-[0.16em] text-cyan-200">
-              Last sync: {lastInboxSyncAt ? toReadableDate(lastInboxSyncAt) : 'Never'} | Rows fetched: {inboxLastCount}
+              Last sync: {lastInboxSyncAt ? toReadableDate(lastInboxSyncAt) : 'Never'} | Rows fetched: {inboxLastCount} | Pending Today: {pendingTodayCount} | Approved Today: {approvedTodayCount}
             </p>
             {inboxError ? (
               <div className="mb-3 rounded-md border border-red-400/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
