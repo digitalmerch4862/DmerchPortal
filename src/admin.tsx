@@ -697,6 +697,9 @@ export default function Admin() {
     { key: 'crm', label: 'CRM', icon: UsersRound },
   ];
 
+  const hiddenLoginErrors = new Set(['Admin role required.', 'Admin account is not allowlisted.']);
+  const shouldShowLoginError = loginError.trim().length > 0 && !hiddenLoginErrors.has(loginError.trim());
+
   if (authChecking) {
     return (
       <div className="min-h-screen bg-[#050505] text-white px-4 py-10">
@@ -714,7 +717,7 @@ export default function Admin() {
           <h1 className="text-xl font-black tracking-[0.12em] uppercase text-cyan-200">Admin Portal Access</h1>
           <p className="mt-2 text-sm text-cyan-100/80">Sign in with Google to continue.</p>
           <div className="mt-5 space-y-3">
-            {loginError ? <p className="text-xs text-red-300">{loginError}</p> : null}
+            {shouldShowLoginError ? <p className="text-xs text-red-300">{loginError}</p> : null}
             <button onClick={() => { void handleGoogleLogin(); }} className="cyber-btn cyber-btn-primary w-full">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="h-4 w-4" aria-hidden="true" focusable="false">
                 <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303C33.655 32.657 29.196 36 24 36c-6.627 0-12-5.373-12-12S17.373 12 24 12c3.059 0 5.842 1.154 7.959 3.041l5.657-5.657C34.053 6.053 29.274 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" />
