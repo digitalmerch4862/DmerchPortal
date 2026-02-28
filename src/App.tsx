@@ -1167,13 +1167,48 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* Admin Route Selection — shown only when admin email is detected */}
+                {isAllowedAdminEmail(email) && (
+                  <div className="mt-6 rounded-xl border border-yellow-400/30 bg-yellow-500/5 p-4">
+                    <p className="mb-3 text-center text-[11px] font-mono uppercase tracking-[0.25em] text-yellow-300/80">
+                      ⚡ Admin Account Detected — Choose Your Path
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => {
+                          // Redirect to Admin Portal
+                          window.location.href = '/admin';
+                        }}
+                        className="flex-1 inline-flex items-center justify-center gap-2 rounded-md border border-yellow-400/60 bg-yellow-500/10 px-4 py-3 text-sm font-bold uppercase tracking-widest text-yellow-300 transition hover:bg-yellow-500/20 hover:text-yellow-100"
+                      >
+                        <ShieldCheck size={16} />
+                        Admin Dashboard
+                      </motion.button>
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.97 }}
+                        onClick={goToNextStage}
+                        className="flex-1 inline-flex items-center justify-center gap-2 rounded-md border border-cyan-400/60 bg-cyan-500/10 px-4 py-3 text-sm font-bold uppercase tracking-widest text-cyan-300 transition hover:bg-cyan-500/20 hover:text-cyan-100"
+                      >
+                        Test Checkout <ArrowRight size={16} />
+                      </motion.button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="mt-7 flex flex-col sm:flex-row items-center justify-between gap-3">
                   <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
                     <ArrowLeft size={15} /> Back
                   </motion.button>
-                  <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
-                    Next: Payment Portal <ArrowRight size={15} />
-                  </motion.button>
+                  {!isAllowedAdminEmail(email) && (
+                    <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
+                      Next: Payment Portal <ArrowRight size={15} />
+                    </motion.button>
+                  )}
                 </div>
               </CyberCard>
             </motion.div>
