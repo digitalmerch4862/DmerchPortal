@@ -140,7 +140,7 @@ export default async function handler(req: any, res: any) {
       .from('verification_orders')
       .select('id, serial_no, email, email_status')
       .eq('serial_no', tokenPayload.serialNo)
-      .eq('email', tokenPayload.email)
+      .ilike('email', tokenPayload.email)
       .single();
 
     if (orderLookup.error || !orderLookup.data) {

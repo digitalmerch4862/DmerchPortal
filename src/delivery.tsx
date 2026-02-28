@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState, useCallback } from 'react';
+import React, { FormEvent, useEffect, useMemo, useState, useCallback } from 'react';
 import { Download, ShieldCheck, X } from 'lucide-react';
 
 type DeliveryProduct = {
@@ -123,43 +123,11 @@ export default function Delivery() {
     if (!activeProduct) return;
     const productName = activeProduct.name;
 
-    // IMPORTANT: Open window NOW (inside user click event) so browser won't block it
-    const downloadWindow = window.open('about:blank', '_blank');
-
     setModalPhase('progress');
     setProgress(0);
     setModalError('');
 
-    let redirectUrl: string | null = null;
-    let fetchError: string | null = null;
-    let fetchDone = false;
-
-    // Start background fetch
-    const startFetch = async () => {
-      try {
-        const response = await fetch('/api/delivery-download', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, productName }),
-        });
-        const payload = (await response.json()) as { ok: boolean; redirectUrl?: string; error?: string; products?: DeliveryProduct[] };
-        if (!response.ok || !payload.ok || !payload.redirectUrl) {
-          fetchError = payload.error ?? 'Download is not available.';
-          if (payload.products) setProducts(payload.products);
-        } else {
-          redirectUrl = payload.redirectUrl;
-          if (payload.products) setProducts(payload.products);
-        }
-      } catch {
-        fetchError = 'Download failed. Please try again.';
-      } finally {
-        fetchDone = true;
-      }
-    };
-
-    void startFetch();
-
-    // Progress animation
+    // Progress animation while fetching
     const duration = 2500;
     const interval = 50;
     const steps = duration / interval;
@@ -167,36 +135,49 @@ export default function Delivery() {
 
     const timer = setInterval(() => {
       currentStep++;
-      const p = Math.min(Math.round((currentStep / steps) * 100), 100);
+      const p = Math.min(Math.round((currentStep / steps) * 100), 98);
       setProgress(p);
+    }, interval);
 
-      if (currentStep >= steps) {
+    // Fetch the secure download URL
+    fetch('/api/delivery-download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, productName }),
+    })
+      .then((response) => response.json())
+      .then((payload: { ok: boolean; redirectUrl?: string; error?: string; products?: DeliveryProduct[] }) => {
         clearInterval(timer);
 
-        const checkDone = setInterval(() => {
-          if (fetchDone) {
-            clearInterval(checkDone);
-            if (fetchError) {
-              setModalError(fetchError);
-              setModalPhase('error');
-              if (downloadWindow && !downloadWindow.closed) downloadWindow.close();
-            } else if (redirectUrl) {
-              setModalPhase('done');
+        if (!payload.ok || !payload.redirectUrl) {
+          setProgress(0);
+          setModalError(payload.error ?? 'Download is not available.');
+          setModalPhase('error');
+          if (payload.products) setProducts(payload.products);
+          return;
+        }
 
-              // Redirect the pre-opened window to the download URL
-              if (downloadWindow && !downloadWindow.closed) {
-                downloadWindow.location.href = redirectUrl;
-              } else {
-                // Fallback if popup was blocked
-                window.location.href = redirectUrl;
-              }
+        if (payload.products) setProducts(payload.products);
+        setProgress(100);
+        setModalPhase('done');
 
-              setTimeout(() => closeModal(), 3000);
-            }
-          }
-        }, 100);
-      }
-    }, interval);
+        // Use hidden anchor click — works on mobile & desktop, no popup blocker issues
+        const link = document.createElement('a');
+        link.href = payload.redirectUrl;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        setTimeout(() => closeModal(), 3000);
+      })
+      .catch(() => {
+        clearInterval(timer);
+        setProgress(0);
+        setModalError('Download failed. Please try again.');
+        setModalPhase('error');
+      });
   }, [activeProduct, token, closeModal]);
 
   // ---- INLINE STYLES (guaranteed to work, no CSS dependency) ----
