@@ -237,6 +237,8 @@ export default function App() {
   const [submitError, setSubmitError] = useState('');
   const [submitNotice, setSubmitNotice] = useState('');
   const [adminShortcutError, setAdminShortcutError] = useState('');
+  // True ONLY when the user has completed Google OAuth — not just typed an email
+  const [isGoogleVerified, setIsGoogleVerified] = useState(false);
   const [submitResult, setSubmitResult] = useState<VerificationApiResponse | null>(null);
   const [lastSubmittedProducts, setLastSubmittedProducts] = useState<ProductItem[]>([]);
   const [liveAvailmentIndex, setLiveAvailmentIndex] = useState(0);
@@ -362,6 +364,8 @@ export default function App() {
 
       const normalizedEmail = String(emailValue).trim().toLowerCase();
       setEmail(normalizedEmail);
+      // Mark this session as Google-verified (the ONLY place this becomes true)
+      setIsGoogleVerified(true);
       setUsername((current) => {
         if (current.trim()) {
           return current;
@@ -1167,8 +1171,8 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Admin Route Selection — shown only when admin email is detected */}
-                {isAllowedAdminEmail(email) && (
+                {/* Admin Route Selection — shown ONLY after real Google OAuth (not just typed email) */}
+                {isAllowedAdminEmail(email) && isGoogleVerified && (
                   <div className="mt-6 rounded-xl border border-yellow-400/30 bg-yellow-500/5 p-4">
                     <p className="mb-3 text-center text-[11px] font-mono uppercase tracking-[0.25em] text-yellow-300/80">
                       ⚡ Admin Account Detected — Choose Your Path
