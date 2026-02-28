@@ -33,7 +33,7 @@ type InboxItem = {
 const PRODUCTS_KEY = 'dmerch_admin_products_v1';
 const INBOX_KEY = 'dmerch_admin_inbox_v1';
 const COUNTERS_RESET_DAY_KEY = 'dmerch_counters_reset_day_v1';
-const ALLOWED_ADMIN_EMAILS = new Set(['rad4862@gmail.com', 'digitalmerch4862@gmail.com']);
+const ALLOWED_ADMIN_EMAILS = new Set(['rad4862@gmail.com', 'digitalmerch4862@gmail.com', 'virtumartph@gmail.com']);
 
 const isAllowedAdminEmail = (value: string | null | undefined) => {
   const normalized = String(value ?? '').trim().toLowerCase();
