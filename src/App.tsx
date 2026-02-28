@@ -1377,14 +1377,12 @@ export default function App() {
                           throw new Error(data.error || 'Failed to claim freebie');
                         }
                       } else {
-                        // Regular PayMongo Checkout — call Supabase Edge Function
-                        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-                        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-                        const response = await fetch(`${supabaseUrl}/functions/v1/create-checkout`, {
+                        // Regular PayMongo Checkout — public Supabase Edge Function (verify_jwt: false)
+                        const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://jfdvbyoyvqriqhqtmyjo.supabase.co';
+                        const response = await fetch(`${SUPABASE_URL}/functions/v1/create-checkout`, {
                           method: 'POST',
                           headers: {
                             'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${supabaseAnonKey}`
                           },
                           body: JSON.stringify({
                             amount: totalAmount,
