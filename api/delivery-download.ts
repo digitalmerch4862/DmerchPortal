@@ -113,6 +113,7 @@ export default async function handler(req: any, res: any) {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const tokenSecret = process.env.DELIVERY_TOKEN_SECRET ?? supabaseServiceRoleKey;
+  const bypassDownloadLimit = String(process.env.BYPASS_DOWNLOAD_LIMIT ?? '').toLowerCase() === 'true';
 
   if (!supabaseUrl || !supabaseServiceRoleKey || !tokenSecret) {
     return res.status(500).json({ ok: false, error: 'Missing server configuration.' });
@@ -183,7 +184,7 @@ export default async function handler(req: any, res: any) {
 
     const used = Number(entitlement.download_used ?? 0);
     const limit = Number(entitlement.download_limit ?? 10);
-    if (!entitlement.is_unlimited && used >= limit) {
+    if (!bypassDownloadLimit && !entitlement.is_unlimited && used >= limit) {
       return res.status(403).json({ ok: false, error: 'Download limit reached. Please contact support.', code: 'DOWNLOAD_LIMIT_REACHED' });
     }
 
