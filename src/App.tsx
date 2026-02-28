@@ -1229,12 +1229,26 @@ export default function App() {
                 {!isAllowedAdminEmail(email) ? (
                   <CyberCard title="Automated Checkout" icon={ShieldCheck} color="cyan">
                     <div className="text-center p-6 space-y-4">
-                      <p className="text-cyan-100 text-sm">You are about to be redirected to our secure PayMongo checkout portal.</p>
-                      <div className="flex justify-center gap-4 py-4">
-                        <img src="/gcash-logo.svg" alt="GCash" className="h-8 opacity-70" />
-                        <img src="/gotyme-logo.svg" alt="GoTyme" className="h-8 opacity-70" />
+                      <p className="text-cyan-100 text-sm">You will be redirected to our secure PayMongo checkout portal to complete your payment.</p>
+                      {/* PayMongo branded visual */}
+                      <div className="relative mx-auto w-full max-w-xs rounded-xl overflow-hidden border border-cyan-500/30 shadow-[0_0_30px_rgba(0,243,255,0.15)]">
+                        <div className="bg-gradient-to-br from-[#0a2540] to-[#0d3a6c] p-6 flex flex-col items-center gap-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-[#02a6e4] flex items-center justify-center text-white font-black text-sm">P</div>
+                            <span className="text-white font-black text-xl tracking-tight">PayMongo</span>
+                          </div>
+                          <p className="text-[#7ecff5] text-xs font-mono uppercase tracking-widest">Secure Payment Gateway</p>
+                          <div className="flex gap-2 mt-1 flex-wrap justify-center">
+                            {['GCash', 'Maya', 'GoTyme', 'Cards'].map(m => (
+                              <span key={m} className="rounded-full border border-[#02a6e4]/40 bg-[#02a6e4]/10 px-3 py-1 text-[10px] font-mono uppercase tracking-wider text-[#7ecff5]">{m}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="bg-black/60 px-4 py-2 flex items-center justify-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                          <span className="text-[10px] font-mono uppercase tracking-widest text-green-400">Live &amp; Secure</span>
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-400 font-mono italic uppercase tracking-widest">Supports GCash, GoTyme, Maya, and Cards</p>
                     </div>
                   </CyberCard>
                 ) : (
@@ -1363,10 +1377,15 @@ export default function App() {
                           throw new Error(data.error || 'Failed to claim freebie');
                         }
                       } else {
-                        // Regular PayMongo Checkout
-                        const response = await fetch('/api/create-checkout', {
+                        // Regular PayMongo Checkout — call Supabase Edge Function
+                        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+                        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+                        const response = await fetch(`${supabaseUrl}/functions/v1/create-checkout`, {
                           method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${supabaseAnonKey}`
+                          },
                           body: JSON.stringify({
                             amount: totalAmount,
                             description: selectedProducts.map(p => p.name).join(', '),
