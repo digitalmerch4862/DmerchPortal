@@ -391,6 +391,12 @@ export default function Admin() {
         return;
       }
 
+      // VirtuMart doesn't need admin dashboard — redirect to main portal
+      if (String(sessionEmail ?? '').trim().toLowerCase() === 'virtumartph@gmail.com') {
+        window.location.href = '/';
+        return;
+      }
+
       setAccessToken(token);
       setUnlocked(true);
       setLoginError('');
