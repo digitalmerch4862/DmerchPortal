@@ -11,6 +11,34 @@ export const escapeHtml = (value: string) => {
 
 export const formatPhpAmount = (amount: number) => `₱${amount.toFixed(2)}`;
 
+const CONTACT_LINKS_HTML = `
+  <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid #e5e7eb;">
+    <p style="margin: 0 0 8px; font-size: 12px; color: #4b5563; font-weight: 600;">Need help or want more products?</p>
+    <p style="margin: 0 0 4px; font-size: 12px; color: #6b7280;">
+      FB: <a href="https://www.facebook.com/digitalmerch4862/" style="color:#0ea5e9; text-decoration:none;">https://www.facebook.com/digitalmerch4862/</a>
+    </p>
+    <p style="margin: 0 0 4px; font-size: 12px; color: #6b7280;">
+      YT: <a href="https://youtube.com/@digitalmerch-sy7yt?si=c8VCo5afd47Rf5Df" style="color:#0ea5e9; text-decoration:none;">https://youtube.com/@digitalmerch-sy7yt?si=c8VCo5afd47Rf5Df</a>
+    </p>
+    <p style="margin: 0 0 4px; font-size: 12px; color: #6b7280;">
+      Instagram: <a href="https://www.instagram.com/digitalmerch4862/" style="color:#0ea5e9; text-decoration:none;">https://www.instagram.com/digitalmerch4862/</a>
+    </p>
+    <p style="margin: 0 0 4px; font-size: 12px; color: #6b7280;">
+      Email Us: <a href="mailto:digitalmerch4862@gmail.com" style="color:#0ea5e9; text-decoration:none;">digitalmerch4862@gmail.com</a>
+    </p>
+    <p style="margin: 10px 0 4px; font-size: 12px; color: #4b5563; font-weight: 600;">Shopee Shop</p>
+    <p style="margin: 0 0 4px; font-size: 12px; color: #6b7280;">
+      Virtu Mart: <a href="https://shopee.ph/shop/1392650544" style="color:#0ea5e9; text-decoration:none;">https://shopee.ph/shop/1392650544</a>
+    </p>
+    <p style="margin: 0 0 4px; font-size: 12px; color: #6b7280;">
+      Soft Mart: <a href="https://shopee.ph/shop/1576711968" style="color:#0ea5e9; text-decoration:none;">https://shopee.ph/shop/1576711968</a>
+    </p>
+    <p style="margin: 10px 0 4px; font-size: 12px; color: #4b5563; font-weight: 600;">Lazada Shop</p>
+    <p style="margin: 0; font-size: 12px; color: #6b7280;">
+      Digitalmerch: <a href="https://www.lazada.com.ph/shop/3ecyybmf" style="color:#0ea5e9; text-decoration:none;">https://www.lazada.com.ph/shop/3ecyybmf</a>
+    </p>
+  </div>`;
+
 export const extractResendErrorMessage = (result: unknown) => {
     if (!result || typeof result !== 'object') {
         return null;
@@ -131,9 +159,7 @@ ${rowsHtml}
                             <p style="margin: 0; font-size: 12px; color: #999999;">
                                 This is an automated notification from the DMerch system.
                             </p>
-                            <p style="margin: 10px 0 0; font-size: 12px; color: #999999;">
-                                Support: <a href="mailto:support@digitalmerchs.store" style="color: #007bff; text-decoration: none;">support@digitalmerchs.store</a>
-                            </p>
+${CONTACT_LINKS_HTML}
                         </td>
                     </tr>
                 </table>
