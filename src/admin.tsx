@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, BarChart3, CheckCircle2, Download, Inbox, PackageSearch, ShieldAlert, Trash2, Upload, UsersRound } from 'lucide-react';
+import { Archive, ArrowLeft, BarChart3, CheckCircle2, Download, Inbox, PackageSearch, Pencil, ShieldAlert, Trash2, Upload, UsersRound } from 'lucide-react';
 import { productCatalog } from './data/products';
 import { getSupabaseBrowserClient } from './lib/supabase-browser';
 
@@ -306,6 +306,12 @@ export default function Admin() {
   const inboxAutoMappedRef = useRef(false);
   const [counterResetDayKey, setCounterResetDayKey] = useState('');
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [selectedCrmRecordId, setSelectedCrmRecordId] = useState<string | null>(null);
+  const [crmEditorOpen, setCrmEditorOpen] = useState(false);
+  const [crmEditName, setCrmEditName] = useState('');
+  const [crmEditEmail, setCrmEditEmail] = useState('');
+  const [crmEditProducts, setCrmEditProducts] = useState('');
+  const [crmEditAmount, setCrmEditAmount] = useState('');
 
   const readApiPayload = async (response: Response) => {
     try {
@@ -910,6 +916,134 @@ export default function Admin() {
     setCounterResetDayKey(todayManilaKey);
   };
 
+  const submitCrmManage = async (
+    payload: {
+      serialNo: string;
+      action: 'edit' | 'archive';
+      buyerName?: string;
+      buyerEmail?: string;
+      products?: string[];
+      totalAmount?: number;
+    },
+  ) => {
+    if (!accessToken) {
+      await logoutForAuthFailure('Admin session expired. Please log in again.');
+      return false;
+    }
+
+    const response = await fetch('/api/admin-crm-manage', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    const result = (await readApiPayload(response)) as { ok?: boolean; error?: string };
+
+    if (response.status === 401 || response.status === 403) {
+      const reason = result.error ?? (response.status === 401 ? 'Admin session expired.' : 'Admin role required.');
+      await logoutForAuthFailure(reason);
+      return false;
+    }
+
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error ?? `CRM action failed (${response.status})`);
+    }
+
+    return true;
+  };
+
+  const handleArchiveSelectedCrm = async () => {
+    const selected = crmItems.find((item) => item.id === selectedCrmRecordId);
+    if (!selected) {
+      alert('Select one CRM transaction first.');
+      return;
+    }
+
+    const confirmed = window.confirm(`Archive ${selected.referenceCode} from CRM list?`);
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const ok = await submitCrmManage({ serialNo: selected.referenceCode, action: 'archive' });
+      if (!ok) {
+        return;
+      }
+      setCrmItems((current) => current.filter((item) => item.id !== selected.id));
+      setSelectedCrmRecordId(null);
+      setCrmEditorOpen(false);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to archive CRM record');
+    }
+  };
+
+  const handleOpenCrmEditor = () => {
+    const selected = crmItems.find((item) => item.id === selectedCrmRecordId);
+    if (!selected) {
+      alert('Select one CRM transaction first.');
+      return;
+    }
+
+    setCrmEditName(selected.buyerName);
+    setCrmEditEmail(selected.buyerEmail);
+    setCrmEditProducts(selected.products.join('\n'));
+    setCrmEditAmount(String(selected.totalAmount));
+    setCrmEditorOpen(true);
+  };
+
+  const handleSaveCrmEdit = async () => {
+    const selected = crmItems.find((item) => item.id === selectedCrmRecordId);
+    if (!selected) {
+      alert('Select one CRM transaction first.');
+      return;
+    }
+
+    const buyerName = crmEditName.trim();
+    const buyerEmail = crmEditEmail.trim().toLowerCase();
+    const totalAmount = Number(crmEditAmount);
+    const products = crmEditProducts
+      .split(/\r?\n|\|/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!buyerName || !emailPattern.test(buyerEmail) || !Number.isFinite(totalAmount) || totalAmount <= 0 || products.length === 0) {
+      alert('Please provide valid buyer name, one valid buyer email, products, and amount.');
+      return;
+    }
+
+    try {
+      const ok = await submitCrmManage({
+        serialNo: selected.referenceCode,
+        action: 'edit',
+        buyerName,
+        buyerEmail,
+        products,
+        totalAmount,
+      });
+      if (!ok) {
+        return;
+      }
+
+      setCrmItems((current) => current.map((item) => (
+        item.id === selected.id
+          ? {
+            ...item,
+            buyerName,
+            buyerEmail,
+            products,
+            totalAmount,
+          }
+          : item
+      )));
+      setCrmEditorOpen(false);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to update CRM record');
+    }
+  };
+
   const analyticsCards = useMemo(() => {
     const now = new Date();
     const approvedItems = crmItems.filter((item) => item.status === 'approved');
@@ -1347,11 +1481,70 @@ export default function Admin() {
                 >
                   <Download size={13} /> Export CSV
                 </button>
+                <button
+                  type="button"
+                  onClick={handleOpenCrmEditor}
+                  className="cyber-btn cyber-btn-secondary"
+                  disabled={!selectedCrmRecordId}
+                >
+                  <Pencil size={13} /> Edit Selected
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { void handleArchiveSelectedCrm(); }}
+                  className="cyber-btn cyber-btn-secondary"
+                  disabled={!selectedCrmRecordId}
+                >
+                  <Archive size={13} /> Archive Selected
+                </button>
               </div>
             </div>
             <p className="mb-3 text-[11px] font-mono uppercase tracking-[0.16em] text-cyan-200">
               Last sync: {lastCrmSyncAt ? toReadableDate(lastCrmSyncAt) : 'Never'} | Rows fetched: {crmLastCount}
             </p>
+            {crmEditorOpen ? (
+              <div className="mb-3 rounded-md border border-cyan-500/35 bg-black/35 p-3">
+                <p className="mb-2 text-[10px] font-mono uppercase tracking-[0.16em] text-cyan-300">Edit Selected CRM Record</p>
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                  <input
+                    value={crmEditName}
+                    onChange={(event) => setCrmEditName(event.target.value)}
+                    className="rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
+                    placeholder="Buyer name"
+                  />
+                  <input
+                    value={crmEditEmail}
+                    onChange={(event) => setCrmEditEmail(event.target.value)}
+                    className="rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
+                    placeholder="buyer@email.com"
+                  />
+                  <textarea
+                    value={crmEditProducts}
+                    onChange={(event) => setCrmEditProducts(event.target.value)}
+                    className="md:col-span-2 h-24 rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
+                    placeholder="Products (one per line or separated by |)"
+                  />
+                  <input
+                    type="number"
+                    min="1"
+                    value={crmEditAmount}
+                    onChange={(event) => setCrmEditAmount(event.target.value)}
+                    className="rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
+                    placeholder="Total amount"
+                  />
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => { void handleSaveCrmEdit(); }} className="cyber-btn cyber-btn-primary">Save CRM Edit</button>
+                  <button
+                    type="button"
+                    onClick={() => setCrmEditorOpen(false)}
+                    className="cyber-btn cyber-btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : null}
             {crmError ? (
               <div className="mb-3 rounded-md border border-red-400/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
                 CRM sync error: {crmError}
@@ -1430,7 +1623,20 @@ export default function Admin() {
                               return (
                                 <div key={tx.id} className="rounded-md border border-cyan-500/15 bg-cyan-500/5 px-3 py-2">
                                   <div className="flex flex-wrap items-start justify-between gap-1">
-                                    <p className="text-xs text-gray-200 flex-1">{tx.products.join(' • ')}</p>
+                                    <div className="flex items-start gap-2 flex-1">
+                                      <input
+                                        type="radio"
+                                        name="crm-selected-record"
+                                        checked={selectedCrmRecordId === tx.id}
+                                        onChange={() => {
+                                          setSelectedCrmRecordId(tx.id);
+                                          setCrmEditorOpen(false);
+                                        }}
+                                        className="mt-0.5 h-3.5 w-3.5 accent-cyan-400"
+                                        aria-label={`Select ${tx.referenceCode}`}
+                                      />
+                                      <p className="text-xs text-gray-200 flex-1">{tx.products.join(' • ')}</p>
+                                    </div>
                                     <div className="flex items-center gap-2 flex-shrink-0">
                                       <span className="text-xs font-mono text-cyan-100">{toPhp(tx.totalAmount)}</span>
                                       <span className={`rounded-full border px-2 py-0.5 text-[10px] font-mono uppercase ${txColor}`}>{tx.status}</span>

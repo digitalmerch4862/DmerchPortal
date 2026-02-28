@@ -131,7 +131,12 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    const inbox = (lookup.data ?? []).filter((row) => !isArchivedInboxStatus(String(row.email_status ?? ''))).map((row) => {
+    const inbox = (lookup.data ?? [])
+      .filter((row) => {
+        const statusValue = String(row.email_status ?? '');
+        return !isArchivedInboxStatus(statusValue) && getReviewStatus(statusValue) === 'pending';
+      })
+      .map((row) => {
       const products = Array.isArray(row.products_json) ? row.products_json : [];
       const totalDownloads = products.reduce((sum: number, item: any) => sum + Number(item.downloadCount ?? 0), 0);
       const entitlement = entitlementMap.get(String(row.email ?? '').trim().toLowerCase());
@@ -158,7 +163,7 @@ export default async function handler(req: any, res: any) {
           return acc;
         }, {}),
       };
-    });
+      });
 
     return res.status(200).json({ ok: true, inbox });
   } catch (error) {

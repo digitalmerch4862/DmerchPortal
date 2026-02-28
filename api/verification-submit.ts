@@ -59,6 +59,7 @@ const buildEmailHtml = ({
   serialNo,
   referenceNo,
   submittedOn,
+  previousPurchases,
   adminCopy = false,
 }: {
   username: string;
@@ -67,6 +68,7 @@ const buildEmailHtml = ({
   serialNo: string;
   referenceNo: string;
   submittedOn: string;
+  previousPurchases: Array<{ serialNo: string; submittedOn: string; products: string[] }>;
   adminCopy?: boolean;
 }) => {
   const safeName = escapeHtml(username);
@@ -82,6 +84,23 @@ const buildEmailHtml = ({
                                     </tr>`,
     )
     .join('');
+
+  const previousRowsHtml = previousPurchases.length > 0
+    ? previousPurchases
+      .map((row) => {
+        const names = row.products.map((name) => escapeHtml(name)).join(' | ') || 'N/A';
+        return `
+                                    <tr>
+                                        <td style="font-size: 12px; border-bottom: 1px solid #eeeeee; font-family: monospace;">${escapeHtml(row.serialNo)}</td>
+                                        <td style="font-size: 12px; border-bottom: 1px solid #eeeeee;">${names}</td>
+                                        <td style="font-size: 12px; border-bottom: 1px solid #eeeeee;">${escapeHtml(row.submittedOn)}</td>
+                                    </tr>`;
+      })
+      .join('')
+    : `
+                                    <tr>
+                                        <td colspan="3" style="font-size: 12px; color: #666;">No previous approved purchases found.</td>
+                                    </tr>`;
 
   return `<!DOCTYPE html>
 <html>
@@ -139,6 +158,22 @@ ${rowsHtml}
                                             <p style="margin: 4px 0 0; font-size: 14px;">${safeSubmitted}</p>
                                         </td>
                                     </tr>
+                                </table>
+                            </div>
+
+                            <div style="margin-top: 24px; padding: 20px; background-color: #f9f9f9; border-radius: 5px;">
+                                <p style="margin: 0 0 10px; font-size: 12px; color: #777777;">PREVIOUS APPROVED PURCHASES</p>
+                                <table border="0" cellpadding="8" cellspacing="0" width="100%" style="border: 1px solid #eeeeee; border-radius: 5px;">
+                                    <thead>
+                                        <tr style="background-color: #fafafa;">
+                                            <th align="left" style="font-size: 11px; color: #888888; border-bottom: 1px solid #eeeeee;">ORDER SERIAL</th>
+                                            <th align="left" style="font-size: 11px; color: #888888; border-bottom: 1px solid #eeeeee;">PRODUCTS</th>
+                                            <th align="left" style="font-size: 11px; color: #888888; border-bottom: 1px solid #eeeeee;">SUBMITTED ON</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+${previousRowsHtml}
+                                    </tbody>
                                 </table>
                             </div>
                         </td>
@@ -538,6 +573,32 @@ export default async function handler(req: any, res: any) {
     }
 
     const submittedOn = formatSubmittedDate(createdAt);
+    const previousApprovedLookup = await supabase
+      .from('verification_orders')
+      .select('id, serial_no, created_at, products_json, email_status')
+      .eq('email', email)
+      .ilike('email_status', '%review:approved%')
+      .neq('id', insertedOrderId)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (previousApprovedLookup.error) {
+      return res.status(500).json({ ok: false, error: previousApprovedLookup.error.message });
+    }
+
+    const previousPurchases = (previousApprovedLookup.data ?? [])
+      .filter((row) => hasReviewStatus(String(row.email_status ?? ''), 'approved'))
+      .map((row) => {
+        const previousProducts = Array.isArray(row.products_json)
+          ? row.products_json.map((item: any) => String(item?.name ?? '').trim()).filter(Boolean)
+          : [];
+        return {
+          serialNo: String(row.serial_no ?? ''),
+          submittedOn: formatSubmittedDate(String(row.created_at ?? '')),
+          products: previousProducts,
+        };
+      });
+
     const subject = `DMerch Verification ${serialNo}`;
     const customerHtml = buildEmailHtml({
       username,
@@ -546,6 +607,7 @@ export default async function handler(req: any, res: any) {
       serialNo,
       referenceNo,
       submittedOn,
+      previousPurchases,
     });
     const adminHtml = buildEmailHtml({
       username,
@@ -554,6 +616,7 @@ export default async function handler(req: any, res: any) {
       serialNo,
       referenceNo,
       submittedOn,
+      previousPurchases,
       adminCopy: true,
     });
 

@@ -55,6 +55,8 @@ const getReviewStatus = (status: string): 'pending' | 'approved' | 'rejected' =>
   return 'pending';
 };
 
+const isArchivedCrmStatus = (status: string) => status.toLowerCase().includes('crm:archived');
+
 export default async function handler(req: any, res: any) {
   setCors(req, res);
 
@@ -85,6 +87,7 @@ export default async function handler(req: any, res: any) {
     const lookup = await supabase
       .from('verification_orders')
       .select('serial_no, username, email, created_at, products_json, total_amount, amount, email_status')
+      .not('email_status', 'ilike', '%crm:archived%')
       .order('created_at', { ascending: false })
       .limit(5000);
 
@@ -92,7 +95,9 @@ export default async function handler(req: any, res: any) {
       return res.status(500).json({ ok: false, error: lookup.error.message });
     }
 
-    const rows = (lookup.data ?? []).map((row) => {
+    const rows = (lookup.data ?? [])
+      .filter((row) => !isArchivedCrmStatus(String(row.email_status ?? '')))
+      .map((row) => {
       const products = Array.isArray(row.products_json) ? row.products_json : [];
       const productNames = products
         .map((item: any) => String(item?.name ?? '').trim())
@@ -107,7 +112,7 @@ export default async function handler(req: any, res: any) {
         totalAmount: Number(row.total_amount ?? row.amount ?? 0),
         status: getReviewStatus(String(row.email_status ?? '')),
       };
-    });
+      });
 
     return res.status(200).json({ ok: true, rows });
   } catch (error) {

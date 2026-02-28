@@ -61,6 +61,17 @@ const getDistinctApprovedProductCount = (rows: Array<{ products_json: unknown }>
 
 const normalizeProductName = (value: string) => value.trim().toLowerCase().replace(/\s+/g, ' ');
 
+const appendStatusTag = (currentStatus: string, tag: string) => {
+  const parts = String(currentStatus ?? '')
+    .split('|')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (!parts.includes(tag)) {
+    parts.push(tag);
+  }
+  return parts.join(' | ');
+};
+
 const buildApprovedEmailHtml = ({
   username,
   serialNo,
@@ -192,7 +203,7 @@ export default async function handler(req: any, res: any) {
     const currentStatus = String(lookup.data.email_status ?? '');
 
     if (action === 'reject') {
-      const status = `${currentStatus} | review:rejected`;
+      const status = appendStatusTag(appendStatusTag(currentStatus, 'review:rejected'), 'inbox:archived');
       await supabase.from('verification_orders').update({ email_status: status }).eq('id', lookup.data.id);
       return res.status(200).json({ ok: true, status: 'rejected' });
     }
@@ -221,7 +232,7 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    const status = `${currentStatus} | review:approved`;
+    const status = appendStatusTag(appendStatusTag(currentStatus, 'review:approved'), 'inbox:archived');
 
     const { error: updateError } = await supabase
       .from('verification_orders')
