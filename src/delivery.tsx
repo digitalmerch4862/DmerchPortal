@@ -130,9 +130,6 @@ export default function Delivery() {
     if (!activeProduct) return;
     const productName = activeProduct.name;
 
-    // Open tab IMMEDIATELY (synchronous with click — browser won't block this)
-    const downloadWindow = window.open('about:blank', '_blank');
-
     setModalPhase('loading');
     setModalError('');
 
@@ -146,22 +143,18 @@ export default function Delivery() {
         if (!payload.ok || !payload.redirectUrl) {
           setModalError(payload.error ?? 'Download is not available.');
           setModalPhase('error');
-          if (downloadWindow && !downloadWindow.closed) downloadWindow.close();
           if (payload.products) setProducts(payload.products);
           return;
         }
         if (payload.products) setProducts(payload.products);
         setModalPhase('done');
-        // Redirect the already-opened tab
-        if (downloadWindow && !downloadWindow.closed) {
-          downloadWindow.location.href = payload.redirectUrl;
-        }
+        // Navigate in same tab — browser triggers download dialog, no new tab opens
+        window.location.href = payload.redirectUrl;
         setTimeout(() => closeModal(), 3000);
       })
       .catch(() => {
         setModalError('Download failed. Please try again.');
         setModalPhase('error');
-        if (downloadWindow && !downloadWindow.closed) downloadWindow.close();
       });
   }, [activeProduct, token, closeModal]);
 
@@ -287,10 +280,10 @@ export default function Delivery() {
                     borderRadius: '50%',
                     animation: 'spin 0.8s linear infinite',
                   }} />
-                  Securing your download — this may take a few seconds...
+                  Securing your download — please wait a moment...
                 </span>
               )}
-              {modalPhase === 'done' && 'Download started! Check your new browser tab.'}
+              {modalPhase === 'done' && 'Download started! Check your Downloads folder.'}
               {modalPhase === 'error' && 'An error occurred during the download.'}
             </p>
 
@@ -324,7 +317,7 @@ export default function Delivery() {
                     animation: 'spin 0.9s linear infinite',
                   }} />
                   <p style={{ marginTop: '10px', fontSize: '11px', color: 'rgba(186,230,253,0.5)', fontFamily: 'monospace' }}>
-                    A new tab has opened — your file will load there shortly.
+                    Your download will begin automatically. Check your Downloads folder.
                   </p>
                 </div>
               )}
