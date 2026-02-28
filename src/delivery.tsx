@@ -39,6 +39,9 @@ export default function Delivery() {
   const [progress, setProgress] = useState(0);
   const [modalError, setModalError] = useState('');
   const [statusStep, setStatusStep] = useState(0);
+  const [prefetchedUrl, setPrefetchedUrl] = useState<string | null>(null);
+  const [prefetchError, setPrefetchError] = useState<string | null>(null);
+  const prefetchPromiseRef = React.useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -117,6 +120,28 @@ export default function Delivery() {
     setModalPhase('confirm');
     setProgress(0);
     setModalError('');
+    setPrefetchedUrl(null);
+    setPrefetchError(null);
+
+    // Prefetch the download URL immediately while user reads the confirm modal
+    const prefetchPromise = fetch('/api/delivery-download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, productName: product.name }),
+    })
+      .then((r) => r.json())
+      .then((payload: { ok: boolean; redirectUrl?: string; error?: string; products?: DeliveryProduct[] }) => {
+        if (payload.ok && payload.redirectUrl) {
+          setPrefetchedUrl(payload.redirectUrl);
+          if (payload.products) setProducts(payload.products);
+        } else {
+          setPrefetchError(payload.error ?? 'Download not available.');
+        }
+      })
+      .catch(() => {
+        setPrefetchError('Download failed. Please try again.');
+      });
+    prefetchPromiseRef.current = prefetchPromise;
   };
 
   const closeModal = useCallback(() => {
@@ -125,67 +150,91 @@ export default function Delivery() {
     setModalPhase('confirm');
     setProgress(0);
     setModalError('');
+    setPrefetchedUrl(null);
+    setPrefetchError(null);
+    prefetchPromiseRef.current = null;
   }, []);
 
   const triggerSecureDownload = useCallback(() => {
     if (!activeProduct) return;
-    const productName = activeProduct.name;
 
+    // If URL already prefetched — fire immediately, no loading needed!
+    if (prefetchedUrl) {
+      setProgress(100);
+      setModalPhase('done');
+      const link = document.createElement('a');
+      link.href = prefetchedUrl;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => closeModal(), 3000);
+      return;
+    }
+
+    // If prefetch found an error — show it
+    if (prefetchError) {
+      setModalError(prefetchError);
+      setModalPhase('error');
+      return;
+    }
+
+    // If prefetch still in progress — show progress and wait for it
+    const productName = activeProduct.name;
     setModalPhase('progress');
     setProgress(0);
     setStatusStep(0);
     setModalError('');
 
-    // Cycle through status messages every 1.5s so client knows it's working
     const statusTimer = setInterval(() => {
       setStatusStep((s) => Math.min(s + 1, DOWNLOAD_STATUS_STEPS.length - 1));
     }, 1500);
 
-    // Progress animation while fetching
     const duration = 2500;
     const interval = 50;
     const steps = duration / interval;
     let currentStep = 0;
-
     const timer = setInterval(() => {
       currentStep++;
-      const p = Math.min(Math.round((currentStep / steps) * 100), 98);
-      setProgress(p);
+      setProgress(Math.min(Math.round((currentStep / steps) * 100), 98));
     }, interval);
 
-    // Fetch the secure download URL
-    fetch('/api/delivery-download', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, productName }),
-    })
-      .then((response) => response.json())
-      .then((payload: { ok: boolean; redirectUrl?: string; error?: string; products?: DeliveryProduct[] }) => {
+    // Wait for the already-running prefetch promise, or start a fresh fetch
+    const fetchPromise = prefetchPromiseRef.current
+      ? prefetchPromiseRef.current.then(() => ({ prefetchedUrl, prefetchError }))
+      : fetch('/api/delivery-download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, productName }),
+      })
+        .then((r) => r.json())
+        .then((payload: { ok: boolean; redirectUrl?: string; error?: string; products?: DeliveryProduct[] }) => {
+          if (payload.ok && payload.redirectUrl) setPrefetchedUrl(payload.redirectUrl);
+          else setPrefetchError(payload.error ?? 'Download not available.');
+          if (payload.products) setProducts(payload.products);
+        });
+
+    fetchPromise
+      .then(() => {
         clearInterval(timer);
         clearInterval(statusTimer);
-
-        if (!payload.ok || !payload.redirectUrl) {
+        if (prefetchError) {
           setProgress(0);
-          setModalError(payload.error ?? 'Download is not available.');
+          setModalError(prefetchError);
           setModalPhase('error');
-          if (payload.products) setProducts(payload.products);
-          return;
+        } else if (prefetchedUrl) {
+          setProgress(100);
+          setModalPhase('done');
+          const link = document.createElement('a');
+          link.href = prefetchedUrl;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setTimeout(() => closeModal(), 3000);
         }
-
-        if (payload.products) setProducts(payload.products);
-        setProgress(100);
-        setModalPhase('done');
-
-        // Use hidden anchor click — works on mobile & desktop, no popup blocker issues
-        const link = document.createElement('a');
-        link.href = payload.redirectUrl;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
-        setTimeout(() => closeModal(), 3000);
       })
       .catch(() => {
         clearInterval(timer);
@@ -194,7 +243,7 @@ export default function Delivery() {
         setModalError('Download failed. Please try again.');
         setModalPhase('error');
       });
-  }, [activeProduct, token, closeModal]);
+  }, [activeProduct, prefetchedUrl, prefetchError, token, closeModal]);
 
   // ---- INLINE STYLES (guaranteed to work, no CSS dependency) ----
   const overlayStyle: React.CSSProperties = {
