@@ -144,11 +144,17 @@ export default async function handler(req: any, res: any) {
       .from('verification_orders')
       .select('serial_no, email, email_status, products_json')
       .eq('serial_no', serialNo)
-      .ilike('email', email)
       .single();
 
     if (orderLookup.error || !orderLookup.data) {
-      return res.status(404).json({ ok: false, error: 'Order record not found for this email and serial.' });
+      console.log(`[delivery-auth] Order not found for serial: ${serialNo}`);
+      return res.status(404).json({ ok: false, error: 'Order record not found for this serial number.' });
+    }
+
+    const storedEmail = String(orderLookup.data.email ?? '').trim().toLowerCase();
+    if (storedEmail !== email) {
+      console.log(`[delivery-auth] Email mismatch for serial ${serialNo}. Input: ${email}, Stored: ${storedEmail}`);
+      return res.status(401).json({ ok: false, error: 'The email provided does not match the record for this serial number.' });
     }
 
     const emailStatus = String(orderLookup.data.email_status ?? '');
