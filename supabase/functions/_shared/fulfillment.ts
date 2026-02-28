@@ -52,7 +52,7 @@ export async function fulfillOrder(supabase: any, resend: Resend, referenceNo: s
     `
 
     const { error: emailError } = await resend.emails.send({
-        from: 'DigitalMerch <onboarding@resend.dev>', // Should use a verified domain in production
+        from: 'DigitalMerch <orders@paymentportal.digitalmarchs.store>', // Should use a verified domain in production
         to: email,
         subject: `Your DigitalMerch Order: ${referenceNo}`,
         html: htmlContent,
