@@ -361,7 +361,7 @@ export default async function handler(req: any, res: any) {
   try {
     const payload = await readBody(req);
     const username = String(payload.username ?? '').trim();
-    const email = String(payload.email ?? '').trim();
+    const email = String(payload.email ?? '').trim().toLowerCase();
     const productsRaw = Array.isArray(payload.products) ? payload.products : [];
     const products = productsRaw
       .map((item) => ({

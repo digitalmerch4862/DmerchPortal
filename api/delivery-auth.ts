@@ -144,7 +144,7 @@ export default async function handler(req: any, res: any) {
       .from('verification_orders')
       .select('serial_no, email, email_status, products_json')
       .eq('serial_no', serialNo)
-      .eq('email', email)
+      .ilike('email', email)
       .single();
 
     if (orderLookup.error || !orderLookup.data) {
@@ -193,17 +193,17 @@ export default async function handler(req: any, res: any) {
       })),
       entitlement: entitlement
         ? {
-            approvedProductCount: Number(entitlement.approved_product_count ?? 0),
-            downloadUsed: Number(entitlement.download_used ?? 0),
-            downloadLimit: Number(entitlement.download_limit ?? 10),
-            isUnlimited: Boolean(entitlement.is_unlimited),
-          }
+          approvedProductCount: Number(entitlement.approved_product_count ?? 0),
+          downloadUsed: Number(entitlement.download_used ?? 0),
+          downloadLimit: Number(entitlement.download_limit ?? 10),
+          isUnlimited: Boolean(entitlement.is_unlimited),
+        }
         : {
-            approvedProductCount: 0,
-            downloadUsed: 0,
-            downloadLimit: 10,
-            isUnlimited: false,
-          },
+          approvedProductCount: 0,
+          downloadUsed: 0,
+          downloadLimit: 10,
+          isUnlimited: false,
+        },
       authRule: 'email_plus_serial_required',
       scope: 'all_approved_products_for_email',
     });
