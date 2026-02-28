@@ -540,8 +540,7 @@ export default function App() {
     }
 
     return availableProducts
-      .filter((item) => item.name.toLowerCase().includes(query))
-      .slice(0, 75);
+      .filter((item) => item.name.toLowerCase().includes(query));
   }, [availableProducts, productQuery]);
 
   const totalAmount = useMemo(() => {
