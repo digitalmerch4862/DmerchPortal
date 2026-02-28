@@ -35,13 +35,9 @@ export default function Delivery() {
   // Modal state
   const [showModal, setShowModal] = useState(false);
   const [activeProduct, setActiveProduct] = useState<DeliveryProduct | null>(null);
-  const [modalPhase, setModalPhase] = useState<'confirm' | 'progress' | 'done' | 'error'>('confirm');
+  const [modalPhase, setModalPhase] = useState<'confirm' | 'loading' | 'done' | 'error'>('confirm');
   const [progress, setProgress] = useState(0);
   const [modalError, setModalError] = useState('');
-  const [statusStep, setStatusStep] = useState(0);
-  const [prefetchedUrl, setPrefetchedUrl] = useState<string | null>(null);
-  const [prefetchError, setPrefetchError] = useState<string | null>(null);
-  const prefetchPromiseRef = React.useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -120,28 +116,6 @@ export default function Delivery() {
     setModalPhase('confirm');
     setProgress(0);
     setModalError('');
-    setPrefetchedUrl(null);
-    setPrefetchError(null);
-
-    // Prefetch the download URL immediately while user reads the confirm modal
-    const prefetchPromise = fetch('/api/delivery-download', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, productName: product.name }),
-    })
-      .then((r) => r.json())
-      .then((payload: { ok: boolean; redirectUrl?: string; error?: string; products?: DeliveryProduct[] }) => {
-        if (payload.ok && payload.redirectUrl) {
-          setPrefetchedUrl(payload.redirectUrl);
-          if (payload.products) setProducts(payload.products);
-        } else {
-          setPrefetchError(payload.error ?? 'Download not available.');
-        }
-      })
-      .catch(() => {
-        setPrefetchError('Download failed. Please try again.');
-      });
-    prefetchPromiseRef.current = prefetchPromise;
   };
 
   const closeModal = useCallback(() => {
@@ -150,100 +124,46 @@ export default function Delivery() {
     setModalPhase('confirm');
     setProgress(0);
     setModalError('');
-    setPrefetchedUrl(null);
-    setPrefetchError(null);
-    prefetchPromiseRef.current = null;
   }, []);
 
   const triggerSecureDownload = useCallback(() => {
     if (!activeProduct) return;
-
-    // If URL already prefetched — fire immediately, no loading needed!
-    if (prefetchedUrl) {
-      setProgress(100);
-      setModalPhase('done');
-      const link = document.createElement('a');
-      link.href = prefetchedUrl;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setTimeout(() => closeModal(), 3000);
-      return;
-    }
-
-    // If prefetch found an error — show it
-    if (prefetchError) {
-      setModalError(prefetchError);
-      setModalPhase('error');
-      return;
-    }
-
-    // If prefetch still in progress — show progress and wait for it
     const productName = activeProduct.name;
-    setModalPhase('progress');
-    setProgress(0);
-    setStatusStep(0);
+
+    // Open tab IMMEDIATELY (synchronous with click — browser won't block this)
+    const downloadWindow = window.open('about:blank', '_blank');
+
+    setModalPhase('loading');
     setModalError('');
 
-    const statusTimer = setInterval(() => {
-      setStatusStep((s) => Math.min(s + 1, DOWNLOAD_STATUS_STEPS.length - 1));
-    }, 1500);
-
-    const duration = 2500;
-    const interval = 50;
-    const steps = duration / interval;
-    let currentStep = 0;
-    const timer = setInterval(() => {
-      currentStep++;
-      setProgress(Math.min(Math.round((currentStep / steps) * 100), 98));
-    }, interval);
-
-    // Wait for the already-running prefetch promise, or start a fresh fetch
-    const fetchPromise = prefetchPromiseRef.current
-      ? prefetchPromiseRef.current.then(() => ({ prefetchedUrl, prefetchError }))
-      : fetch('/api/delivery-download', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, productName }),
-      })
-        .then((r) => r.json())
-        .then((payload: { ok: boolean; redirectUrl?: string; error?: string; products?: DeliveryProduct[] }) => {
-          if (payload.ok && payload.redirectUrl) setPrefetchedUrl(payload.redirectUrl);
-          else setPrefetchError(payload.error ?? 'Download not available.');
-          if (payload.products) setProducts(payload.products);
-        });
-
-    fetchPromise
-      .then(() => {
-        clearInterval(timer);
-        clearInterval(statusTimer);
-        if (prefetchError) {
-          setProgress(0);
-          setModalError(prefetchError);
+    fetch('/api/delivery-download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, productName }),
+    })
+      .then((r) => r.json())
+      .then((payload: { ok: boolean; redirectUrl?: string; error?: string; products?: DeliveryProduct[] }) => {
+        if (!payload.ok || !payload.redirectUrl) {
+          setModalError(payload.error ?? 'Download is not available.');
           setModalPhase('error');
-        } else if (prefetchedUrl) {
-          setProgress(100);
-          setModalPhase('done');
-          const link = document.createElement('a');
-          link.href = prefetchedUrl;
-          link.target = '_blank';
-          link.rel = 'noopener noreferrer';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          setTimeout(() => closeModal(), 3000);
+          if (downloadWindow && !downloadWindow.closed) downloadWindow.close();
+          if (payload.products) setProducts(payload.products);
+          return;
         }
+        if (payload.products) setProducts(payload.products);
+        setModalPhase('done');
+        // Redirect the already-opened tab
+        if (downloadWindow && !downloadWindow.closed) {
+          downloadWindow.location.href = payload.redirectUrl;
+        }
+        setTimeout(() => closeModal(), 3000);
       })
       .catch(() => {
-        clearInterval(timer);
-        clearInterval(statusTimer);
-        setProgress(0);
         setModalError('Download failed. Please try again.');
         setModalPhase('error');
+        if (downloadWindow && !downloadWindow.closed) downloadWindow.close();
       });
-  }, [activeProduct, prefetchedUrl, prefetchError, token, closeModal]);
+  }, [activeProduct, token, closeModal]);
 
   // ---- INLINE STYLES (guaranteed to work, no CSS dependency) ----
   const overlayStyle: React.CSSProperties = {
@@ -357,8 +277,8 @@ export default function Delivery() {
             </h3>
 
             <p style={{ marginTop: '10px', fontSize: '13px', color: 'rgba(186, 230, 253, 0.75)' }}>
-              {modalPhase === 'confirm' && <>Ready to download: <strong style={{ color: '#fff' }}>{activeProduct.name}</strong></>}
-              {modalPhase === 'progress' && (
+              {modalPhase === 'confirm' && <><b style={{ color: '#fff' }}>{activeProduct.name}</b> — Ready to download</>}
+              {modalPhase === 'loading' && (
                 <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{
                     display: 'inline-block', width: '12px', height: '12px',
@@ -367,10 +287,10 @@ export default function Delivery() {
                     borderRadius: '50%',
                     animation: 'spin 0.8s linear infinite',
                   }} />
-                  {DOWNLOAD_STATUS_STEPS[statusStep]}
+                  Securing your download — this may take a few seconds...
                 </span>
               )}
-              {modalPhase === 'done' && 'Download started! Check your browser downloads.'}
+              {modalPhase === 'done' && 'Download started! Check your new browser tab.'}
               {modalPhase === 'error' && 'An error occurred during the download.'}
             </p>
 
@@ -392,23 +312,20 @@ export default function Delivery() {
                 </div>
               )}
 
-              {/* PROGRESS: Animated bar */}
-              {modalPhase === 'progress' && (
-                <div>
+              {/* LOADING: spinner only */}
+              {modalPhase === 'loading' && (
+                <div style={{ textAlign: 'center', padding: '8px 0' }}>
                   <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <span style={{
-                      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                      fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase',
-                      color: '#00f3ff', textShadow: '0 0 8px rgba(0, 243, 255, 0.3)',
-                    }}>
-                      {progress < 100 ? 'Preparing...' : 'Download starting!'}
-                    </span>
-                    <span style={{ fontSize: '12px', color: '#22d3ee', fontFamily: 'monospace' }}>{progress}%</span>
-                  </div>
-                  <div style={progressContainerStyle}>
-                    <div style={progressBarStyle} />
-                  </div>
+                  <div style={{
+                    display: 'inline-block', width: '32px', height: '32px',
+                    border: '3px solid rgba(0,243,255,0.2)',
+                    borderTop: '3px solid #00f3ff',
+                    borderRadius: '50%',
+                    animation: 'spin 0.9s linear infinite',
+                  }} />
+                  <p style={{ marginTop: '10px', fontSize: '11px', color: 'rgba(186,230,253,0.5)', fontFamily: 'monospace' }}>
+                    A new tab has opened — your file will load there shortly.
+                  </p>
                 </div>
               )}
 
