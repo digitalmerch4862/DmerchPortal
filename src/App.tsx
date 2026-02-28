@@ -16,6 +16,10 @@ const ADMIN_PRODUCTS_KEY = 'dmerch_admin_products_v1';
 const ADMIN_GOOGLE_SHORTCUT_KEY = 'dmerch_admin_google_shortcut_v1';
 const CHECKOUT_DRAFT_KEY = 'dmerch_checkout_draft_v1';
 const ALLOWED_ADMIN_EMAILS = new Set(['rad4862@gmail.com', 'digitalmerch4862@gmail.com', 'virtumartph@gmail.com']);
+// VirtuMart goes directly to Shopee/Lazada — no admin dashboard needed
+const VIRTU_MART_EMAIL = 'virtumartph@gmail.com';
+const isVirtuMart = (value: string | null | undefined) =>
+  String(value ?? '').trim().toLowerCase() === VIRTU_MART_EMAIL;
 
 const isAllowedAdminEmail = (value: string | null | undefined) => {
   const normalized = String(value ?? '').trim().toLowerCase();
@@ -1173,35 +1177,51 @@ export default function App() {
 
                 {/* Admin Route Selection — shown ONLY after real Google OAuth (not just typed email) */}
                 {isAllowedAdminEmail(email) && isGoogleVerified && (
-                  <div className="mt-6 rounded-xl border border-yellow-400/30 bg-yellow-500/5 p-4">
-                    <p className="mb-3 text-center text-[11px] font-mono uppercase tracking-[0.25em] text-yellow-300/80">
-                      ⚡ Admin Account Detected — Choose Your Path
-                    </p>
-                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                      <motion.button
-                        type="button"
-                        whileHover={{ scale: 1.03 }}
-                        whileTap={{ scale: 0.97 }}
-                        onClick={() => {
-                          // Redirect to Admin Portal
-                          window.location.href = '/admin';
-                        }}
-                        className="flex-1 inline-flex items-center justify-center gap-2 rounded-md border border-yellow-400/60 bg-yellow-500/10 px-4 py-3 text-sm font-bold uppercase tracking-widest text-yellow-300 transition hover:bg-yellow-500/20 hover:text-yellow-100"
-                      >
-                        <ShieldCheck size={16} />
-                        Admin Dashboard
-                      </motion.button>
+                  isVirtuMart(email) ? (
+                    // VirtuMart: skip admin dashboard, go straight to Shopee/Lazada
+                    <div className="mt-6 rounded-xl border border-orange-400/30 bg-orange-500/5 p-4">
+                      <p className="mb-3 text-center text-[11px] font-mono uppercase tracking-[0.25em] text-orange-300/80">
+                        🛒 VirtuMart — Shopee &amp; Lazada Portal
+                      </p>
                       <motion.button
                         type="button"
                         whileHover={{ scale: 1.03 }}
                         whileTap={{ scale: 0.97 }}
                         onClick={goToNextStage}
-                        className="flex-1 inline-flex items-center justify-center gap-2 rounded-md border border-cyan-400/60 bg-cyan-500/10 px-4 py-3 text-sm font-bold uppercase tracking-widest text-cyan-300 transition hover:bg-cyan-500/20 hover:text-cyan-100"
+                        className="w-full inline-flex items-center justify-center gap-2 rounded-md border border-orange-400/60 bg-orange-500/10 px-4 py-3 text-sm font-bold uppercase tracking-widest text-orange-300 transition hover:bg-orange-500/20 hover:text-orange-100"
                       >
-                        Test Checkout <ArrowRight size={16} />
+                        Proceed to Shopee / Lazada <ArrowRight size={16} />
                       </motion.button>
                     </div>
-                  </div>
+                  ) : (
+                    // Other admins: show Admin Dashboard or Test Checkout
+                    <div className="mt-6 rounded-xl border border-yellow-400/30 bg-yellow-500/5 p-4">
+                      <p className="mb-3 text-center text-[11px] font-mono uppercase tracking-[0.25em] text-yellow-300/80">
+                        ⚡ Admin Account Detected — Choose Your Path
+                      </p>
+                      <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.03 }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => { window.location.href = '/admin'; }}
+                          className="flex-1 inline-flex items-center justify-center gap-2 rounded-md border border-yellow-400/60 bg-yellow-500/10 px-4 py-3 text-sm font-bold uppercase tracking-widest text-yellow-300 transition hover:bg-yellow-500/20 hover:text-yellow-100"
+                        >
+                          <ShieldCheck size={16} />
+                          Admin Dashboard
+                        </motion.button>
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.03 }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={goToNextStage}
+                          className="flex-1 inline-flex items-center justify-center gap-2 rounded-md border border-cyan-400/60 bg-cyan-500/10 px-4 py-3 text-sm font-bold uppercase tracking-widest text-cyan-300 transition hover:bg-cyan-500/20 hover:text-cyan-100"
+                        >
+                          Test Checkout <ArrowRight size={16} />
+                        </motion.button>
+                      </div>
+                    </div>
+                  )
                 )}
 
                 <div className="mt-7 flex flex-col sm:flex-row items-center justify-between gap-3">
