@@ -16,6 +16,13 @@ type DeliveryAuthResponse = {
   error?: string;
 };
 
+const DOWNLOAD_STATUS_STEPS = [
+  'Verifying your order...',
+  'Authenticating access...',
+  'Securing download link...',
+  'Almost ready — hang tight...',
+];
+
 export default function Delivery() {
   const [email, setEmail] = useState('');
   const [serialNo, setSerialNo] = useState('');
@@ -31,6 +38,7 @@ export default function Delivery() {
   const [modalPhase, setModalPhase] = useState<'confirm' | 'progress' | 'done' | 'error'>('confirm');
   const [progress, setProgress] = useState(0);
   const [modalError, setModalError] = useState('');
+  const [statusStep, setStatusStep] = useState(0);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -125,7 +133,13 @@ export default function Delivery() {
 
     setModalPhase('progress');
     setProgress(0);
+    setStatusStep(0);
     setModalError('');
+
+    // Cycle through status messages every 1.5s so client knows it's working
+    const statusTimer = setInterval(() => {
+      setStatusStep((s) => Math.min(s + 1, DOWNLOAD_STATUS_STEPS.length - 1));
+    }, 1500);
 
     // Progress animation while fetching
     const duration = 2500;
@@ -148,6 +162,7 @@ export default function Delivery() {
       .then((response) => response.json())
       .then((payload: { ok: boolean; redirectUrl?: string; error?: string; products?: DeliveryProduct[] }) => {
         clearInterval(timer);
+        clearInterval(statusTimer);
 
         if (!payload.ok || !payload.redirectUrl) {
           setProgress(0);
@@ -174,6 +189,7 @@ export default function Delivery() {
       })
       .catch(() => {
         clearInterval(timer);
+        clearInterval(statusTimer);
         setProgress(0);
         setModalError('Download failed. Please try again.');
         setModalPhase('error');
@@ -293,7 +309,18 @@ export default function Delivery() {
 
             <p style={{ marginTop: '10px', fontSize: '13px', color: 'rgba(186, 230, 253, 0.75)' }}>
               {modalPhase === 'confirm' && <>Ready to download: <strong style={{ color: '#fff' }}>{activeProduct.name}</strong></>}
-              {modalPhase === 'progress' && 'Securing download channel...'}
+              {modalPhase === 'progress' && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{
+                    display: 'inline-block', width: '12px', height: '12px',
+                    border: '2px solid rgba(0,243,255,0.3)',
+                    borderTop: '2px solid #00f3ff',
+                    borderRadius: '50%',
+                    animation: 'spin 0.8s linear infinite',
+                  }} />
+                  {DOWNLOAD_STATUS_STEPS[statusStep]}
+                </span>
+              )}
               {modalPhase === 'done' && 'Download started! Check your browser downloads.'}
               {modalPhase === 'error' && 'An error occurred during the download.'}
             </p>
@@ -319,13 +346,14 @@ export default function Delivery() {
               {/* PROGRESS: Animated bar */}
               {modalPhase === 'progress' && (
                 <div>
+                  <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                     <span style={{
                       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
                       fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase',
                       color: '#00f3ff', textShadow: '0 0 8px rgba(0, 243, 255, 0.3)',
                     }}>
-                      {progress < 100 ? 'Encrypting & Securing...' : 'Verified. Initiating Save...'}
+                      {progress < 100 ? 'Preparing...' : 'Download starting!'}
                     </span>
                     <span style={{ fontSize: '12px', color: '#22d3ee', fontFamily: 'monospace' }}>{progress}%</span>
                   </div>
