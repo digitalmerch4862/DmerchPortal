@@ -5,7 +5,7 @@
 
 import { type ComponentType, type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft, Home } from 'lucide-react';
 import gcashQr from './gcash-qr.png';
 import gotymeQr from './gotyme-qr.png';
 import { productCatalog, type ProductItem } from './data/products';
@@ -749,6 +749,44 @@ export default function App() {
     document.body.removeChild(link);
   };
 
+  const handleDownloadReferenceFile = useCallback(() => {
+    if (!submitResult?.serialNo) {
+      return;
+    }
+
+    const productLines = orderSummaryItems.length > 0
+      ? orderSummaryItems.map((item) => `- ${item.name} (PHP ${item.amount})`)
+      : ['- N/A'];
+
+    const fileBody = [
+      'DMERCH PURCHASE REFERENCE',
+      '',
+      `Reference Code: ${submitResult.serialNo}`,
+      `Sequence No: ${submitResult.sequenceNo ?? 'N/A'}`,
+      `Total Amount: PHP ${submitResult.totalAmount ?? totalAmount}`,
+      `Payment Portal: ${String(paymentPortalUsed).toUpperCase()}`,
+      `Email Status: ${submitResult.customerEmailStatus ?? submitResult.emailStatus ?? 'N/A'}`,
+      `Created At: ${submitResult.createdAt ?? new Date().toISOString()}`,
+      '',
+      'Products:',
+      ...productLines,
+    ].join('\n');
+
+    const blob = new Blob([fileBody], { type: 'text/plain;charset=utf-8' });
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = `${submitResult.serialNo}-reference.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(objectUrl);
+  }, [orderSummaryItems, paymentPortalUsed, submitResult, totalAmount]);
+
+  const goToHome = useCallback(() => {
+    window.location.href = '/';
+  }, []);
+
   const handleSelectProduct = (productName: string) => {
     setSelectedProductName(productName);
     setProductQuery(productName);
@@ -1402,7 +1440,17 @@ export default function App() {
                   {submitResult?.ok ? (
                     <div className="rounded-md border border-cyan-500/40 bg-cyan-500/10 px-4 py-4">
                       <p className="mb-2 text-xs font-mono uppercase tracking-[0.2em] text-cyan-300">Reference Code</p>
-                      <p className="text-lg font-black tracking-wider text-white">{submitResult.serialNo}</p>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <p className="text-lg font-black tracking-wider text-white">{submitResult.serialNo}</p>
+                        <button
+                          type="button"
+                          onClick={handleDownloadReferenceFile}
+                          className="reference-download-alert inline-flex items-center gap-1 rounded-md border border-red-400/60 bg-red-500/15 px-3 py-1 text-[10px] font-mono uppercase tracking-[0.18em] text-red-200"
+                          title="Download reference file"
+                        >
+                          <Download size={13} /> Download file
+                        </button>
+                      </div>
                       <p className="mt-2 text-xs text-gray-300 leading-relaxed">
                         Keep this reference code for your records. Check your Inbox or Spam folder for email confirmation.
                       </p>
@@ -1426,6 +1474,12 @@ export default function App() {
                     <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
                       <ArrowLeft size={15} /> Back
                     </motion.button>
+
+                    {submitResult?.ok ? (
+                      <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToHome} className="cyber-btn cyber-btn-secondary">
+                        <Home size={15} /> Home
+                      </motion.button>
+                    ) : null}
 
                     <motion.button
                       type="submit"

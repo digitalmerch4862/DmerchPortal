@@ -118,6 +118,26 @@
   animation: cyber-btn-press-burst 190ms ease-out;
 }
 
+.reference-download-alert {
+  animation: reference-alert-blink 0.9s steps(2, end) infinite;
+  box-shadow: 0 0 10px rgba(248, 113, 113, 0.45);
+}
+
+@keyframes reference-alert-blink {
+  0%,
+  100% {
+    opacity: 1;
+    border-color: rgba(248, 113, 113, 0.8);
+    box-shadow: 0 0 14px rgba(248, 113, 113, 0.45);
+  }
+
+  50% {
+    opacity: 0.38;
+    border-color: rgba(248, 113, 113, 0.2);
+    box-shadow: 0 0 2px rgba(248, 113, 113, 0.16);
+  }
+}
+
 .cyber-stage-chip {
   position: relative;
   overflow: hidden;

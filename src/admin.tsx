@@ -225,6 +225,44 @@ const toReadableDate = (value: string) => {
   });
 };
 
+const toManilaDateTime = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'N/A';
+  }
+
+  return date.toLocaleString('en-PH', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
+const toWaitingDuration = (submittedAt: string, nowMs: number) => {
+  const submittedMs = new Date(submittedAt).getTime();
+  if (Number.isNaN(submittedMs)) {
+    return 'N/A';
+  }
+
+  const diffMs = Math.max(0, nowMs - submittedMs);
+  const totalMinutes = Math.floor(diffMs / 60000);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+
+  if (days > 0) {
+    return `${days}d ${hours}h ${minutes}m`;
+  }
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${minutes}m`;
+};
+
 const toManilaDayKey = (value: string | Date) => {
   const date = typeof value === 'string' ? new Date(value) : value;
   if (Number.isNaN(date.getTime())) {
@@ -267,6 +305,7 @@ export default function Admin() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const inboxAutoMappedRef = useRef(false);
   const [counterResetDayKey, setCounterResetDayKey] = useState('');
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const readApiPayload = async (response: Response) => {
     try {
@@ -374,6 +413,16 @@ export default function Admin() {
   useEffect(() => {
     window.localStorage.setItem(INBOX_KEY, JSON.stringify(inboxItems));
   }, [inboxItems]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 60000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, []);
 
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -1094,6 +1143,8 @@ export default function Admin() {
                       <p className="mt-1 text-xs text-gray-300">Products: {item.products.join(' | ')}</p>
                       <p className="mt-1 text-xs text-cyan-300">Paid via: {item.paymentPortalUsed ? String(item.paymentPortalUsed).toUpperCase() : 'N/A'}</p>
                       <p className="mt-1 text-xs text-cyan-300">Payment detail used: {item.paymentDetailUsed || 'N/A'}</p>
+                      <p className="mt-1 text-xs text-cyan-300">Checkout time: {toManilaDateTime(item.submittedAt)}</p>
+                      <p className="mt-1 text-xs text-amber-200">Waiting time: {toWaitingDuration(item.submittedAt, nowMs)}</p>
                     </div>
                     <span className={`rounded-full border px-2 py-1 text-[10px] font-mono uppercase ${item.status === 'pending' ? 'border-amber-400/40 text-amber-200' : item.status === 'approved' ? 'border-emerald-400/40 text-emerald-200' : 'border-red-400/40 text-red-200'}`}>
                       {item.status}

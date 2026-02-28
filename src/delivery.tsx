@@ -222,23 +222,41 @@ export default function Delivery() {
             </form>
           </section>
         ) : (
-          <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-5">
-            <p className="mb-3 text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">Purchased Products</p>
-            <div className="space-y-2">
-              {products.map((product, index) => (
-                <div key={`${product.name}-${index}`} className="rounded-md border border-cyan-500/25 bg-black/35 px-3 py-3">
-                  <p className="text-sm font-semibold text-cyan-50">{product.name}</p>
-                  <p className="mt-1 text-xs text-cyan-200">OS: {product.os ?? 'Multi'} | Amount: PHP {product.amount}</p>
-                  <div className="mt-3">
-                    <button type="button" className="cyber-btn cyber-btn-primary"
-                      onClick={() => openDownloadModal(product)}>
-                      <Download size={14} /> Download
-                    </button>
+          <>
+            <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-5">
+              <p className="mb-3 text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">Purchased Products</p>
+              <div className="space-y-2">
+                {products.map((product, index) => (
+                  <div key={`${product.name}-${index}`} className="rounded-md border border-cyan-500/25 bg-black/35 px-3 py-3">
+                    <p className="text-sm font-semibold text-cyan-50">{product.name}</p>
+                    <p className="mt-1 text-xs text-cyan-200">OS: {product.os ?? 'Multi'} | Amount: PHP {product.amount}</p>
+                    <div className="mt-3">
+                      <button type="button" className="cyber-btn cyber-btn-primary"
+                        onClick={() => openDownloadModal(product)}>
+                        <Download size={14} /> Download
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </section>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-amber-500/35 bg-[#171005]/80 p-4">
+              <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-amber-200">Visit Us</p>
+              <p className="mt-2 text-xs text-amber-100/90">
+                Visit us at{' '}
+                <a
+                  href="https://paymentportal.digitalmerch.store"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-amber-300 underline decoration-amber-400/70 underline-offset-2 hover:text-amber-200"
+                >
+                  paymentportal.digitalmerch.store
+                </a>{' '}
+                for more products.
+              </p>
+            </section>
+          </>
         )}
       </main>
 
