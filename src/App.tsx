@@ -15,7 +15,7 @@ import { supabase } from './supabaseClient.js';
 const ADMIN_PRODUCTS_KEY = 'dmerch_admin_products_v1';
 const ADMIN_GOOGLE_SHORTCUT_KEY = 'dmerch_admin_google_shortcut_v1';
 const CHECKOUT_DRAFT_KEY = 'dmerch_checkout_draft_v1';
-const ALLOWED_ADMIN_EMAILS = new Set(['rad4862@gmail.com', 'digitalmerch4862@gmail.com']);
+const ALLOWED_ADMIN_EMAILS = new Set(['rad4862@gmail.com', 'digitalmerch4862@gmail.com', 'virtumartph@gmail.com']);
 
 const isAllowedAdminEmail = (value: string | null | undefined) => {
   const normalized = String(value ?? '').trim().toLowerCase();
@@ -66,8 +66,8 @@ type CheckoutDraft = {
   username: string;
   email: string;
   referenceNo: string;
-  selectedMethod: 'gcash' | 'gotyme';
-  paymentPortalUsed: 'gcash' | 'gotyme';
+  selectedMethod: 'gcash' | 'gotyme' | 'lazada' | 'shopee';
+  paymentPortalUsed: 'gcash' | 'gotyme' | 'lazada' | 'shopee';
   gcashNumberUsed: string;
   gotymeAccountNameUsed: string;
   selectedProducts: ProductItem[];
@@ -220,8 +220,8 @@ function MethodCard({ method, id, compact = false, selectedMethod, onSelectMetho
 
 export default function App() {
   const [stage, setStage] = useState<FlowStage>(1);
-  const [selectedMethod, setSelectedMethod] = useState<'gcash' | 'gotyme'>('gcash');
-  const [paymentPortalUsed, setPaymentPortalUsed] = useState<'gcash' | 'gotyme'>('gcash');
+  const [selectedMethod, setSelectedMethod] = useState<'gcash' | 'gotyme' | 'lazada' | 'shopee'>('gcash');
+  const [paymentPortalUsed, setPaymentPortalUsed] = useState<'gcash' | 'gotyme' | 'lazada' | 'shopee'>('gcash');
   const [gcashNumberUsed, setGcashNumberUsed] = useState('');
   const [gotymeAccountNameUsed, setGotymeAccountNameUsed] = useState('');
   const [username, setUsername] = useState('');
@@ -374,10 +374,14 @@ export default function App() {
       });
 
       if (isAllowedAdminEmail(emailValue)) {
-        window.localStorage.removeItem(CHECKOUT_DRAFT_KEY);
-        window.localStorage.removeItem(ADMIN_GOOGLE_SHORTCUT_KEY);
-        window.location.href = '/admin';
-        return;
+        // Only auto-redirect if we're not explicitly trying to stay
+        const stayOnCheckout = window.location.search.includes('stay=1');
+        if (!stayOnCheckout) {
+          window.localStorage.removeItem(CHECKOUT_DRAFT_KEY);
+          window.localStorage.removeItem(ADMIN_GOOGLE_SHORTCUT_KEY);
+          window.location.href = '/admin';
+          return;
+        }
       }
 
       if (shouldHandleShortcut) {
@@ -1181,97 +1185,177 @@ export default function App() {
               exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="mb-6 sm:mb-10 space-y-4 sm:space-y-6">
-                <div className="flex items-center justify-center gap-2 lg:hidden">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedMethod('gcash')}
-                    className={`rounded-md border px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.18em] transition-colors ${selectedMethod === 'gcash' ? 'border-blue-400 bg-blue-500/15 text-blue-100' : 'border-white/20 text-gray-300'}`}
-                  >
-                    GCash
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedMethod('gotyme')}
-                    className={`rounded-md border px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.18em] transition-colors ${selectedMethod === 'gotyme' ? 'border-cyan-300 bg-cyan-400/15 text-cyan-100' : 'border-white/20 text-gray-300'}`}
-                  >
-                    GoTyme
-                  </button>
-                </div>
-
-                <div className="flex flex-col lg:flex-row items-center justify-center gap-4 sm:gap-8 lg:gap-12">
-                  <div className="hidden lg:block">
-                    <MethodCard method="gcash" id="001" selectedMethod={selectedMethod} onSelectMethod={setSelectedMethod} />
-                  </div>
-
-                  <div className="w-full max-w-sm">
-                    <AnimatePresence mode="wait">
-                      <motion.div
-                        key={selectedMethod}
-                        initial={{ opacity: 0, scale: 0.9, rotateY: 90 }}
-                        animate={{ opacity: 1, scale: 1, rotateY: 0 }}
-                        exit={{ opacity: 0, scale: 0.9, rotateY: -90 }}
-                        transition={{ duration: 0.5, type: 'spring', stiffness: 100 }}
-                        className="relative"
+              {/* Role-based Payment Interface */}
+              <div className="mb-6 sm:mb-10 flex flex-col items-center justify-center space-y-6">
+                {!isAllowedAdminEmail(email) ? (
+                  <CyberCard title="Automated Checkout" icon={ShieldCheck} color="cyan">
+                    <div className="text-center p-6 space-y-4">
+                      <p className="text-cyan-100 text-sm">You are about to be redirected to our secure PayMongo checkout portal.</p>
+                      <div className="flex justify-center gap-4 py-4">
+                        <img src="/gcash-logo.svg" alt="GCash" className="h-8 opacity-70" />
+                        <img src="/gotyme-logo.svg" alt="GoTyme" className="h-8 opacity-70" />
+                      </div>
+                      <p className="text-xs text-gray-400 font-mono italic uppercase tracking-widest">Supports GCash, GoTyme, Maya, and Cards</p>
+                    </div>
+                  </CyberCard>
+                ) : (
+                  <div className="space-y-4 sm:space-y-6 w-full">
+                    {/* Admin Options: Lazada & Shopee Only (Manual) */}
+                    <div className="flex items-center justify-center gap-2 lg:hidden">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMethod('lazada')}
+                        className={`rounded-md border px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.18em] transition-colors ${selectedMethod === 'lazada' ? 'border-orange-400 bg-orange-500/15 text-orange-100' : 'border-white/20 text-gray-300'}`}
                       >
-                        <div className="relative group">
-                          <div className={`absolute -inset-2 bg-gradient-to-r ${selectedMethod === 'gcash' ? 'from-blue-500 to-cyan-500' : 'from-cyan-400 to-emerald-400'} rounded-lg blur opacity-40 group-hover:opacity-60 transition duration-1000`} />
-                          <div className="relative bg-[#0a0a0a] rounded-lg p-3 sm:p-6 border border-white/10 flex flex-col items-center shadow-2xl">
-                            <div className={`w-full ${selectedMethod === 'gcash' ? 'bg-[#007dfe]' : 'bg-[#00e5ff]'} py-2 sm:py-3 px-3 sm:px-6 rounded-t-md flex justify-between items-center shadow-lg`}>
-                              <span className={`font-black italic tracking-tighter uppercase text-[11px] sm:text-sm ${selectedMethod === 'gcash' ? 'text-white' : 'text-black'}`}>
-                                {selectedMethod === 'gcash' ? 'GCash Terminal' : 'GoTyme Terminal'}
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={handleDownloadQr}
-                                  className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition-colors ${selectedMethod === 'gcash' ? 'border-white/60 text-white hover:bg-white/15' : 'border-black/60 text-black hover:bg-black/15'}`}
-                                  title="Download QR"
-                                  aria-label="Download QR"
-                                >
-                                  <Download size={14} />
-                                </button>
-                                <div className={`w-3 h-3 rounded-full ${selectedMethod === 'gcash' ? 'bg-white' : 'bg-black'} animate-pulse`} />
+                        Lazada
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMethod('shopee')}
+                        className={`rounded-md border px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.18em] transition-colors ${selectedMethod === 'shopee' ? 'border-red-400 bg-red-500/15 text-red-100' : 'border-white/20 text-gray-300'}`}
+                      >
+                        Shopee
+                      </button>
+                    </div>
+
+                    <div className="flex flex-col lg:flex-row items-center justify-center gap-4 sm:gap-8 lg:gap-12">
+                      <div className="w-full max-w-sm">
+                        <AnimatePresence mode="wait">
+                          <motion.div
+                            key={selectedMethod}
+                            initial={{ opacity: 0, scale: 0.9, rotateY: 90 }}
+                            animate={{ opacity: 1, scale: 1, rotateY: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, rotateY: -90 }}
+                            transition={{ duration: 0.5, type: 'spring', stiffness: 100 }}
+                            className="relative"
+                          >
+                            <div className="relative group">
+                              <div className={`absolute -inset-2 bg-gradient-to-r ${selectedMethod === 'lazada' ? 'from-orange-500 to-orange-400' : 'from-red-500 to-red-400'} rounded-lg blur opacity-40 group-hover:opacity-60 transition duration-1000`} />
+                              <div className="relative bg-[#0a0a0a] rounded-lg p-3 sm:p-6 border border-white/10 flex flex-col items-center shadow-2xl">
+                                <div className={`w-full ${selectedMethod === 'lazada' ? 'bg-orange-500' : 'bg-red-500'} py-2 sm:py-3 px-3 sm:px-6 rounded-t-md flex justify-between items-center shadow-lg`}>
+                                  <span className="font-black italic tracking-tighter uppercase text-[11px] sm:text-sm text-white">
+                                    {selectedMethod.toUpperCase()} Portal
+                                  </span>
+                                  <div className="w-3 h-3 rounded-full bg-white animate-pulse" />
+                                </div>
+
+                                <div className={`${selectedMethod === 'lazada' ? 'bg-orange-500' : 'bg-red-500'} p-2 sm:p-4 w-full aspect-[3/4] sm:aspect-[3/5] flex flex-col items-center justify-center overflow-hidden border-x-4 border-b-4 ${selectedMethod === 'lazada' ? 'border-orange-600' : 'border-red-600'}`}>
+                                  <div className="text-center space-y-4">
+                                    <div className="text-4xl sm:text-6xl font-black italic tracking-tighter text-white drop-shadow-lg">
+                                      {selectedMethod.toUpperCase()}
+                                    </div>
+                                    <p className="text-[10px] sm:text-xs font-mono text-white/90 px-4 text-center">
+                                      Processing manual order for {selectedMethod} shop.
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="mt-3 sm:mt-6 text-center w-full py-3 sm:py-4 border-t border-white/5">
+                                  <div className="rounded border border-white/20 px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.2em] text-gray-300">
+                                    Admin View Active
+                                  </div>
+                                </div>
                               </div>
                             </div>
+                          </motion.div>
+                        </AnimatePresence>
+                      </div>
 
-                            <div className={`${selectedMethod === 'gcash' ? 'bg-[#007dfe]' : 'bg-[#00e5ff]'} p-2 sm:p-4 w-full aspect-[3/4] sm:aspect-[3/5] flex items-center justify-center overflow-hidden border-x-4 border-b-4 ${selectedMethod === 'gcash' ? 'border-blue-600' : 'border-cyan-500'}`}>
-                              <img
-                                src={selectedQrSrc}
-                                alt={`${selectedMethod === 'gcash' ? 'GCash' : 'GoTyme'} payment QR code`}
-                                className="w-full h-full object-contain"
-                                referrerPolicy="no-referrer"
-                              />
-                            </div>
-
-                            <div className="mt-3 sm:mt-6 text-center w-full py-3 sm:py-4 border-t border-white/5">
-                              <button
-                                type="button"
-                                onClick={handleDownloadQr}
-                                className="mb-3 inline-flex items-center gap-2 rounded border border-white/20 px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.2em] text-gray-300 hover:text-white hover:border-white/40 transition-colors"
-                              >
-                                <Download size={12} />
-                                Download QR
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </motion.div>
-                    </AnimatePresence>
+                      <div className="hidden lg:flex flex-col gap-4">
+                        <button
+                          onClick={() => setSelectedMethod('lazada')}
+                          className={`w-36 h-20 rounded border-2 transition-all flex items-center justify-center font-bold italic uppercase tracking-widest ${selectedMethod === 'lazada' ? 'border-orange-500 bg-orange-500/20 text-orange-400 shadow-[0_0_20px_rgba(249,115,22,0.4)]' : 'border-white/10 opacity-40 hover:opacity-100'}`}
+                        >
+                          Lazada
+                        </button>
+                        <button
+                          onClick={() => setSelectedMethod('shopee')}
+                          className={`w-36 h-20 rounded border-2 transition-all flex items-center justify-center font-bold italic uppercase tracking-widest ${selectedMethod === 'shopee' ? 'border-red-500 bg-red-500/20 text-red-400 shadow-[0_0_20px_rgba(239,68,68,0.4)]' : 'border-white/10 opacity-40 hover:opacity-100'}`}
+                        >
+                          Shopee
+                        </button>
+                      </div>
+                    </div>
                   </div>
-
-                  <div className="hidden lg:block">
-                    <MethodCard method="gotyme" id="002" selectedMethod={selectedMethod} onSelectMethod={setSelectedMethod} />
-                  </div>
-                </div>
+                )}
               </div>
 
               <div className="flex flex-col sm:flex-row justify-center gap-3">
                 <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
                   <ArrowLeft size={15} /> Back
                 </motion.button>
-                <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
-                  Next: Confirmation <ArrowRight size={15} />
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={async () => {
+                    setIsSubmitting(true);
+                    setSubmitError('');
+                    const isAdmin = isAllowedAdminEmail(email);
+                    const isFreebie = totalAmount === 0;
+
+                    try {
+                      if (isFreebie) {
+                        // Handle Freebie Claiming
+                        const response = await fetch(`${process.env.VITE_SUPABASE_URL}/functions/v1/claim-freebie`, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${process.env.VITE_SUPABASE_ANON_KEY}`
+                          },
+                          body: JSON.stringify({
+                            username,
+                            email,
+                            products: selectedProducts.map(p => ({
+                              id: p.id,
+                              name: p.name,
+                              amount: p.amount
+                            })),
+                            totalAmount: 0,
+                            reference_no: `FREE-${Date.now().toString().slice(-6)}`
+                          })
+                        });
+
+                        const data = await response.json();
+                        if (response.ok) {
+                          // Freebie claimed successfully, move to confirmation or show success
+                          setStage(4);
+                        } else {
+                          throw new Error(data.error || 'Failed to claim freebie');
+                        }
+                      } else {
+                        // Regular PayMongo Checkout
+                        const response = await fetch('/api/create-checkout', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            amount: totalAmount,
+                            description: selectedProducts.map(p => p.name).join(', '),
+                            email: email,
+                            name: username,
+                            useTestMode: isAdmin,
+                            metadata: {
+                              reference_no: `DM-${Date.now().toString().slice(-6)}`,
+                              is_admin_test: isAdmin
+                            }
+                          })
+                        });
+                        const data = await response.json();
+                        if (data.checkout_url) {
+                          window.location.href = data.checkout_url;
+                        } else {
+                          throw new Error(data.error || 'Failed to create checkout session');
+                        }
+                      }
+                    } catch (err: any) {
+                      setSubmitError(err.message);
+                      setIsSubmitting(false);
+                    }
+                  }}
+                  className="cyber-btn cyber-btn-primary"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Processing...' : totalAmount === 0 ? 'Claim for Free' : isAllowedAdminEmail(email) ? 'Pay (Admin Test Mode)' : 'Pay with PayMongo'} <ArrowRight size={15} />
                 </motion.button>
               </div>
             </motion.div>
@@ -1549,7 +1633,7 @@ export default function App() {
             © 2026 DMERCH PROTOCOL // ALL RIGHTS RESERVED // SYSTEM STATUS: OPTIMAL
           </p>
         </footer>
-      </main>
-    </div>
+      </main >
+    </div >
   );
 }
