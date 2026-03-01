@@ -1259,10 +1259,7 @@ export default function App() {
                   </div>
                 ) : null}
 
-                <div className="mt-7 flex flex-col sm:flex-row items-center justify-between gap-3">
-                  <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
-                    <ArrowLeft size={15} /> Back
-                  </motion.button>
+                <div className="mt-7 flex flex-col sm:flex-row items-center justify-end gap-3">
                   <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
                     Next: Order <ArrowRight size={15} />
                   </motion.button>
