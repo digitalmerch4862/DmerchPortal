@@ -5,7 +5,7 @@
 
 import { type ComponentType, type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, Facebook, Youtube, Instagram, Search, Check, ShoppingCart, X, ArrowRight, ArrowLeft, Home, PackageSearch } from 'lucide-react';
+import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft, Home } from 'lucide-react';
 import gcashQr from './gcash-qr.png';
 import gotymeQr from './gotyme-qr.png';
 import { productCatalog, type ProductItem } from './data/products';
@@ -15,21 +15,7 @@ import { supabase } from './supabaseClient.js';
 const ADMIN_PRODUCTS_KEY = 'dmerch_admin_products_v1';
 const ADMIN_GOOGLE_SHORTCUT_KEY = 'dmerch_admin_google_shortcut_v1';
 const CHECKOUT_DRAFT_KEY = 'dmerch_checkout_draft_v1';
-const PAYMONGO_SERIAL_KEY = 'dmerch_paymongo_serial_v1';
 const ALLOWED_ADMIN_EMAILS = new Set(['rad4862@gmail.com', 'digitalmerch4862@gmail.com']);
-const DIRECT_ADMIN_EMAIL = 'digitalmerch4862@gmail.com';
-const RAD_TEST_EMAIL = 'rad4862@gmail.com';
-const VIRTU_MART_EMAIL = 'virtumartph@gmail.com';
-const VIRTU_MART_USERNAME_PATTERNS = ['virtu mart', 'virtumart', 'virtumartph'];
-
-const isVirtuMartEmail = (value: string | null | undefined) =>
-  String(value ?? '').trim().toLowerCase() === VIRTU_MART_EMAIL;
-
-const isVirtuMartUsername = (value: string | null | undefined) => {
-  const normalized = String(value ?? '').trim().toLowerCase();
-  if (!normalized) return false;
-  return VIRTU_MART_USERNAME_PATTERNS.some((pattern) => normalized.includes(pattern));
-};
 
 const isAllowedAdminEmail = (value: string | null | undefined) => {
   const normalized = String(value ?? '').trim().toLowerCase();
@@ -80,12 +66,10 @@ type CheckoutDraft = {
   username: string;
   email: string;
   referenceNo: string;
-  selectedMethod: 'gcash' | 'gotyme' | 'lazada' | 'shopee';
-  paymentPortalUsed: 'gcash' | 'gotyme' | 'lazada' | 'shopee';
+  selectedMethod: 'gcash' | 'paymongo' | 'gotyme';
+  paymentPortalUsed: 'gcash' | 'paymongo' | 'gotyme';
   gcashNumberUsed: string;
   gotymeAccountNameUsed: string;
-  availedPortal?: 'lazada' | 'shopee';
-  orderReferenceInput?: string;
   selectedProducts: ProductItem[];
 };
 
@@ -183,7 +167,7 @@ function CyberCard({ children, title, icon: Icon, color = 'cyan' }: { children: 
   );
 }
 
-function MethodCard({ method, id, compact = false, selectedMethod, onSelectMethod }: { method: 'gcash' | 'gotyme'; id: string; compact?: boolean; selectedMethod: 'gcash' | 'gotyme'; onSelectMethod: (method: 'gcash' | 'gotyme') => void }) {
+function MethodCard({ method, id, compact = false, selectedMethod, onSelectMethod }: { method: 'gcash' | 'gotyme'; id: string; compact?: boolean; selectedMethod: 'gcash' | 'paymongo' | 'gotyme'; onSelectMethod: (method: 'gcash' | 'gotyme') => void }) {
   const isActive = selectedMethod === method;
   const isGcash = method === 'gcash';
 
@@ -236,10 +220,8 @@ function MethodCard({ method, id, compact = false, selectedMethod, onSelectMetho
 
 export default function App() {
   const [stage, setStage] = useState<FlowStage>(1);
-  const [selectedMethod, setSelectedMethod] = useState<'gcash' | 'gotyme' | 'lazada' | 'shopee'>('gcash');
-  const [paymentPortalUsed, setPaymentPortalUsed] = useState<'gcash' | 'gotyme' | 'lazada' | 'shopee'>('gcash');
-  const [availedPortal, setAvailedPortal] = useState<'lazada' | 'shopee' | ''>('');
-  const [orderReferenceInput, setOrderReferenceInput] = useState('');
+  const [selectedMethod, setSelectedMethod] = useState<'gcash' | 'paymongo' | 'gotyme'>('gcash');
+  const [paymentPortalUsed, setPaymentPortalUsed] = useState<'gcash' | 'paymongo' | 'gotyme'>('gcash');
   const [gcashNumberUsed, setGcashNumberUsed] = useState('');
   const [gotymeAccountNameUsed, setGotymeAccountNameUsed] = useState('');
   const [username, setUsername] = useState('');
@@ -255,11 +237,6 @@ export default function App() {
   const [submitError, setSubmitError] = useState('');
   const [submitNotice, setSubmitNotice] = useState('');
   const [adminShortcutError, setAdminShortcutError] = useState('');
-  // True ONLY when the user has completed Google OAuth — not just typed an email
-  const [isGoogleVerified, setIsGoogleVerified] = useState(false);
-  const [googleSessionEmail, setGoogleSessionEmail] = useState('');
-  const [confirmedSerialNo, setConfirmedSerialNo] = useState('');
-  const [paymentCompleted, setPaymentCompleted] = useState(false);
   const [submitResult, setSubmitResult] = useState<VerificationApiResponse | null>(null);
   const [lastSubmittedProducts, setLastSubmittedProducts] = useState<ProductItem[]>([]);
   const [liveAvailmentIndex, setLiveAvailmentIndex] = useState(0);
@@ -272,24 +249,6 @@ export default function App() {
   const selectedQrSrc = selectedMethod === 'gcash' ? gcashQr : gotymeQr;
   const selectedQrFilename = selectedMethod === 'gcash' ? 'dmerch-gcash-qr.png' : 'dmerch-gotyme-qr.png';
   const activeAvailment = FAKE_AVAILMENTS[liveAvailmentIndex % FAKE_AVAILMENTS.length];
-  const isVirtuMartSession = isVirtuMartEmail(googleSessionEmail) || isVirtuMartUsername(username) || isVirtuMartEmail(email);
-  const isRadTestSession = String(googleSessionEmail).trim().toLowerCase() === RAD_TEST_EMAIL;
-  const normalizedVirtuMartOrderRef = useMemo(() => {
-    if (availedPortal === 'lazada') {
-      return orderReferenceInput.replace(/\D/g, '');
-    }
-    return orderReferenceInput.trim().toUpperCase();
-  }, [availedPortal, orderReferenceInput]);
-
-  const isVirtuMartOrderRefValid = useMemo(() => {
-    if (availedPortal === 'lazada') {
-      return /^\d{10,24}$/.test(normalizedVirtuMartOrderRef);
-    }
-    if (availedPortal === 'shopee') {
-      return /^#[A-Z0-9]{8,24}$/.test(normalizedVirtuMartOrderRef);
-    }
-    return false;
-  }, [availedPortal, normalizedVirtuMartOrderRef]);
 
   useEffect(() => {
     const logVisit = async () => {
@@ -372,16 +331,21 @@ export default function App() {
         setSelectedProducts(products);
       }
 
-      const selectedMethodValue = parsed.selectedMethod === 'gotyme' ? 'gotyme' : 'gcash';
-      const paymentPortalValue = parsed.paymentPortalUsed === 'gotyme' ? 'gotyme' : 'gcash';
-      const availedPortalValue = parsed.availedPortal === 'lazada' || parsed.availedPortal === 'shopee' ? parsed.availedPortal : '';
+      const selectedMethodValue = parsed.selectedMethod === 'paymongo'
+        ? 'paymongo'
+        : parsed.selectedMethod === 'gotyme'
+          ? 'gotyme'
+          : 'gcash';
+      const paymentPortalValue = parsed.paymentPortalUsed === 'paymongo'
+        ? 'paymongo'
+        : parsed.paymentPortalUsed === 'gotyme'
+          ? 'gotyme'
+          : 'gcash';
 
       setSelectedMethod(selectedMethodValue);
       setPaymentPortalUsed(paymentPortalValue);
-      setAvailedPortal(availedPortalValue);
       setUsername(String(parsed.username ?? '').trim());
       setEmail(String(parsed.email ?? '').trim());
-      setOrderReferenceInput(String(parsed.orderReferenceInput ?? '').trim());
       setReferenceNo(String(parsed.referenceNo ?? '').trim());
       setGcashNumberUsed(String(parsed.gcashNumberUsed ?? '').trim());
       setGotymeAccountNameUsed(String(parsed.gotymeAccountNameUsed ?? '').trim());
@@ -406,9 +370,6 @@ export default function App() {
 
       const normalizedEmail = String(emailValue).trim().toLowerCase();
       setEmail(normalizedEmail);
-      setGoogleSessionEmail(normalizedEmail);
-      // Mark this session as Google-verified (the ONLY place this becomes true)
-      setIsGoogleVerified(true);
       setUsername((current) => {
         if (current.trim()) {
           return current;
@@ -420,15 +381,11 @@ export default function App() {
         return normalizedEmail.split('@')[0] ?? '';
       });
 
-      if (normalizedEmail === DIRECT_ADMIN_EMAIL) {
-        // Only auto-redirect if we're not explicitly trying to stay
-        const stayOnCheckout = window.location.search.includes('stay=1');
-        if (!stayOnCheckout) {
-          window.localStorage.removeItem(CHECKOUT_DRAFT_KEY);
-          window.localStorage.removeItem(ADMIN_GOOGLE_SHORTCUT_KEY);
-          window.location.href = '/admin';
-          return;
-        }
+      if (isAllowedAdminEmail(emailValue)) {
+        window.localStorage.removeItem(CHECKOUT_DRAFT_KEY);
+        window.localStorage.removeItem(ADMIN_GOOGLE_SHORTCUT_KEY);
+        window.location.href = '/admin';
+        return;
       }
 
       if (shouldHandleShortcut) {
@@ -438,7 +395,7 @@ export default function App() {
           return;
         }
         setAdminShortcutError('Google sign-in complete. Email auto-filled. Continue checkout.');
-        setStage(1);
+        setStage(2);
       }
     };
 
@@ -464,8 +421,6 @@ export default function App() {
       referenceNo: referenceNo.trim(),
       selectedMethod,
       paymentPortalUsed,
-      availedPortal: availedPortal || undefined,
-      orderReferenceInput: orderReferenceInput.trim(),
       gcashNumberUsed: gcashNumberUsed.trim(),
       gotymeAccountNameUsed: gotymeAccountNameUsed.trim(),
       selectedProducts,
@@ -473,7 +428,7 @@ export default function App() {
     window.localStorage.setItem(CHECKOUT_DRAFT_KEY, JSON.stringify(draft));
     window.localStorage.setItem(ADMIN_GOOGLE_SHORTCUT_KEY, '1');
     const redirectBaseUrl = resolveAuthRedirectBaseUrl();
-    const returnPath = window.location.pathname;
+    const returnPath = `${window.location.pathname}${window.location.search}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -616,27 +571,24 @@ export default function App() {
 
   const canProceedFrom = (fromStage: FlowStage) => {
     if (fromStage === 1) {
-      return username.trim().length > 0 && isEmailValid;
-    }
-
-    if (fromStage === 2) {
       return selectedProducts.length > 0;
     }
 
+    if (fromStage === 2) {
+      return username.trim().length > 0 && isEmailValid;
+    }
+
     if (fromStage === 3) {
-      if (isVirtuMartSession) {
-        return availedPortal === 'lazada' || availedPortal === 'shopee';
-      }
-      return true;
+      return Boolean(selectedMethod);
     }
 
     return true;
   };
 
   const stageErrorMessage: Record<FlowStage, string> = {
-    1: 'Enter a valid username and email before proceeding to order.',
-    2: 'Add at least one product before proceeding to payment portal.',
-    3: isVirtuMartSession ? 'Select availed portal (Shopee or Lazada) before proceeding.' : 'Select a payment portal before proceeding to confirmation.',
+    1: 'Add at least one product before proceeding to client details.',
+    2: 'Enter a valid username and email before proceeding to payment portal.',
+    3: 'Select a payment portal before proceeding to confirmation.',
     4: '',
   };
 
@@ -652,121 +604,15 @@ export default function App() {
 
     setSubmitError('');
     if (stage === 3) {
-      if (isVirtuMartSession) {
-        setPaymentPortalUsed(availedPortal || 'lazada');
-      } else {
-        setPaymentPortalUsed(selectedMethod);
-      }
+      setPaymentPortalUsed(selectedMethod);
     }
     setStage((current) => (current < 4 ? ((current + 1) as FlowStage) : current));
   };
 
   const goToPreviousStage = () => {
     setSubmitError('');
-    if (stage === 4 && isVirtuMartSession) {
-      setStage(3);
-      return;
-    }
     setStage((current) => (current > 1 ? ((current - 1) as FlowStage) : current));
   };
-
-  const persistCheckoutDraft = useCallback(() => {
-    const draft: CheckoutDraft = {
-      username: username.trim(),
-      email: email.trim(),
-      referenceNo: referenceNo.trim(),
-      selectedMethod,
-      paymentPortalUsed,
-      availedPortal: availedPortal || undefined,
-      orderReferenceInput: orderReferenceInput.trim(),
-      gcashNumberUsed: gcashNumberUsed.trim(),
-      gotymeAccountNameUsed: gotymeAccountNameUsed.trim(),
-      selectedProducts,
-    };
-    window.localStorage.setItem(CHECKOUT_DRAFT_KEY, JSON.stringify(draft));
-  }, [
-    availedPortal,
-    email,
-    gcashNumberUsed,
-    gotymeAccountNameUsed,
-    orderReferenceInput,
-    paymentPortalUsed,
-    referenceNo,
-    selectedMethod,
-    selectedProducts,
-    username,
-  ]);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const oauthError = String(params.get('error') ?? '').trim();
-    const oauthErrorCode = String(params.get('error_code') ?? '').trim();
-    const rawDescription = String(params.get('error_description') ?? '').trim();
-    if (!oauthError && !oauthErrorCode && !rawDescription) {
-      return;
-    }
-
-    let readableDescription = 'Google sign-in failed. Please try again.';
-    if (rawDescription) {
-      try {
-        readableDescription = decodeURIComponent(rawDescription.replace(/\+/g, ' '));
-      } catch {
-        readableDescription = rawDescription;
-      }
-    }
-
-    window.localStorage.removeItem(ADMIN_GOOGLE_SHORTCUT_KEY);
-    setAdminShortcutError(readableDescription);
-    const cleanUrl = `${window.location.pathname}${window.location.hash || ''}`;
-    window.history.replaceState({}, document.title, cleanUrl);
-  }, []);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const payment = String(params.get('payment') ?? '').trim().toLowerCase();
-    if (!payment) {
-      return;
-    }
-
-    const isPaymongoReturn = payment === 'success' || payment === 'cancelled' || payment === 'failed';
-    if (!isPaymongoReturn) {
-      return;
-    }
-
-    const serialFromQuery = String(params.get('serial') ?? '').trim().toUpperCase();
-    const serialFromStorage = String(window.localStorage.getItem(PAYMONGO_SERIAL_KEY) ?? '').trim().toUpperCase();
-    const resolvedSerial = serialFromQuery || serialFromStorage;
-
-    if (resolvedSerial) {
-      setConfirmedSerialNo(resolvedSerial);
-    }
-
-    setStage(2);
-    setPaymentCompleted(payment === 'success');
-    window.localStorage.removeItem(PAYMONGO_SERIAL_KEY);
-
-    if (payment === 'success') {
-      window.localStorage.removeItem(CHECKOUT_DRAFT_KEY);
-      setSubmitError('');
-      setSubmitNotice('Payment received. Product link has been sent to your email.');
-      setSelectedProducts([]);
-      setSelectedProductName('');
-      setProductQuery('');
-      setLastSubmittedProducts([]);
-      setReferenceNo('');
-      setGcashNumberUsed('');
-      setGotymeAccountNameUsed('');
-    } else if (payment === 'failed') {
-      setSubmitNotice('');
-      setSubmitError('Payment failed. Please review your order and try again.');
-    } else {
-      setSubmitNotice('');
-      setSubmitError('Payment was cancelled. You can retry when ready.');
-    }
-
-    const cleanUrl = `${window.location.pathname}${window.location.hash || ''}`;
-    window.history.replaceState({}, document.title, cleanUrl);
-  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -988,7 +834,13 @@ export default function App() {
 
     const paymentDetailUsed = paymentPortalUsed === 'gcash' ? gcashNumberUsed.trim() : gotymeAccountNameUsed.trim();
     if (!paymentDetailUsed) {
-      setSubmitError(paymentPortalUsed === 'gcash' ? 'Enter the GCash number used for payment.' : 'Enter the GoTyme account name used for payment.');
+      if (paymentPortalUsed === 'gcash') {
+        setSubmitError('Enter the GCash number used for payment.');
+      } else if (paymentPortalUsed === 'paymongo') {
+        setSubmitError('Enter the PayMongo payment reference used for payment.');
+      } else {
+        setSubmitError('Enter the GoTyme account name used for payment.');
+      }
       return;
     }
 
@@ -1058,10 +910,10 @@ export default function App() {
   };
 
   const stageItems: Array<{ id: FlowStage; title: string; mobileTitle: string }> = [
-    { id: 1, title: 'Client Details', mobileTitle: 'Client' },
-    { id: 2, title: 'Order', mobileTitle: 'Order' },
-    { id: 3, title: isVirtuMartSession ? 'Availed Portal' : 'Payment Portal', mobileTitle: isVirtuMartSession ? 'Portal' : 'Portal' },
-    { id: 4, title: isVirtuMartSession ? 'Order Input' : 'Confirmation', mobileTitle: isVirtuMartSession ? 'Order' : 'Confirm' },
+    { id: 1, title: 'Order', mobileTitle: 'Order' },
+    { id: 2, title: 'Client Details', mobileTitle: 'Client' },
+    { id: 3, title: 'Payment Portal', mobileTitle: 'Portal' },
+    { id: 4, title: 'Confirmation', mobileTitle: 'Confirm' },
   ];
   const activeStageItem = stageItems.find((item) => item.id === stage) ?? stageItems[0];
 
@@ -1147,27 +999,15 @@ export default function App() {
         </div>
 
         <AnimatePresence mode="wait">
-          {stage === 2 ? (
+          {stage === 1 ? (
             <motion.div
-              key="stage-2-order"
+              key="stage-1-order"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.3 }}
             >
               <CyberCard title="Order Selection" icon={PackageSearch} color="magenta">
-                {submitNotice ? (
-                  <div className="mb-4 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-xs font-mono uppercase tracking-[0.12em] text-cyan-200">
-                    {submitNotice}
-                  </div>
-                ) : null}
-
-                {submitError ? (
-                  <div className="mb-4 rounded-md border border-red-500/40 bg-red-500/10 px-4 py-3 text-xs font-mono uppercase tracking-[0.15em] text-red-300">
-                    {submitError}
-                  </div>
-                ) : null}
-
                 <div ref={productPickerRef} className="relative z-10 rounded-xl border border-cyan-500/40 bg-[#0b111f]/80 p-4 shadow-[0_0_35px_rgba(0,195,255,0.1)]">
                   <div className="pointer-events-none absolute left-2 top-2 h-5 w-5 border-l-2 border-t-2 border-cyan-400/70" />
                   <div className="pointer-events-none absolute bottom-2 right-2 h-5 w-5 border-b-2 border-r-2 border-cyan-400/70" />
@@ -1178,7 +1018,7 @@ export default function App() {
 
                   <div className="relative">
                     <div className="relative">
-                      <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cyan-200 drop-shadow-[0_0_9px_rgba(34,211,238,0.95)] animate-pulse" />
+                      <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cyan-300/70" />
                       <input
                         value={productQuery}
                         onChange={(event) => {
@@ -1228,8 +1068,8 @@ export default function App() {
                       disabled={!selectedProduct}
                       className="cyber-btn cyber-btn-secondary"
                     >
-                      <ShoppingCart size={14} className="text-emerald-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.9)]" />
-                      Add to Cart
+                      <Plus size={14} />
+                      Add Product
                     </motion.button>
                     <div className="rounded-md border border-cyan-500/40 bg-black/40 px-4 py-2 text-xs font-mono uppercase tracking-[0.2em] text-cyan-200">
                       {selectedProduct ? `Ready: PHP ${selectedProduct.amount}` : 'Select from list'}
@@ -1270,14 +1110,14 @@ export default function App() {
                     Products: {selectedProducts.length} | Total: PHP {totalAmount}
                   </span>
                   <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
-                    {isVirtuMartSession ? 'Next: Availed Portal' : 'Next: Payment Portal'} <ArrowRight size={15} />
+                    Next: Client Details <ArrowRight size={15} />
                   </motion.button>
                 </div>
               </CyberCard>
             </motion.div>
-          ) : stage === 1 ? (
+          ) : stage === 2 ? (
             <motion.div
-              key="stage-1-client"
+              key="stage-2-client"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -1337,17 +1177,12 @@ export default function App() {
                   </div>
                 </div>
 
-                {isAllowedAdminEmail(email) && isGoogleVerified ? (
-                  <div className="mt-6 rounded-xl border border-yellow-400/30 bg-yellow-500/5 p-4">
-                    <p className="text-center text-[11px] font-mono uppercase tracking-[0.2em] text-yellow-200">
-                      Admin account recognized. This checkout stays on buyer flow.
-                    </p>
-                  </div>
-                ) : null}
-
-                <div className="mt-7 flex flex-col sm:flex-row items-center justify-end gap-3">
+                <div className="mt-7 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
+                    <ArrowLeft size={15} /> Back
+                  </motion.button>
                   <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
-                    Next: Order <ArrowRight size={15} />
+                    Next: Payment Portal <ArrowRight size={15} />
                   </motion.button>
                 </div>
               </CyberCard>
@@ -1360,161 +1195,115 @@ export default function App() {
               exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.3 }}
             >
-              {isVirtuMartSession ? (
-                <CyberCard title="Availed Portal" icon={ShieldCheck} color="cyan">
-                  <div className="space-y-5">
-                    <p className="text-center text-cyan-100 text-sm">Select where this order was availed before proceeding.</p>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <button
-                        type="button"
-                        onClick={() => setAvailedPortal('lazada')}
-                        className={`rounded-lg border px-4 py-4 text-left transition ${availedPortal === 'lazada' ? 'border-orange-400 bg-orange-500/15 text-orange-100 shadow-[0_0_20px_rgba(251,146,60,0.25)]' : 'border-white/20 bg-black/25 text-gray-300 hover:border-orange-300/70'}`}
+              <div className="mb-6 sm:mb-10 space-y-4 sm:space-y-6">
+                <div className="flex items-center justify-center gap-2 lg:hidden">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMethod('gcash')}
+                    className={`rounded-md border px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.18em] transition-colors ${selectedMethod === 'gcash' ? 'border-blue-400 bg-blue-500/15 text-blue-100' : 'border-white/20 text-gray-300'}`}
+                  >
+                    GCash
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMethod('paymongo')}
+                    className={`rounded-md border px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.18em] transition-colors ${selectedMethod === 'paymongo' ? 'border-emerald-300 bg-emerald-500/15 text-emerald-100' : 'border-white/20 text-gray-300'}`}
+                  >
+                    PayMongo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMethod('gotyme')}
+                    className={`rounded-md border px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.18em] transition-colors ${selectedMethod === 'gotyme' ? 'border-cyan-300 bg-cyan-400/15 text-cyan-100' : 'border-white/20 text-gray-300'}`}
+                  >
+                    GoTyme
+                  </button>
+                </div>
+
+                <div className="flex flex-col lg:flex-row items-center justify-center gap-4 sm:gap-8 lg:gap-12">
+                  <div className="hidden lg:block">
+                    <MethodCard method="gcash" id="001" selectedMethod={selectedMethod} onSelectMethod={setSelectedMethod} />
+                  </div>
+
+                  <div className="w-full max-w-sm">
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={selectedMethod}
+                        initial={{ opacity: 0, scale: 0.9, rotateY: 90 }}
+                        animate={{ opacity: 1, scale: 1, rotateY: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, rotateY: -90 }}
+                        transition={{ duration: 0.5, type: 'spring', stiffness: 100 }}
+                        className="relative"
                       >
-                        <p className="text-xs font-mono uppercase tracking-[0.2em]">Lazada</p>
-                        <p className="mt-1 text-[11px] text-orange-200/85">Numeric order id</p>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAvailedPortal('shopee')}
-                        className={`rounded-lg border px-4 py-4 text-left transition ${availedPortal === 'shopee' ? 'border-red-400 bg-red-500/15 text-red-100 shadow-[0_0_20px_rgba(248,113,113,0.25)]' : 'border-white/20 bg-black/25 text-gray-300 hover:border-red-300/70'}`}
-                      >
-                        <p className="text-xs font-mono uppercase tracking-[0.2em]">Shopee</p>
-                        <p className="mt-1 text-[11px] text-red-200/85">Starts with # + alphanumeric</p>
-                      </button>
-                    </div>
-                    <div className="flex flex-col sm:flex-row justify-center gap-3">
-                      <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
-                        <ArrowLeft size={15} /> Back
-                      </motion.button>
-                      <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
-                        Next: Order Input <ArrowRight size={15} />
-                      </motion.button>
-                    </div>
-                  </div>
-                </CyberCard>
-              ) : (
-                <CyberCard title="Automated Checkout" icon={ShieldCheck} color="cyan">
-                  <div className="text-center p-6 space-y-4">
-                    <p className="text-cyan-100 text-sm">You will be redirected to our secure PayMongo checkout portal to complete your payment.</p>
-                    <div className="relative mx-auto w-full max-w-xs rounded-xl overflow-hidden border border-cyan-500/30 shadow-[0_0_30px_rgba(0,243,255,0.15)]">
-                      <div className="bg-gradient-to-br from-[#0a2540] to-[#0d3a6c] p-6 flex flex-col items-center gap-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-[#02a6e4] flex items-center justify-center text-white font-black text-sm">P</div>
-                          <span className="text-white font-black text-xl tracking-tight">PayMongo</span>
-                        </div>
-                        <p className="text-[#7ecff5] text-xs font-mono uppercase tracking-widest">Secure Payment Gateway</p>
-                        <div className="flex gap-2 mt-1 flex-wrap justify-center">
-                          {['GCash', 'Maya', 'GoTyme', 'Cards'].map((m) => (
-                            <span key={m} className="rounded-full border border-[#02a6e4]/40 bg-[#02a6e4]/10 px-3 py-1 text-[10px] font-mono uppercase tracking-wider text-[#7ecff5]">{m}</span>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="bg-black/60 px-4 py-2 flex items-center justify-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${isRadTestSession ? 'bg-amber-300' : 'bg-green-400'} animate-pulse`} />
-                        <span className={`text-[10px] font-mono uppercase tracking-widest ${isRadTestSession ? 'text-amber-300' : 'text-green-400'}`}>
-                          {isRadTestSession ? 'Test Mode' : 'Live & Secure'}
-                        </span>
-                      </div>
-                    </div>
+                        {selectedMethod === 'paymongo' ? (
+                          <div className="relative bg-[#0a0a0a] rounded-lg p-6 border border-emerald-400/30 shadow-2xl">
+                            <div className="rounded-md border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-center">
+                              <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-emerald-200">PayMongo Portal</p>
+                              <p className="mt-2 text-sm text-emerald-100">Pay securely via PayMongo, then submit your payment reference on the confirmation stage for manual approval.</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="relative group">
+                          <div className={`absolute -inset-2 bg-gradient-to-r ${selectedMethod === 'gcash' ? 'from-blue-500 to-cyan-500' : 'from-cyan-400 to-emerald-400'} rounded-lg blur opacity-40 group-hover:opacity-60 transition duration-1000`} />
+                          <div className="relative bg-[#0a0a0a] rounded-lg p-3 sm:p-6 border border-white/10 flex flex-col items-center shadow-2xl">
+                            <div className={`w-full ${selectedMethod === 'gcash' ? 'bg-[#007dfe]' : 'bg-[#00e5ff]'} py-2 sm:py-3 px-3 sm:px-6 rounded-t-md flex justify-between items-center shadow-lg`}>
+                              <span className={`font-black italic tracking-tighter uppercase text-[11px] sm:text-sm ${selectedMethod === 'gcash' ? 'text-white' : 'text-black'}`}>
+                                {selectedMethod === 'gcash' ? 'GCash Terminal' : 'GoTyme Terminal'}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={handleDownloadQr}
+                                  className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition-colors ${selectedMethod === 'gcash' ? 'border-white/60 text-white hover:bg-white/15' : 'border-black/60 text-black hover:bg-black/15'}`}
+                                  title="Download QR"
+                                  aria-label="Download QR"
+                                >
+                                  <Download size={14} />
+                                </button>
+                                <div className={`w-3 h-3 rounded-full ${selectedMethod === 'gcash' ? 'bg-white' : 'bg-black'} animate-pulse`} />
+                              </div>
+                            </div>
+
+                            <div className={`${selectedMethod === 'gcash' ? 'bg-[#007dfe]' : 'bg-[#00e5ff]'} p-2 sm:p-4 w-full aspect-[3/4] sm:aspect-[3/5] flex items-center justify-center overflow-hidden border-x-4 border-b-4 ${selectedMethod === 'gcash' ? 'border-blue-600' : 'border-cyan-500'}`}>
+                              <img
+                                src={selectedQrSrc}
+                                alt={`${selectedMethod === 'gcash' ? 'GCash' : 'GoTyme'} payment QR code`}
+                                className="w-full h-full object-contain"
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+
+                            <div className="mt-3 sm:mt-6 text-center w-full py-3 sm:py-4 border-t border-white/5">
+                              <button
+                                type="button"
+                                onClick={handleDownloadQr}
+                                className="mb-3 inline-flex items-center gap-2 rounded border border-white/20 px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.2em] text-gray-300 hover:text-white hover:border-white/40 transition-colors"
+                              >
+                                <Download size={12} />
+                                Download QR
+                              </button>
+                            </div>
+                          </div>
+                          </div>
+                        )}
+                      </motion.div>
+                    </AnimatePresence>
                   </div>
 
-                  <div className="flex flex-col sm:flex-row justify-center gap-3">
-                    <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
-                      <ArrowLeft size={15} /> Back
-                    </motion.button>
-                    <motion.button
-                      type="button"
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={async () => {
-                        persistCheckoutDraft();
-                        setIsSubmitting(true);
-                        setSubmitError('');
-                        const isAdminTestCheckout = isRadTestSession;
-                        const isFreebie = totalAmount === 0;
-
-                        try {
-                          if (isFreebie) {
-                            const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/claim-freebie`, {
-                              method: 'POST',
-                              headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-                              },
-                              body: JSON.stringify({
-                                username,
-                                email,
-                                products: selectedProducts.map((p) => ({
-                                  id: p.id,
-                                  name: p.name,
-                                  amount: p.amount
-                                })),
-                                totalAmount: 0,
-                                reference_no: `FREE-${Date.now().toString().slice(-6)}`
-                              })
-                            });
-
-                            const data = await response.json();
-                            if (response.ok) {
-                              const resolvedSerial = String(data.serial_no ?? data.serialNo ?? '').trim().toUpperCase();
-                              if (resolvedSerial) {
-                                setConfirmedSerialNo(resolvedSerial);
-                              }
-                              setPaymentCompleted(true);
-                              setSubmitNotice('Payment confirmed. Your delivery email has been sent. Redirecting to home...');
-                              setIsSubmitting(false);
-                              window.localStorage.removeItem(CHECKOUT_DRAFT_KEY);
-                              window.alert(`Payment confirmed.\nOrder Serial: ${resolvedSerial || 'PENDING-SERIAL'}\nPlease check your email for the download access link.`);
-                              window.location.replace(`${window.location.origin}/`);
-                              return;
-                            } else {
-                              throw new Error(data.error || 'Failed to claim freebie');
-                            }
-                          } else {
-                            const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://jfdvbyoyvqriqhqtmyjo.supabase.co';
-                            const response = await fetch(`${SUPABASE_URL}/functions/v1/create-checkout`, {
-                              method: 'POST',
-                              headers: {
-                                'Content-Type': 'application/json',
-                              },
-                              body: JSON.stringify({
-                                amount: totalAmount,
-                                description: selectedProducts.map((p) => p.name).join(', '),
-                                email,
-                                name: username,
-                                useTestMode: isAdminTestCheckout,
-                                products: selectedProducts,
-                                returnUrl: window.location.origin,
-                                metadata: {
-                                  is_admin_test: String(isAdminTestCheckout)
-                                }
-                              })
-                            });
-                            const data = await response.json();
-                            if (data.checkout_url) {
-                              const resolvedSerial = String(data.serial_no ?? data.serialNo ?? '').trim().toUpperCase();
-                              if (resolvedSerial) {
-                                setConfirmedSerialNo(resolvedSerial);
-                                window.localStorage.setItem(PAYMONGO_SERIAL_KEY, resolvedSerial);
-                              }
-                              window.location.href = data.checkout_url;
-                            } else {
-                              throw new Error(data.error || 'Failed to create checkout session');
-                            }
-                          }
-                        } catch (err: any) {
-                          setSubmitError(err.message);
-                          setIsSubmitting(false);
-                        }
-                      }}
-                      className="cyber-btn cyber-btn-primary"
-                      disabled={isSubmitting}
-                    >
-                      {isSubmitting ? 'Processing...' : totalAmount === 0 ? 'Claim for Free' : isRadTestSession ? 'Pay with PayMongo (Test)' : 'Pay with PayMongo'} <ArrowRight size={15} />
-                    </motion.button>
+                  <div className="hidden lg:block">
+                    <MethodCard method="gotyme" id="002" selectedMethod={selectedMethod} onSelectMethod={setSelectedMethod} />
                   </div>
-                </CyberCard>
-              )}
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row justify-center gap-3">
+                <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
+                  <ArrowLeft size={15} /> Back
+                </motion.button>
+                <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
+                  Next: Confirmation <ArrowRight size={15} />
+                </motion.button>
+              </div>
             </motion.div>
           ) : (
             <motion.div
@@ -1525,140 +1314,235 @@ export default function App() {
               transition={{ duration: 0.3 }}
               className="w-full"
             >
-              <CyberCard title={isVirtuMartSession && !paymentCompleted ? 'Order Input' : 'Confirmation'} icon={ShieldCheck} color="magenta">
-                <div className="space-y-4 rounded-xl border border-cyan-500/40 bg-[#031018]/80 p-5 shadow-[0_0_30px_rgba(0,195,255,0.1)]">
-                  {isVirtuMartSession && !paymentCompleted ? (
-                    <>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div className="rounded-md border border-cyan-500/30 bg-black/35 px-4 py-3">
-                          <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">Availed Portal</p>
-                          <p className="mt-1 text-sm font-black uppercase tracking-[0.12em] text-cyan-100">{availedPortal || 'Not selected'}</p>
+              <CyberCard title="Confirmation & Verification" icon={ShieldCheck} color="magenta">
+                <div className="mb-4 rounded-xl border border-cyan-500/40 bg-[#031018]/80 p-4 shadow-[0_0_30px_rgba(0,195,255,0.1)]">
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full min-w-[660px] border-collapse text-xs sm:text-sm font-mono uppercase tracking-[0.12em] text-cyan-100">
+                      <thead>
+                        <tr className="border-b border-cyan-500/30 text-cyan-300">
+                          <th className="py-2 px-2 text-center font-semibold">Product</th>
+                          <th className="py-2 px-2 text-center font-semibold">Category</th>
+                          <th className="py-2 px-2 text-center font-semibold">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {orderSummaryItems.length > 0 ? (
+                          orderSummaryItems.map((item) => (
+                            <tr key={`${item.name}-${item.amount}`} className="border-b border-cyan-500/15">
+                              <td className="py-2 px-2 text-left normal-case tracking-normal break-words">{item.name}</td>
+                              <td className="py-2 px-2 text-left normal-case tracking-normal">{item.category}</td>
+                              <td className="py-2 px-2 text-right">PHP {item.amount}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr className="border-b border-cyan-500/15">
+                            <td className="py-3 px-2 text-center text-gray-500" colSpan={3}>No products to review yet</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="space-y-2 md:hidden">
+                    {orderSummaryItems.length > 0 ? (
+                      orderSummaryItems.map((item) => (
+                        <div key={`${item.name}-${item.amount}`} className="rounded-md border border-cyan-500/25 bg-black/35 px-3 py-3">
+                          <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">Product</p>
+                          <p className="mt-1 text-sm text-cyan-100 normal-case tracking-normal break-words">{item.name}</p>
+                          <div className="mt-2 grid grid-cols-1 gap-2">
+                            <div>
+                              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">Category</p>
+                              <p className="text-xs text-cyan-100 normal-case tracking-normal">{item.category}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">Amount</p>
+                              <p className="text-xs text-cyan-100">PHP {item.amount}</p>
+                            </div>
+                          </div>
                         </div>
-                        <div className="rounded-md border border-cyan-500/30 bg-black/35 px-4 py-3">
-                          <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">Total Amount</p>
-                          <p className="mt-1 text-sm font-black uppercase tracking-[0.12em] text-cyan-100">PHP {totalAmount}</p>
+                      ))
+                    ) : (
+                      <div className="rounded-md border border-cyan-500/25 bg-black/35 px-3 py-3 text-center text-xs text-gray-500">No products to review yet</div>
+                    )}
+                  </div>
+
+                  <div className="mt-3 flex flex-col gap-2 rounded-md border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs font-mono uppercase tracking-[0.15em] text-cyan-100">Total: PHP {submitResult?.totalAmount ?? totalAmount}</p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleSubmitVerification} className="space-y-6">
+                  <div className="relative z-10 rounded-xl border border-[#ff8a00]/40 bg-[#1a0e05] p-4 shadow-[0_0_35px_rgba(255,128,0,0.2)]">
+                    <div className="pointer-events-none absolute left-2 top-2 h-5 w-5 border-l-2 border-t-2 border-[#ff9f1a]/80" />
+                    <div className="pointer-events-none absolute bottom-2 right-2 h-5 w-5 border-b-2 border-r-2 border-[#ff9f1a]/80" />
+                    <div className="mb-3 flex items-center gap-2 text-[#ffb257]">
+                      <PackageSearch size={15} />
+                      <span className="text-[11px] font-mono uppercase tracking-[0.25em]">Verification Summary</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Payment Portal Used</span>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setPaymentPortalUsed('gcash')}
+                            className={`rounded-md border px-3 py-2 text-xs font-mono uppercase tracking-[0.16em] ${paymentPortalUsed === 'gcash' ? 'border-[#ffb257] bg-[#ff8a00]/20 text-[#ffd2a1]' : 'border-[#ff8a00]/40 text-[#ffbd75]'}`}
+                          >
+                            GCash
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPaymentPortalUsed('paymongo')}
+                            className={`rounded-md border px-3 py-2 text-xs font-mono uppercase tracking-[0.16em] ${paymentPortalUsed === 'paymongo' ? 'border-[#ffb257] bg-[#ff8a00]/20 text-[#ffd2a1]' : 'border-[#ff8a00]/40 text-[#ffbd75]'}`}
+                          >
+                            PayMongo
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPaymentPortalUsed('gotyme')}
+                            className={`rounded-md border px-3 py-2 text-xs font-mono uppercase tracking-[0.16em] ${paymentPortalUsed === 'gotyme' ? 'border-[#ffb257] bg-[#ff8a00]/20 text-[#ffd2a1]' : 'border-[#ff8a00]/40 text-[#ffbd75]'}`}
+                          >
+                            GoTyme
+                          </button>
                         </div>
                       </div>
 
                       <label className="block">
-                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-300">Order Reference</span>
-                        <input
-                          value={orderReferenceInput}
-                          onChange={(event) => {
-                            if (availedPortal === 'lazada') {
-                              setOrderReferenceInput(event.target.value.replace(/\D/g, ''));
-                              return;
-                            }
-                            setOrderReferenceInput(event.target.value.toUpperCase());
-                          }}
-                          className="w-full rounded-md border border-cyan-500/50 bg-black/50 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-cyan-300 focus:shadow-[0_0_18px_rgba(0,255,255,0.2)]"
-                          placeholder={availedPortal === 'lazada' ? 'e.g. 1084119160670021' : 'e.g. #260202MKQC1CBY'}
-                        />
-                        <span className="mt-2 block text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-200/80">
-                          {availedPortal === 'lazada' ? 'Lazada format: numbers only' : 'Shopee format: # + letters and numbers'}
+                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">
+                          {paymentPortalUsed === 'gcash' ? 'GCash Number Used' : paymentPortalUsed === 'paymongo' ? 'PayMongo Payment Reference' : 'GoTyme Account Name Used'}
                         </span>
-                      </label>
-
-                      <div className="flex flex-col sm:flex-row gap-3 justify-between">
-                        <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
-                          <ArrowLeft size={15} /> Back
-                        </motion.button>
-                        <motion.button
-                          type="button"
-                          whileHover={{ scale: 1.03 }}
-                          whileTap={{ scale: 0.97 }}
-                          disabled={isSubmitting}
-                          onClick={async () => {
-                            if (!availedPortal) {
-                              setSubmitError('Select availed portal first.');
+                        <input
+                          value={paymentPortalUsed === 'gcash' ? gcashNumberUsed : gotymeAccountNameUsed}
+                          onChange={(event) => {
+                            if (paymentPortalUsed === 'gcash') {
+                              setGcashNumberUsed(event.target.value);
                               return;
                             }
-                            if (!isVirtuMartOrderRefValid) {
-                              setSubmitError(availedPortal === 'lazada' ? 'Enter a valid Lazada order id (numbers only).' : 'Enter a valid Shopee order reference (example: #260202MKQC1CBY).');
-                              return;
-                            }
-
-                            setIsSubmitting(true);
-                            setSubmitError('');
-                            setSubmitNotice('');
-
-                            try {
-                              const response = await fetch('/api/virtumart-submit', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                  username,
-                                  email,
-                                  products: selectedProducts,
-                                  totalAmount,
-                                  availedPortal,
-                                  orderReference: normalizedVirtuMartOrderRef,
-                                }),
-                              });
-                              const data = await response.json();
-                              if (!response.ok || !data.ok) {
-                                throw new Error(data.error || 'VirtuMart order submission failed.');
-                              }
-
-                              const serial = String(data.serialNo ?? '').trim().toUpperCase();
-                              setConfirmedSerialNo(serial);
-                              setPaymentCompleted(true);
-                              setPaymentPortalUsed(availedPortal);
-                              setOrderReferenceInput(normalizedVirtuMartOrderRef);
-                              setSubmitNotice('Order auto-approved. Delivery email was sent to the client.');
-                            } catch (error: any) {
-                              setSubmitError(String(error?.message ?? 'Submission failed.'));
-                            } finally {
-                              setIsSubmitting(false);
-                            }
+                            setGotymeAccountNameUsed(event.target.value);
                           }}
-                          className="cyber-btn cyber-btn-primary"
+                          required
+                          className="w-full rounded-md border border-[#ff8a00]/50 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-[#ffb257] focus:shadow-[0_0_18px_rgba(255,138,0,0.24)]"
+                          placeholder={paymentPortalUsed === 'gcash' ? 'e.g. 09XXXXXXXXX' : paymentPortalUsed === 'paymongo' ? 'e.g. pi_12345 or payment ref' : 'e.g. JUAN DELA CRUZ'}
+                        />
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Reference No (Last 6 Digits)</span>
+                        <input
+                          value={referenceNo}
+                          onChange={(event) => {
+                            const digitsOnly = event.target.value.replace(/\D/g, '');
+                            setReferenceNo(digitsOnly.slice(-6));
+                          }}
+                          required
+                          inputMode="numeric"
+                          maxLength={6}
+                          className="w-full rounded-md border border-[#ff8a00]/50 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-[#ffb257] focus:shadow-[0_0_18px_rgba(255,138,0,0.24)]"
+                          placeholder="e.g. 123456"
+                        />
+                        <span className="mt-2 block text-[10px] font-mono uppercase tracking-[0.18em] text-[#ffbd75]">Sample: 987654 (last 6 digits only)</span>
+                      </label>
+                      <div>
+                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Total Amount</span>
+                        <div className="rounded-md border border-[#ff8a00]/50 bg-black/30 px-4 py-3 text-sm font-mono uppercase tracking-[0.15em] text-[#ffc680]">
+                          PHP {submitResult?.totalAmount ?? totalAmount}
+                        </div>
+                      </div>
+                    </div>
+
+                    {isSubmitting ? (
+                      <div className="mt-4 rounded-md border border-[#ff8a00]/60 bg-black/50 p-3">
+                        <p className="mb-2 text-xs font-mono uppercase tracking-[0.25em] text-[#ffb257]">Uploading Verification Packet...</p>
+                        <div className="h-3 w-full overflow-hidden rounded-sm border border-[#ff8a00]/70 bg-[#2b1608]">
+                          <motion.div
+                            initial={{ width: '0%' }}
+                            animate={{ width: `${submitProgress}%` }}
+                            transition={{ duration: 0.25, ease: 'easeOut' }}
+                            className="h-full bg-[repeating-linear-gradient(-45deg,#9dff4f,#9dff4f_10px,#53bf1e_10px,#53bf1e_20px)] shadow-[0_0_18px_rgba(157,255,79,0.6)]"
+                          />
+                        </div>
+                        <p className="mt-2 text-right text-xs font-mono uppercase tracking-[0.2em] text-[#ffb257]">{submitProgress}%</p>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {submitError ? (
+                    <div className="rounded-md border border-red-500/40 bg-red-500/10 px-4 py-3 text-xs font-mono uppercase tracking-[0.15em] text-red-300">
+                      {submitError}
+                    </div>
+                  ) : null}
+
+                  {submitResult?.ok ? (
+                    <div className="rounded-md border border-cyan-500/40 bg-cyan-500/10 px-4 py-4">
+                      <p className="mb-2 text-xs font-mono uppercase tracking-[0.2em] text-cyan-300">Reference Code</p>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <p className="text-lg font-black tracking-wider text-white">{submitResult.serialNo}</p>
+                        <button
+                          type="button"
+                          onClick={handleDownloadReferenceFile}
+                          className="reference-download-alert inline-flex items-center gap-1 rounded-md border border-red-400/60 bg-red-500/15 px-3 py-1 text-[10px] font-mono uppercase tracking-[0.18em] text-red-200"
+                          title="Download reference file"
                         >
-                          {isSubmitting ? 'Submitting...' : 'Submit Order'} <ArrowRight size={15} />
-                        </motion.button>
+                          <Download size={13} /> Download file
+                        </button>
                       </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="rounded-md border border-cyan-500/35 bg-black/35 px-4 py-3">
-                        <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">Order Serial</p>
-                        <p className="mt-1 text-xl font-black tracking-wider text-cyan-100">{confirmedSerialNo || submitResult?.serialNo || 'PENDING-SERIAL'}</p>
-                      </div>
+                      <p className="mt-2 text-xs text-gray-300 leading-relaxed">
+                        Keep this reference code for your records. Check your Inbox or Spam folder for email confirmation.
+                      </p>
+                      <p className="mt-2 text-xs text-gray-400">
+                        Sequence: {submitResult.sequenceNo} | Total: PHP {submitResult.totalAmount ?? totalAmount} | Email status: {submitResult.customerEmailStatus ?? submitResult.emailStatus}
+                      </p>
+                    </div>
+                  ) : null}
 
-                      <div className={`rounded-md border px-4 py-3 text-sm font-mono uppercase tracking-[0.12em] ${paymentCompleted ? 'border-emerald-400/45 bg-emerald-500/10 text-emerald-200' : 'border-amber-400/45 bg-amber-500/10 text-amber-200'}`}>
-                        {paymentCompleted ? 'Payment successful. Delivery email sent.' : 'Awaiting payment confirmation.'}
-                      </div>
+                  {submitNotice ? (
+                    <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs font-mono uppercase tracking-[0.12em] text-amber-200">
+                      {submitNotice}
+                    </div>
+                  ) : null}
 
-                      {isVirtuMartSession ? (
-                        <div className="rounded-md border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-xs font-mono uppercase tracking-[0.12em] text-cyan-200">
-                          Portal: {String(paymentPortalUsed).toUpperCase()} | Reference: {orderReferenceInput || normalizedVirtuMartOrderRef || 'N/A'}
-                        </div>
-                      ) : null}
+                  <div className="rounded-md border border-red-500/55 bg-red-500/15 px-4 py-3 text-sm font-black uppercase tracking-[0.12em] text-red-200 shadow-[0_0_18px_rgba(239,68,68,0.35)]">
+                    WARNING!!! SUBMITTING FAKE PAYMENT DETAILS WILL LEAD TO PERMANENT ACCOUNT BAN.
+                  </div>
 
-                      {submitNotice ? (
-                        <div className="rounded-md border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-xs font-mono uppercase tracking-[0.12em] text-cyan-200">
-                          {submitNotice}
-                        </div>
-                      ) : null}
+                  <div className="flex flex-col sm:flex-row gap-3 justify-between">
+                    <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
+                      <ArrowLeft size={15} /> Back
+                    </motion.button>
 
-                      {submitError ? (
-                        <div className="rounded-md border border-red-500/40 bg-red-500/10 px-4 py-3 text-xs font-mono uppercase tracking-[0.15em] text-red-300">
-                          {submitError}
-                        </div>
-                      ) : null}
+                    {submitResult?.ok ? (
+                      <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToHome} className="cyber-btn cyber-btn-secondary">
+                        <Home size={15} /> Home
+                      </motion.button>
+                    ) : null}
 
-                      <div className="flex flex-col sm:flex-row gap-3 justify-between">
-                        <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
-                          <ArrowLeft size={15} /> Back
-                        </motion.button>
-                        <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToHome} className="cyber-btn cyber-btn-secondary">
-                          <Home size={15} /> Home
-                        </motion.button>
-                      </div>
-                    </>
-                  )}
-                </div>
+                    <motion.button
+                      type="submit"
+                      whileHover={isSubmitting || selectedProducts.length === 0 ? undefined : { scale: 1.02 }}
+                      whileTap={isSubmitting || selectedProducts.length === 0 ? undefined : { scale: 0.98 }}
+                      disabled={isSubmitting || selectedProducts.length === 0}
+                      className="cyber-btn cyber-btn-primary"
+                    >
+                      {isSubmitting ? 'Sending Verification...' : 'Submit Verification'}
+                      {!isSubmitting ? <ArrowRight size={15} /> : null}
+                    </motion.button>
+                  </div>
+                </form>
               </CyberCard>
+
+              <div className="mt-8 flex justify-between items-center">
+                <button
+                  onClick={goToPreviousStage}
+                  className="text-gray-500 hover:text-cyan-400 font-mono text-xs uppercase tracking-widest flex items-center gap-2 transition-colors"
+                >
+                  ← Back to Payment Portal
+                </button>
+                <div className="flex items-center gap-2 text-magenta-400/60 font-mono text-[10px] uppercase">
+                  <ShieldCheck size={14} />
+                  End-to-End Encrypted Verification
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -1702,7 +1586,7 @@ export default function App() {
             © 2026 DMERCH PROTOCOL // ALL RIGHTS RESERVED // SYSTEM STATUS: OPTIMAL
           </p>
         </footer>
-      </main >
-    </div >
+      </main>
+    </div>
   );
 }

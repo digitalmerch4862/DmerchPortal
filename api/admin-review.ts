@@ -232,7 +232,7 @@ export default async function handler(req: any, res: any) {
     const currentStatus = String(lookup.data.email_status ?? '');
 
     if (action === 'reject') {
-      const status = appendStatusTag(currentStatus, 'review:rejected');
+      const status = appendStatusTag(appendStatusTag(currentStatus, 'review:rejected'), 'inbox:archived');
       await supabase.from('verification_orders').update({ email_status: status }).eq('id', lookup.data.id);
       return res.status(200).json({ ok: true, status: 'rejected' });
     }
@@ -261,7 +261,7 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    const status = appendStatusTag(currentStatus, 'review:approved');
+    const status = appendStatusTag(appendStatusTag(currentStatus, 'review:approved'), 'inbox:archived');
 
     const { error: updateError } = await supabase
       .from('verification_orders')

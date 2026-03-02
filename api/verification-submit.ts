@@ -434,7 +434,13 @@ export default async function handler(req: any, res: any) {
     const productName = products[0]?.name ?? String(payload.productName ?? '').trim();
     const referenceNo = String(payload.referenceNo ?? '').replace(/\D/g, '').slice(-6);
     const paymentPortalUsedRaw = String(payload.paymentPortalUsed ?? '').trim().toLowerCase();
-    const paymentPortalUsed = paymentPortalUsedRaw === 'gotyme' ? 'gotyme' : paymentPortalUsedRaw === 'gcash' ? 'gcash' : '';
+    const paymentPortalUsed = paymentPortalUsedRaw === 'gotyme'
+      ? 'gotyme'
+      : paymentPortalUsedRaw === 'paymongo'
+        ? 'paymongo'
+        : paymentPortalUsedRaw === 'gcash'
+          ? 'gcash'
+          : '';
     const paymentDetailUsed = String(payload.paymentDetailUsed ?? '').trim();
     const totalAmount = Number(payload.totalAmount ?? 0) || products.reduce((sum, item) => sum + item.amount, 0);
 
@@ -447,11 +453,18 @@ export default async function handler(req: any, res: any) {
     }
 
     if (!paymentPortalUsed) {
-      return res.status(400).json({ ok: false, error: 'Payment portal used is required (GCash or GoTyme).' });
+      return res.status(400).json({ ok: false, error: 'Payment portal used is required (GCash, PayMongo, or GoTyme).' });
     }
 
     if (!paymentDetailUsed) {
-      return res.status(400).json({ ok: false, error: paymentPortalUsed === 'gcash' ? 'GCash number used is required.' : 'GoTyme account name used is required.' });
+      return res.status(400).json({
+        ok: false,
+        error: paymentPortalUsed === 'gcash'
+          ? 'GCash number used is required.'
+          : paymentPortalUsed === 'paymongo'
+            ? 'PayMongo payment reference is required.'
+            : 'GoTyme account name used is required.',
+      });
     }
 
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
