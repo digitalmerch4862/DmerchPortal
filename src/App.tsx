@@ -465,7 +465,7 @@ export default function App() {
     window.localStorage.setItem(CHECKOUT_DRAFT_KEY, JSON.stringify(draft));
     window.localStorage.setItem(ADMIN_GOOGLE_SHORTCUT_KEY, '1');
     const redirectBaseUrl = resolveAuthRedirectBaseUrl();
-    const returnPath = `${window.location.pathname}${window.location.search}`;
+    const returnPath = window.location.pathname;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -661,6 +661,30 @@ export default function App() {
     }
     setStage((current) => (current > 1 ? ((current - 1) as FlowStage) : current));
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oauthError = String(params.get('error') ?? '').trim();
+    const oauthErrorCode = String(params.get('error_code') ?? '').trim();
+    const rawDescription = String(params.get('error_description') ?? '').trim();
+    if (!oauthError && !oauthErrorCode && !rawDescription) {
+      return;
+    }
+
+    let readableDescription = 'Google sign-in failed. Please try again.';
+    if (rawDescription) {
+      try {
+        readableDescription = decodeURIComponent(rawDescription.replace(/\+/g, ' '));
+      } catch {
+        readableDescription = rawDescription;
+      }
+    }
+
+    window.localStorage.removeItem(ADMIN_GOOGLE_SHORTCUT_KEY);
+    setAdminShortcutError(readableDescription);
+    const cleanUrl = `${window.location.pathname}${window.location.hash || ''}`;
+    window.history.replaceState({}, document.title, cleanUrl);
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
