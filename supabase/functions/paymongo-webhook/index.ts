@@ -36,6 +36,15 @@ const appendStatusTag = (currentStatus: string, tag: string) => {
 
 const isApprovedStatus = (status: string) => status.toLowerCase().includes('review:approved')
 
+const extractResendErrorMessage = (result: any): string | null => {
+  if (result?.error) {
+    if (typeof result.error === 'string') return result.error
+    if (typeof result.error === 'object' && result.error.message) return result.error.message
+    return JSON.stringify(result.error)
+  }
+  return null
+}
+
 const normalizeProductName = (value: string) => value.trim().toLowerCase().replace(/\s+/g, ' ')
 
 const getDistinctApprovedProductCount = (rows: Array<{ products_json: unknown }>) => {
@@ -255,18 +264,21 @@ serve(async (req) => {
       accessUrl,
     })
 
+    const resendResult = await resend.emails.send({
+      from: RESEND_FROM_EMAIL,
+      to: finalEmail,
+      subject: `DMerch Purchase Ready (${finalSerial})`,
+      html,
+    })
+
+    const resendError = extractResendErrorMessage(resendResult)
     let customerStatus = 'customer:sent'
-    try {
-      await resend.emails.send({
-        from: RESEND_FROM_EMAIL,
-        to: finalEmail,
-        subject: `DMerch Purchase Ready (${finalSerial})`,
-        html,
-      })
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : 'unknown_email_error'
-      customerStatus = `customer:failed:${reason}`
+    if (resendError) {
+      const cleanReason = resendError.replace(/[\r\n]+/g, ' ').slice(0, 200)
+      customerStatus = `customer:failed:${cleanReason}`
     }
+
+    console.log(`[Webhook] Event: ${eventType}, Serial: ${finalSerial}, Email: ${finalEmail}, Resend: ${customerStatus}`)
 
     const finalizedStatus = appendStatusTag(appendStatusTag(approvedStatus, customerStatus), 'payment:auto_approved')
     await supabase

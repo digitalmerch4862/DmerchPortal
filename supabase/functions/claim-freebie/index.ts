@@ -100,6 +100,15 @@ const appendStatusTag = (currentStatus: string, tag: string) => {
     return parts.join(' | ')
 }
 
+const extractResendErrorMessage = (result: any): string | null => {
+    if (result?.error) {
+        if (typeof result.error === 'string') return result.error
+        if (typeof result.error === 'object' && result.error.message) return result.error.message
+        return JSON.stringify(result.error)
+    }
+    return null
+}
+
 const buildReadyEmailHtml = ({
     username,
     serialNo,
@@ -292,18 +301,21 @@ serve(async (req) => {
             accessUrl,
         })
 
+        const resendResult = await resend.emails.send({
+            from: RESEND_FROM_EMAIL,
+            to: normalizedEmail,
+            subject: `DMerch Purchase Ready (${serialNo})`,
+            html,
+        })
+
+        const resendError = extractResendErrorMessage(resendResult)
         let customerStatus = 'customer:sent'
-        try {
-            await resend.emails.send({
-                from: RESEND_FROM_EMAIL,
-                to: normalizedEmail,
-                subject: `DMerch Purchase Ready (${serialNo})`,
-                html,
-            })
-        } catch (error) {
-            const reason = error instanceof Error ? error.message : 'unknown_email_error'
-            customerStatus = `customer:failed:${reason}`
+        if (resendError) {
+            const cleanReason = resendError.replace(/[\r\n]+/g, ' ').slice(0, 200)
+            customerStatus = `customer:failed:${cleanReason}`
         }
+
+        console.log(`[Freebie] Serial: ${serialNo}, Email: ${normalizedEmail}, Resend: ${customerStatus}`)
 
         const finalStatus = appendStatusTag(initialStatus, customerStatus)
         await supabase
