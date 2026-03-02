@@ -1,5 +1,5 @@
 import React, { FormEvent, useEffect, useMemo, useState, useCallback } from 'react';
-import { Download, ShieldCheck, X } from 'lucide-react';
+import { Download, ShieldCheck } from 'lucide-react';
 
 type DeliveryProduct = {
   name: string;
@@ -35,7 +35,7 @@ export default function Delivery() {
   // Modal state
   const [showModal, setShowModal] = useState(false);
   const [activeProduct, setActiveProduct] = useState<DeliveryProduct | null>(null);
-  const [modalPhase, setModalPhase] = useState<'confirm' | 'loading' | 'done' | 'error'>('confirm');
+  const [modalPhase, setModalPhase] = useState<'loading' | 'error'>('loading');
   const [progress, setProgress] = useState(0);
   const [modalError, setModalError] = useState('');
 
@@ -113,50 +113,47 @@ export default function Delivery() {
   const openDownloadModal = (product: DeliveryProduct) => {
     setActiveProduct(product);
     setShowModal(true);
-    setModalPhase('confirm');
+    setModalPhase('loading');
     setProgress(0);
     setModalError('');
+    void triggerSecureDownload(product.name);
   };
 
   const closeModal = useCallback(() => {
     setShowModal(false);
     setActiveProduct(null);
-    setModalPhase('confirm');
+    setModalPhase('loading');
     setProgress(0);
     setModalError('');
   }, []);
 
-  const triggerSecureDownload = useCallback(() => {
-    if (!activeProduct) return;
-    const productName = activeProduct.name;
-
-    setModalPhase('loading');
+  const triggerSecureDownload = useCallback(async (productName: string) => {
     setModalError('');
 
-    fetch('/api/delivery-download', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, productName }),
-    })
-      .then((r) => r.json())
-      .then((payload: { ok: boolean; redirectUrl?: string; error?: string; products?: DeliveryProduct[] }) => {
-        if (!payload.ok || !payload.redirectUrl) {
-          setModalError(payload.error ?? 'Download is not available.');
-          setModalPhase('error');
-          if (payload.products) setProducts(payload.products);
-          return;
-        }
-        if (payload.products) setProducts(payload.products);
-        setModalPhase('done');
-        // Navigate in same tab — browser triggers download dialog, no new tab opens
-        window.location.href = payload.redirectUrl;
-        setTimeout(() => closeModal(), 3000);
-      })
-      .catch(() => {
-        setModalError('Download failed. Please try again.');
-        setModalPhase('error');
+    try {
+      const response = await fetch('/api/delivery-download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, productName }),
       });
-  }, [activeProduct, token, closeModal]);
+      const payload = (await response.json()) as { ok: boolean; redirectUrl?: string; error?: string; products?: DeliveryProduct[] };
+
+      if (!payload.ok || !payload.redirectUrl) {
+        setModalError(payload.error ?? 'Download is not available.');
+        setModalPhase('error');
+        if (payload.products) setProducts(payload.products);
+        return;
+      }
+
+      if (payload.products) setProducts(payload.products);
+      // Navigate in same tab — browser triggers download dialog, no new tab opens
+      window.location.href = payload.redirectUrl;
+      window.setTimeout(() => closeModal(), 1200);
+    } catch {
+      setModalError('Download failed. Please try again.');
+      setModalPhase('error');
+    }
+  }, [token, closeModal]);
 
   // ---- INLINE STYLES (guaranteed to work, no CSS dependency) ----
   const overlayStyle: React.CSSProperties = {
@@ -260,7 +257,7 @@ export default function Delivery() {
 
       {/* ===== DOWNLOAD MODAL ===== */}
       {showModal && activeProduct && (
-        <div style={overlayStyle} onClick={() => { if (modalPhase === 'confirm') closeModal(); }}>
+        <div style={overlayStyle}>
           <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
             {/* Top accent bar */}
             <div style={{
@@ -268,25 +265,14 @@ export default function Delivery() {
               background: 'linear-gradient(90deg, transparent, #00f3ff, transparent)'
             }} />
 
-            {/* Close button (confirm phase only) */}
-            {modalPhase === 'confirm' && (
-              <button onClick={closeModal} style={{
-                position: 'absolute', top: '12px', right: '12px',
-                background: 'none', border: 'none', color: '#67e8f9', cursor: 'pointer', padding: '4px',
-              }}>
-                <X size={18} />
-              </button>
-            )}
-
             <h3 style={{
               fontSize: '16px', fontWeight: 700, color: '#e0f2fe',
               textTransform: 'uppercase', letterSpacing: '0.15em'
             }}>
-              Secure File Export
+              Preparing Download
             </h3>
 
             <p style={{ marginTop: '10px', fontSize: '13px', color: 'rgba(186, 230, 253, 0.75)' }}>
-              {modalPhase === 'confirm' && <><b style={{ color: '#fff' }}>{activeProduct.name}</b> — Ready to download</>}
               {modalPhase === 'loading' && (
                 <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{
@@ -296,31 +282,13 @@ export default function Delivery() {
                     borderRadius: '50%',
                     animation: 'spin 0.8s linear infinite',
                   }} />
-                  Securing your download — please wait a moment...
+                  Securing your file — please wait...
                 </span>
               )}
-              {modalPhase === 'done' && 'Download started! Check your Downloads folder.'}
               {modalPhase === 'error' && 'An error occurred during the download.'}
             </p>
 
             <div style={{ marginTop: '24px' }}>
-              {/* CONFIRM: Cancel + Save */}
-              {modalPhase === 'confirm' && (
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <button onClick={closeModal} style={{
-                    flex: 1, padding: '10px 16px', fontSize: '11px', fontWeight: 700,
-                    textTransform: 'uppercase', letterSpacing: '0.15em',
-                    color: '#67e8f9', background: 'transparent',
-                    border: '1px solid rgba(0, 243, 255, 0.3)',
-                    borderRadius: '8px', cursor: 'pointer',
-                  }}>Cancel</button>
-                  <button onClick={triggerSecureDownload} className="cyber-btn cyber-btn-primary"
-                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                    <Download size={14} /> Save File
-                  </button>
-                </div>
-              )}
-
               {/* LOADING: spinner only */}
               {modalPhase === 'loading' && (
                 <div style={{ textAlign: 'center', padding: '8px 0' }}>
@@ -333,22 +301,7 @@ export default function Delivery() {
                     animation: 'spin 0.9s linear infinite',
                   }} />
                   <p style={{ marginTop: '10px', fontSize: '11px', color: 'rgba(186,230,253,0.5)', fontFamily: 'monospace' }}>
-                    Your download will begin automatically. Check your Downloads folder.
-                  </p>
-                </div>
-              )}
-
-              {/* DONE: Success */}
-              {modalPhase === 'done' && (
-                <div style={{ textAlign: 'center' }}>
-                  <p style={{
-                    fontSize: '11px', color: '#34d399', fontFamily: 'monospace',
-                    textTransform: 'uppercase', letterSpacing: '0.15em'
-                  }}>
-                    ✓ Download Complete — 100%
-                  </p>
-                  <p style={{ fontSize: '11px', color: 'rgba(186, 230, 253, 0.5)', marginTop: '8px' }}>
-                    This modal will close automatically...
+                    Download will start automatically in this tab.
                   </p>
                 </div>
               )}
