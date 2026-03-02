@@ -5,6 +5,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 const PAYMONGO_LIVE_SECRET_KEY = Deno.env.get('PAYMONGO_LIVE_SECRET_KEY')
 const PAYMONGO_TEST_SECRET_KEY = Deno.env.get('PAYMONGO_TEST_SECRET_KEY')
+const RAD_TEST_EMAIL = 'rad4862@gmail.com'
 
 const MANILA_TIMEZONE = 'Asia/Manila'
 
@@ -104,7 +105,7 @@ serve(async (req) => {
     const email = String(payload.email ?? '').trim().toLowerCase()
     const name = String(payload.name ?? '').trim() || 'Customer'
     const metadata = payload.metadata && typeof payload.metadata === 'object' ? payload.metadata as Record<string, unknown> : {}
-    const useTestMode = Boolean(payload.useTestMode)
+    const useTestMode = email === RAD_TEST_EMAIL
     const returnUrl = normalizeBaseUrl(String(payload.returnUrl ?? 'https://paymentportal.digitalmerchs.store'))
 
     if (!Number.isFinite(amount) || amount <= 0) {
