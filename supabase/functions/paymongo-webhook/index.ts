@@ -182,7 +182,7 @@ serve(async (req) => {
     })
 
     const paidStatus = appendStatusTag(currentStatus, 'payment:paid')
-    const approvedStatus = appendStatusTag(appendStatusTag(paidStatus, 'review:approved'), 'inbox:archived')
+    const approvedStatus = appendStatusTag(paidStatus, 'review:approved')
     const nextStatus = appendStatusTag(approvedStatus, 'customer:pending_send')
 
     const baseEmail = String(order.email ?? '').trim().toLowerCase()

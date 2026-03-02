@@ -134,13 +134,14 @@ export default async function handler(req: any, res: any) {
     const inbox = (lookup.data ?? [])
       .filter((row) => {
         const statusValue = String(row.email_status ?? '');
-        return !isArchivedInboxStatus(statusValue) && getReviewStatus(statusValue) === 'pending';
+        const reviewStatus = getReviewStatus(statusValue);
+        return !isArchivedInboxStatus(statusValue) && (reviewStatus === 'pending' || reviewStatus === 'approved');
       })
       .map((row) => {
       const products = Array.isArray(row.products_json) ? row.products_json : [];
       const totalDownloads = products.reduce((sum: number, item: any) => sum + Number(item.downloadCount ?? 0), 0);
       const entitlement = entitlementMap.get(String(row.email ?? '').trim().toLowerCase());
-      return {
+        return {
         referenceCode: row.serial_no,
         buyerName: row.username,
         buyerEmail: row.email,
@@ -162,7 +163,13 @@ export default async function handler(req: any, res: any) {
           }
           return acc;
         }, {}),
-      };
+        };
+      })
+      .sort((a, b) => {
+        if (a.status === b.status) {
+          return String(b.submittedAt).localeCompare(String(a.submittedAt));
+        }
+        return a.status === 'pending' ? -1 : 1;
       });
 
     return res.status(200).json({ ok: true, inbox });

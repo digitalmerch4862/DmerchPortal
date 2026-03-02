@@ -803,6 +803,11 @@ export default function Admin() {
       return;
     }
 
+    if (item.status !== 'pending') {
+      alert(`Record ${item.referenceCode} is already ${item.status}.`);
+      return;
+    }
+
     setProcessingId(item.id);
     try {
       const response = await fetch('/api/admin-review', {
@@ -825,8 +830,7 @@ export default function Admin() {
       }
 
       const nextStatus = action === 'approve' ? 'approved' : 'rejected';
-      // Remove from inbox immediately for both approve and reject
-      setInboxItems((current) => current.filter((row) => row.id !== item.id));
+      setInboxItems((current) => current.map((row) => (row.id === item.id ? { ...row, status: nextStatus } : row)));
       setCrmItems((current) => current.map((row) => (row.referenceCode === item.referenceCode ? { ...row, status: nextStatus } : row)));
 
       alert(`Successfully ${action === 'approve' ? 'approved' : 'rejected'} ${item.referenceCode}`);
@@ -1270,6 +1274,10 @@ export default function Admin() {
               {inboxItems.length === 0 ? <p className="rounded-md border border-cyan-500/20 bg-black/25 px-3 py-4 text-xs text-cyan-200">No active inbox records. Click Refresh Inbox. If still empty, check sync error above.</p> : null}
               {inboxItems.map((item) => (
                 <motion.div key={item.id} layout className="rounded-lg border border-cyan-500/20 bg-black/35 p-3">
+                  {(() => {
+                    const isPending = item.status === 'pending';
+                    return (
+                      <>
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <p className="text-sm font-semibold text-cyan-100">{item.referenceCode}</p>
@@ -1292,8 +1300,9 @@ export default function Admin() {
                       <input
                         value={item.deliveryLink}
                         onChange={(event) => updateInbox(item.id, { deliveryLink: event.target.value })}
-                        className="w-full rounded-md border border-cyan-500/35 bg-black/35 px-3 py-2 text-xs focus:border-cyan-400 focus:outline-none pr-10"
+                        className="w-full rounded-md border border-cyan-500/35 bg-black/35 px-3 py-2 pr-10 text-xs focus:border-cyan-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                         placeholder={item.deliveryLink ? "Auto-mapped link detected..." : "Paste delivery link to send customer"}
+                        disabled={!isPending || processingId === item.id}
                       />
                       {item.deliveryLink && (
                         <div className="absolute right-2 top-1.5 text-[10px] text-emerald-400 font-mono flex items-center gap-1">
@@ -1313,18 +1322,24 @@ export default function Admin() {
                     <button
                       onClick={() => { void submitReview(item, 'approve'); }}
                       className="cyber-btn cyber-btn-primary"
-                      disabled={!item.deliveryLink.trim() || processingId === item.id}
+                      disabled={!isPending || !item.deliveryLink.trim() || processingId === item.id}
                     >
-                      {processingId === item.id ? 'Processing...' : <><CheckCircle2 size={14} /> Approve</>}
+                      {!isPending ? <><CheckCircle2 size={14} /> Approved</> : processingId === item.id ? 'Processing...' : <><CheckCircle2 size={14} /> Approve</>}
                     </button>
                     <button
                       onClick={() => { void submitReview(item, 'reject'); }}
                       className="cyber-btn cyber-btn-secondary"
-                      disabled={processingId === item.id}
+                      disabled={!isPending || processingId === item.id}
                     >
                       <ShieldAlert size={14} /> Reject
                     </button>
                   </div>
+                  {!isPending ? (
+                    <p className="mt-2 text-xs font-mono uppercase tracking-[0.12em] text-emerald-300">Already approved via payment webhook. Use clear/archive when done reviewing.</p>
+                  ) : null}
+                  </>
+                    );
+                  })()}
                 </motion.div>
               ))}
             </div>
