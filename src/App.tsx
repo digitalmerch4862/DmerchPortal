@@ -662,6 +662,33 @@ export default function App() {
     setStage((current) => (current > 1 ? ((current - 1) as FlowStage) : current));
   };
 
+  const persistCheckoutDraft = useCallback(() => {
+    const draft: CheckoutDraft = {
+      username: username.trim(),
+      email: email.trim(),
+      referenceNo: referenceNo.trim(),
+      selectedMethod,
+      paymentPortalUsed,
+      availedPortal: availedPortal || undefined,
+      orderReferenceInput: orderReferenceInput.trim(),
+      gcashNumberUsed: gcashNumberUsed.trim(),
+      gotymeAccountNameUsed: gotymeAccountNameUsed.trim(),
+      selectedProducts,
+    };
+    window.localStorage.setItem(CHECKOUT_DRAFT_KEY, JSON.stringify(draft));
+  }, [
+    availedPortal,
+    email,
+    gcashNumberUsed,
+    gotymeAccountNameUsed,
+    orderReferenceInput,
+    paymentPortalUsed,
+    referenceNo,
+    selectedMethod,
+    selectedProducts,
+    username,
+  ]);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const oauthError = String(params.get('error') ?? '').trim();
@@ -706,9 +733,31 @@ export default function App() {
       setConfirmedSerialNo(resolvedSerial);
     }
 
-    window.localStorage.removeItem(CHECKOUT_DRAFT_KEY);
+    setStage(2);
+    setPaymentCompleted(payment === 'success');
     window.localStorage.removeItem(PAYMONGO_SERIAL_KEY);
-    window.location.replace(`${window.location.origin}/`);
+
+    if (payment === 'success') {
+      window.localStorage.removeItem(CHECKOUT_DRAFT_KEY);
+      setSubmitError('');
+      setSubmitNotice('Payment received. Product link has been sent to your email.');
+      setSelectedProducts([]);
+      setSelectedProductName('');
+      setProductQuery('');
+      setLastSubmittedProducts([]);
+      setReferenceNo('');
+      setGcashNumberUsed('');
+      setGotymeAccountNameUsed('');
+    } else if (payment === 'failed') {
+      setSubmitNotice('');
+      setSubmitError('Payment failed. Please review your order and try again.');
+    } else {
+      setSubmitNotice('');
+      setSubmitError('Payment was cancelled. You can retry when ready.');
+    }
+
+    const cleanUrl = `${window.location.pathname}${window.location.hash || ''}`;
+    window.history.replaceState({}, document.title, cleanUrl);
   }, []);
 
   useEffect(() => {
@@ -1099,6 +1148,18 @@ export default function App() {
               transition={{ duration: 0.3 }}
             >
               <CyberCard title="Order Selection" icon={PackageSearch} color="magenta">
+                {submitNotice ? (
+                  <div className="mb-4 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-xs font-mono uppercase tracking-[0.12em] text-cyan-200">
+                    {submitNotice}
+                  </div>
+                ) : null}
+
+                {submitError ? (
+                  <div className="mb-4 rounded-md border border-red-500/40 bg-red-500/10 px-4 py-3 text-xs font-mono uppercase tracking-[0.15em] text-red-300">
+                    {submitError}
+                  </div>
+                ) : null}
+
                 <div ref={productPickerRef} className="relative z-10 rounded-xl border border-cyan-500/40 bg-[#0b111f]/80 p-4 shadow-[0_0_35px_rgba(0,195,255,0.1)]">
                   <div className="pointer-events-none absolute left-2 top-2 h-5 w-5 border-l-2 border-t-2 border-cyan-400/70" />
                   <div className="pointer-events-none absolute bottom-2 right-2 h-5 w-5 border-b-2 border-r-2 border-cyan-400/70" />
@@ -1358,6 +1419,7 @@ export default function App() {
                       whileHover={{ scale: 1.03 }}
                       whileTap={{ scale: 0.97 }}
                       onClick={async () => {
+                        persistCheckoutDraft();
                         setIsSubmitting(true);
                         setSubmitError('');
                         const isAdminTestCheckout = isRadTestSession;
