@@ -5,7 +5,7 @@
 
 import { type ComponentType, type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, Facebook, Youtube, Instagram, Search, Check, ShoppingCart, X, ArrowRight, ArrowLeft, Home } from 'lucide-react';
+import { ShieldCheck, Facebook, Youtube, Instagram, Search, Check, ShoppingCart, X, ArrowRight, ArrowLeft, Home, PackageSearch } from 'lucide-react';
 import gcashQr from './gcash-qr.png';
 import gotymeQr from './gotyme-qr.png';
 import { productCatalog, type ProductItem } from './data/products';
