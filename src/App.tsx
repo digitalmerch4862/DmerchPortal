@@ -693,6 +693,11 @@ export default function App() {
       return;
     }
 
+    const isPaymongoReturn = payment === 'success' || payment === 'cancelled' || payment === 'failed';
+    if (!isPaymongoReturn) {
+      return;
+    }
+
     const serialFromQuery = String(params.get('serial') ?? '').trim().toUpperCase();
     const serialFromStorage = String(window.localStorage.getItem(PAYMONGO_SERIAL_KEY) ?? '').trim().toUpperCase();
     const resolvedSerial = serialFromQuery || serialFromStorage;
@@ -701,21 +706,9 @@ export default function App() {
       setConfirmedSerialNo(resolvedSerial);
     }
 
-    if (payment === 'success') {
-      setPaymentCompleted(true);
-      setSubmitError('');
-      setSubmitNotice('Payment confirmed. Your download access email has been sent.');
-      setStage(4);
-      window.localStorage.removeItem(CHECKOUT_DRAFT_KEY);
-      window.localStorage.removeItem(PAYMONGO_SERIAL_KEY);
-    } else if (payment === 'cancelled') {
-      setPaymentCompleted(false);
-      setSubmitError('Payment was cancelled. You can retry checkout anytime.');
-      setStage(3);
-    }
-
-    const cleanUrl = `${window.location.pathname}`;
-    window.history.replaceState({}, document.title, cleanUrl);
+    window.localStorage.removeItem(CHECKOUT_DRAFT_KEY);
+    window.localStorage.removeItem(PAYMONGO_SERIAL_KEY);
+    window.location.replace(`${window.location.origin}/`);
   }, []);
 
   useEffect(() => {

@@ -23,8 +23,6 @@ const escapeHtml = (value: string) => value
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#39;')
 
-const formatPhpAmount = (amount: number) => `PHP ${Number(amount || 0).toFixed(2)}`
-
 const appendStatusTag = (currentStatus: string, tag: string) => {
   const parts = String(currentStatus ?? '')
     .split('|')
@@ -71,29 +69,12 @@ const createToken = async (payload: object, secret: string) => {
 const buildReadyEmailHtml = ({
   username,
   serialNo,
-  products,
-  totalAmount,
   accessUrl,
 }: {
   username: string;
   serialNo: string;
-  products: Array<{ name: string; amount: number }>;
-  totalAmount: number;
   accessUrl: string;
 }) => {
-  const productRows = products.length > 0
-    ? products
-      .map((item) => `
-        <tr>
-          <td style="font-size:14px;border-bottom:1px solid #eeeeee;padding:10px 12px;">${escapeHtml(item.name)}</td>
-          <td align="right" style="font-size:14px;border-bottom:1px solid #eeeeee;padding:10px 12px;">${formatPhpAmount(item.amount)}</td>
-        </tr>`)
-      .join('')
-    : `
-      <tr>
-        <td colspan="2" style="font-size:14px;border-bottom:1px solid #eeeeee;padding:10px 12px;color:#6b7280;">Digital products are being finalized.</td>
-      </tr>`
-
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
@@ -101,34 +82,14 @@ const buildReadyEmailHtml = ({
   <table border="0" cellpadding="0" cellspacing="0" width="100%">
     <tr><td style="padding:20px 0;">
       <table align="center" border="0" cellpadding="0" cellspacing="0" width="600" style="background:#fff;border:1px solid #ddd;border-radius:8px;overflow:hidden;">
-        <tr><td style="background:#0f172a;color:#fff;padding:30px 24px;">
+        <tr><td style="background:#111827;color:#fff;padding:30px 24px;">
           <h2 style="margin:0;font-size:22px;">Your DMerch Purchase is Ready</h2>
-          <p style="margin:8px 0 0;font-size:13px;opacity:0.9;">Payment confirmed and auto-approved</p>
         </td></tr>
-        <tr><td style="padding:24px;color:#333;line-height:1.6;font-size:14px;">
+        <tr><td style="padding:26px 24px;color:#333;line-height:1.6;font-size:14px;">
           <p>Hello <strong>${escapeHtml(username)}</strong>,</p>
-          <p>Your payment is successful and your order has been automatically approved.</p>
+          <p>Your verification request has been approved. Use the button below to securely access your downloads.</p>
           <p><strong>Order Serial:</strong> ${escapeHtml(serialNo)}</p>
-
-          <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #eeeeee;border-radius:6px;overflow:hidden;margin-top:14px;">
-            <thead>
-              <tr style="background:#fafafa;">
-                <th align="left" style="font-size:12px;color:#6b7280;padding:10px 12px;border-bottom:2px solid #eeeeee;">PRODUCT DESCRIPTION</th>
-                <th align="right" style="font-size:12px;color:#6b7280;padding:10px 12px;border-bottom:2px solid #eeeeee;">AMOUNT</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${productRows}
-              <tr style="background:#fcfcfc;">
-                <td align="right" style="font-size:14px;font-weight:700;padding:10px 12px;">Total Paid</td>
-                <td align="right" style="font-size:15px;font-weight:700;padding:10px 12px;">${formatPhpAmount(totalAmount)}</td>
-              </tr>
-            </tbody>
-          </table>
-
-          <p style="margin-top:20px;">
-            <a href="${accessUrl}" style="display:inline-block;padding:12px 18px;background:#0284c7;color:#fff;text-decoration:none;border-radius:6px;">Access Your Downloads</a>
-          </p>
+          <p><a href="${accessUrl}" style="display:inline-block;padding:12px 18px;background:#0284c7;color:#fff;text-decoration:none;border-radius:6px;">Access Your Downloads</a></p>
           <p style="font-size:12px;color:#666;">Use the same email and order serial if prompted for verification.</p>
         </td></tr>
       </table>
@@ -287,16 +248,10 @@ serve(async (req) => {
 
     const token = await createToken({ email: finalEmail, serialNo: finalSerial }, DELIVERY_TOKEN_SECRET)
     const accessUrl = `${APP_BASE_URL}/delivery?access=${encodeURIComponent(token)}`
-    const orderProducts = updatedProducts.map((item: any) => ({
-      name: String(item?.name ?? '').trim() || 'Digital Product',
-      amount: Number(item?.amount ?? 0),
-    }))
 
     const html = buildReadyEmailHtml({
       username: finalName,
       serialNo: finalSerial,
-      products: orderProducts,
-      totalAmount: Number(order.total_amount ?? 0),
       accessUrl,
     })
 
