@@ -22,6 +22,14 @@ type BuyerEntitlement = {
   is_unlimited: boolean;
 };
 
+type DownloadTicketPayload = {
+  ticketId: string;
+  email: string;
+  serialNo: string;
+  productName: string;
+  exp: number;
+};
+
 const readBody = async (req: any) => {
   if (typeof req.body === 'string') {
     return JSON.parse(req.body);
@@ -48,17 +56,35 @@ const decodeToken = (token: string, secret: string) => {
   }
 };
 
+const signDownloadTicket = (payload: DownloadTicketPayload, secret: string) => {
+  const encodedPayload = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+  const signature = crypto.createHmac('sha256', secret).update(encodedPayload).digest('base64url');
+  return `${encodedPayload}.${signature}`;
+};
+
 const isApprovedStatus = (status: string) => status.toLowerCase().includes('review:approved');
 
 const toDirectDownloadLink = (url: string) => {
-  if (!url.includes('drive.google.com')) return url;
+  if (!url.includes('drive.google.com')) {
+    return url;
+  }
 
-  // Match /file/d/ID/view or /file/d/ID
   const match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
   if (match && match[1]) {
-    return `https://drive.google.com/uc?export=download&id=${match[1]}&confirm=t`;
+    return `https://drive.usercontent.google.com/download?id=${match[1]}&export=download`;
   }
+
   return url;
+};
+
+const sanitizeFileName = (name: string) => {
+  const normalized = name.replace(/[^a-zA-Z0-9._ -]/g, '').trim();
+  if (!normalized) {
+    return 'digitalmerch-download.bin';
+  }
+
+  const hasExtension = /\.[a-zA-Z0-9]{2,6}$/.test(normalized);
+  return hasExtension ? normalized : `${normalized}.bin`;
 };
 
 const aggregateApprovedProducts = (rows: Array<{ products_json: unknown; serial_no: string }>) => {
@@ -198,25 +224,43 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ ok: false, error: 'No delivery link configured yet for this product.' });
     }
 
-    if (!entitlement.is_unlimited) {
-      const nextUsed = used + 1;
-      await supabase
-        .from('buyer_entitlements')
-        .upsert({
-          email: tokenPayload.email,
-          approved_product_count: Number(entitlement.approved_product_count ?? 0),
-          download_used: nextUsed,
-          download_limit: limit,
-          is_unlimited: false,
-        }, { onConflict: 'email' });
+    const ticketId = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 60 * 1000);
+    const sourceUrl = toDirectDownloadLink(targetLink);
+    const fileName = sanitizeFileName(target.name);
+
+    const insertTicket = await supabase
+      .from('delivery_download_tickets')
+      .insert({
+        ticket_id: ticketId,
+        email: tokenPayload.email,
+        serial_no: tokenPayload.serialNo,
+        product_name: target.name,
+        source_url: sourceUrl,
+        file_name: fileName,
+        expires_at: expiresAt.toISOString(),
+      });
+
+    if (insertTicket.error) {
+      return res.status(500).json({ ok: false, error: insertTicket.error.message });
     }
 
-    const nextUsed = entitlement.is_unlimited ? used : used + 1;
+    const downloadTicket = signDownloadTicket(
+      {
+        ticketId,
+        email: tokenPayload.email,
+        serialNo: tokenPayload.serialNo,
+        productName: target.name,
+        exp: Math.floor(expiresAt.getTime() / 1000),
+      },
+      tokenSecret,
+    );
 
     res.setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin']);
     return res.status(200).json({
       ok: true,
-      redirectUrl: toDirectDownloadLink(targetLink),
+      downloadTicket,
+      fileName,
       products: products.map((item) => ({
         name: item.name,
         amount: item.amount,
@@ -224,7 +268,7 @@ export default async function handler(req: any, res: any) {
       })),
       entitlement: {
         isUnlimited: Boolean(entitlement.is_unlimited),
-        downloadUsed: nextUsed,
+        downloadUsed: used,
         downloadLimit: limit,
       },
     });

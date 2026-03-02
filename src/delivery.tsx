@@ -136,9 +136,9 @@ export default function Delivery() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, productName }),
       });
-      const payload = (await response.json()) as { ok: boolean; redirectUrl?: string; error?: string; products?: DeliveryProduct[] };
+      const payload = (await response.json()) as { ok: boolean; downloadTicket?: string; error?: string; products?: DeliveryProduct[] };
 
-      if (!payload.ok || !payload.redirectUrl) {
+      if (!payload.ok || !payload.downloadTicket) {
         setModalError(payload.error ?? 'Download is not available.');
         setModalPhase('error');
         if (payload.products) setProducts(payload.products);
@@ -146,8 +146,16 @@ export default function Delivery() {
       }
 
       if (payload.products) setProducts(payload.products);
-      // Navigate in same tab — browser triggers download dialog, no new tab opens
-      window.location.href = payload.redirectUrl;
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = `/api/delivery-file?ticket=${encodeURIComponent(payload.downloadTicket)}`;
+      document.body.appendChild(iframe);
+      window.setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      }, 45000);
+
       window.setTimeout(() => closeModal(), 1200);
     } catch {
       setModalError('Download failed. Please try again.');
