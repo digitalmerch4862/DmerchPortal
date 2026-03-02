@@ -1386,9 +1386,17 @@ export default function App() {
 
                             const data = await response.json();
                             if (response.ok) {
+                              const resolvedSerial = String(data.serial_no ?? data.serialNo ?? '').trim().toUpperCase();
+                              if (resolvedSerial) {
+                                setConfirmedSerialNo(resolvedSerial);
+                              }
                               setPaymentCompleted(true);
-                              setSubmitNotice('Freebie claim is complete. Check your email for delivery details.');
-                              setStage(4);
+                              setSubmitNotice('Payment confirmed. Your delivery email has been sent. Redirecting to home...');
+                              setIsSubmitting(false);
+                              window.localStorage.removeItem(CHECKOUT_DRAFT_KEY);
+                              window.alert(`Payment confirmed.\nOrder Serial: ${resolvedSerial || 'PENDING-SERIAL'}\nPlease check your email for the download access link.`);
+                              window.location.replace(`${window.location.origin}/`);
+                              return;
                             } else {
                               throw new Error(data.error || 'Failed to claim freebie');
                             }
