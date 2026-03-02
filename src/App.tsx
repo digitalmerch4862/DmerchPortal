@@ -20,8 +20,16 @@ const ALLOWED_ADMIN_EMAILS = new Set(['rad4862@gmail.com', 'digitalmerch4862@gma
 const DIRECT_ADMIN_EMAIL = 'digitalmerch4862@gmail.com';
 const RAD_TEST_EMAIL = 'rad4862@gmail.com';
 const VIRTU_MART_EMAIL = 'virtumartph@gmail.com';
-const isVirtuMart = (value: string | null | undefined) =>
+const VIRTU_MART_USERNAME_PATTERNS = ['virtu mart', 'virtumart', 'virtumartph'];
+
+const isVirtuMartEmail = (value: string | null | undefined) =>
   String(value ?? '').trim().toLowerCase() === VIRTU_MART_EMAIL;
+
+const isVirtuMartUsername = (value: string | null | undefined) => {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (!normalized) return false;
+  return VIRTU_MART_USERNAME_PATTERNS.some((pattern) => normalized.includes(pattern));
+};
 
 const isAllowedAdminEmail = (value: string | null | undefined) => {
   const normalized = String(value ?? '').trim().toLowerCase();
@@ -264,7 +272,7 @@ export default function App() {
   const selectedQrSrc = selectedMethod === 'gcash' ? gcashQr : gotymeQr;
   const selectedQrFilename = selectedMethod === 'gcash' ? 'dmerch-gcash-qr.png' : 'dmerch-gotyme-qr.png';
   const activeAvailment = FAKE_AVAILMENTS[liveAvailmentIndex % FAKE_AVAILMENTS.length];
-  const isVirtuMartSession = isVirtuMart(googleSessionEmail);
+  const isVirtuMartSession = isVirtuMartEmail(googleSessionEmail) || isVirtuMartUsername(username) || isVirtuMartEmail(email);
   const isRadTestSession = String(googleSessionEmail).trim().toLowerCase() === RAD_TEST_EMAIL;
   const normalizedVirtuMartOrderRef = useMemo(() => {
     if (availedPortal === 'lazada') {
