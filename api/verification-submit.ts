@@ -436,11 +436,9 @@ export default async function handler(req: any, res: any) {
     const paymentPortalUsedRaw = String(payload.paymentPortalUsed ?? '').trim().toLowerCase();
     const paymentPortalUsed = paymentPortalUsedRaw === 'gotyme'
       ? 'gotyme'
-      : paymentPortalUsedRaw === 'paymongo'
-        ? 'paymongo'
-        : paymentPortalUsedRaw === 'gcash'
-          ? 'gcash'
-          : '';
+      : paymentPortalUsedRaw === 'gcash'
+        ? 'gcash'
+        : '';
     const paymentDetailUsed = String(payload.paymentDetailUsed ?? '').trim();
     const totalAmount = Number(payload.totalAmount ?? 0) || products.reduce((sum, item) => sum + item.amount, 0);
 
@@ -453,7 +451,7 @@ export default async function handler(req: any, res: any) {
     }
 
     if (!paymentPortalUsed) {
-      return res.status(400).json({ ok: false, error: 'Payment portal used is required (GCash, PayMongo, or GoTyme).' });
+      return res.status(400).json({ ok: false, error: 'Payment portal used is required (GCash or GoTyme).' });
     }
 
     if (!paymentDetailUsed) {
@@ -461,9 +459,7 @@ export default async function handler(req: any, res: any) {
         ok: false,
         error: paymentPortalUsed === 'gcash'
           ? 'GCash number used is required.'
-          : paymentPortalUsed === 'paymongo'
-            ? 'PayMongo payment reference is required.'
-            : 'GoTyme account name used is required.',
+          : 'GoTyme account name used is required.',
       });
     }
 

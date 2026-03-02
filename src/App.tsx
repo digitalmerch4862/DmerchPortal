@@ -66,8 +66,8 @@ type CheckoutDraft = {
   username: string;
   email: string;
   referenceNo: string;
-  selectedMethod: 'gcash' | 'paymongo' | 'gotyme';
-  paymentPortalUsed: 'gcash' | 'paymongo' | 'gotyme';
+  selectedMethod: 'gcash' | 'gotyme';
+  paymentPortalUsed: 'gcash' | 'gotyme';
   gcashNumberUsed: string;
   gotymeAccountNameUsed: string;
   selectedProducts: ProductItem[];
@@ -167,7 +167,7 @@ function CyberCard({ children, title, icon: Icon, color = 'cyan' }: { children: 
   );
 }
 
-function MethodCard({ method, id, compact = false, selectedMethod, onSelectMethod }: { method: 'gcash' | 'gotyme'; id: string; compact?: boolean; selectedMethod: 'gcash' | 'paymongo' | 'gotyme'; onSelectMethod: (method: 'gcash' | 'gotyme') => void }) {
+function MethodCard({ method, id, compact = false, selectedMethod, onSelectMethod }: { method: 'gcash' | 'gotyme'; id: string; compact?: boolean; selectedMethod: 'gcash' | 'gotyme'; onSelectMethod: (method: 'gcash' | 'gotyme') => void }) {
   const isActive = selectedMethod === method;
   const isGcash = method === 'gcash';
 
@@ -220,8 +220,8 @@ function MethodCard({ method, id, compact = false, selectedMethod, onSelectMetho
 
 export default function App() {
   const [stage, setStage] = useState<FlowStage>(1);
-  const [selectedMethod, setSelectedMethod] = useState<'gcash' | 'paymongo' | 'gotyme'>('gcash');
-  const [paymentPortalUsed, setPaymentPortalUsed] = useState<'gcash' | 'paymongo' | 'gotyme'>('gcash');
+  const [selectedMethod, setSelectedMethod] = useState<'gcash' | 'gotyme'>('gcash');
+  const [paymentPortalUsed, setPaymentPortalUsed] = useState<'gcash' | 'gotyme'>('gcash');
   const [gcashNumberUsed, setGcashNumberUsed] = useState('');
   const [gotymeAccountNameUsed, setGotymeAccountNameUsed] = useState('');
   const [username, setUsername] = useState('');
@@ -331,14 +331,10 @@ export default function App() {
         setSelectedProducts(products);
       }
 
-      const selectedMethodValue = parsed.selectedMethod === 'paymongo'
-        ? 'paymongo'
-        : parsed.selectedMethod === 'gotyme'
+      const selectedMethodValue = parsed.selectedMethod === 'gotyme'
           ? 'gotyme'
           : 'gcash';
-      const paymentPortalValue = parsed.paymentPortalUsed === 'paymongo'
-        ? 'paymongo'
-        : parsed.paymentPortalUsed === 'gotyme'
+      const paymentPortalValue = parsed.paymentPortalUsed === 'gotyme'
           ? 'gotyme'
           : 'gcash';
 
@@ -836,8 +832,6 @@ export default function App() {
     if (!paymentDetailUsed) {
       if (paymentPortalUsed === 'gcash') {
         setSubmitError('Enter the GCash number used for payment.');
-      } else if (paymentPortalUsed === 'paymongo') {
-        setSubmitError('Enter the PayMongo payment reference used for payment.');
       } else {
         setSubmitError('Enter the GoTyme account name used for payment.');
       }
@@ -1206,13 +1200,6 @@ export default function App() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setSelectedMethod('paymongo')}
-                    className={`rounded-md border px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.18em] transition-colors ${selectedMethod === 'paymongo' ? 'border-emerald-300 bg-emerald-500/15 text-emerald-100' : 'border-white/20 text-gray-300'}`}
-                  >
-                    PayMongo
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => setSelectedMethod('gotyme')}
                     className={`rounded-md border px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.18em] transition-colors ${selectedMethod === 'gotyme' ? 'border-cyan-300 bg-cyan-400/15 text-cyan-100' : 'border-white/20 text-gray-300'}`}
                   >
@@ -1235,15 +1222,7 @@ export default function App() {
                         transition={{ duration: 0.5, type: 'spring', stiffness: 100 }}
                         className="relative"
                       >
-                        {selectedMethod === 'paymongo' ? (
-                          <div className="relative bg-[#0a0a0a] rounded-lg p-6 border border-emerald-400/30 shadow-2xl">
-                            <div className="rounded-md border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-center">
-                              <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-emerald-200">PayMongo Portal</p>
-                              <p className="mt-2 text-sm text-emerald-100">Pay securely via PayMongo, then submit your payment reference on the confirmation stage for manual approval.</p>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="relative group">
+                        <div className="relative group">
                           <div className={`absolute -inset-2 bg-gradient-to-r ${selectedMethod === 'gcash' ? 'from-blue-500 to-cyan-500' : 'from-cyan-400 to-emerald-400'} rounded-lg blur opacity-40 group-hover:opacity-60 transition duration-1000`} />
                           <div className="relative bg-[#0a0a0a] rounded-lg p-3 sm:p-6 border border-white/10 flex flex-col items-center shadow-2xl">
                             <div className={`w-full ${selectedMethod === 'gcash' ? 'bg-[#007dfe]' : 'bg-[#00e5ff]'} py-2 sm:py-3 px-3 sm:px-6 rounded-t-md flex justify-between items-center shadow-lg`}>
@@ -1284,8 +1263,7 @@ export default function App() {
                               </button>
                             </div>
                           </div>
-                          </div>
-                        )}
+                        </div>
                       </motion.div>
                     </AnimatePresence>
                   </div>
@@ -1392,13 +1370,6 @@ export default function App() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setPaymentPortalUsed('paymongo')}
-                            className={`rounded-md border px-3 py-2 text-xs font-mono uppercase tracking-[0.16em] ${paymentPortalUsed === 'paymongo' ? 'border-[#ffb257] bg-[#ff8a00]/20 text-[#ffd2a1]' : 'border-[#ff8a00]/40 text-[#ffbd75]'}`}
-                          >
-                            PayMongo
-                          </button>
-                          <button
-                            type="button"
                             onClick={() => setPaymentPortalUsed('gotyme')}
                             className={`rounded-md border px-3 py-2 text-xs font-mono uppercase tracking-[0.16em] ${paymentPortalUsed === 'gotyme' ? 'border-[#ffb257] bg-[#ff8a00]/20 text-[#ffd2a1]' : 'border-[#ff8a00]/40 text-[#ffbd75]'}`}
                           >
@@ -1409,7 +1380,7 @@ export default function App() {
 
                       <label className="block">
                         <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">
-                          {paymentPortalUsed === 'gcash' ? 'GCash Number Used' : paymentPortalUsed === 'paymongo' ? 'PayMongo Payment Reference' : 'GoTyme Account Name Used'}
+                          {paymentPortalUsed === 'gcash' ? 'GCash Number Used' : 'GoTyme Account Name Used'}
                         </span>
                         <input
                           value={paymentPortalUsed === 'gcash' ? gcashNumberUsed : gotymeAccountNameUsed}
@@ -1422,7 +1393,7 @@ export default function App() {
                           }}
                           required
                           className="w-full rounded-md border border-[#ff8a00]/50 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-[#ffb257] focus:shadow-[0_0_18px_rgba(255,138,0,0.24)]"
-                          placeholder={paymentPortalUsed === 'gcash' ? 'e.g. 09XXXXXXXXX' : paymentPortalUsed === 'paymongo' ? 'e.g. pi_12345 or payment ref' : 'e.g. JUAN DELA CRUZ'}
+                          placeholder={paymentPortalUsed === 'gcash' ? 'e.g. 09XXXXXXXXX' : 'e.g. JUAN DELA CRUZ'}
                         />
                       </label>
                     </div>
