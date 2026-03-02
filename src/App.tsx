@@ -571,11 +571,11 @@ export default function App() {
 
   const canProceedFrom = (fromStage: FlowStage) => {
     if (fromStage === 1) {
-      return selectedProducts.length > 0;
+      return username.trim().length > 0 && isEmailValid;
     }
 
     if (fromStage === 2) {
-      return username.trim().length > 0 && isEmailValid;
+      return selectedProducts.length > 0;
     }
 
     if (fromStage === 3) {
@@ -586,8 +586,8 @@ export default function App() {
   };
 
   const stageErrorMessage: Record<FlowStage, string> = {
-    1: 'Add at least one product before proceeding to client details.',
-    2: 'Enter a valid username and email before proceeding to payment portal.',
+    1: 'Enter a valid username and email before proceeding to order.',
+    2: 'Add at least one product before proceeding to payment portal.',
     3: 'Select a payment portal before proceeding to confirmation.',
     4: '',
   };
@@ -910,8 +910,8 @@ export default function App() {
   };
 
   const stageItems: Array<{ id: FlowStage; title: string; mobileTitle: string }> = [
-    { id: 1, title: 'Order', mobileTitle: 'Order' },
-    { id: 2, title: 'Client Details', mobileTitle: 'Client' },
+    { id: 1, title: 'Client Details', mobileTitle: 'Client' },
+    { id: 2, title: 'Order', mobileTitle: 'Order' },
     { id: 3, title: 'Payment Portal', mobileTitle: 'Portal' },
     { id: 4, title: 'Confirmation', mobileTitle: 'Confirm' },
   ];
@@ -999,7 +999,7 @@ export default function App() {
         </div>
 
         <AnimatePresence mode="wait">
-          {stage === 1 ? (
+          {stage === 2 ? (
             <motion.div
               key="stage-1-order"
               initial={{ opacity: 0, x: -20 }}
@@ -1042,7 +1042,7 @@ export default function App() {
                                 key={`${product.name}-${product.amount}`}
                                 type="button"
                                 onClick={() => handleSelectProduct(product.name)}
-                                className={`flex w-full items-center justify-between border-b border-white/5 px-4 py-3 text-left transition last:border-b-0 ${isSelected ? 'bg-cyan-500/20 text-cyan-100' : 'text-gray-300 hover:bg-white/5'}`}
+                                className={`flex w-full cursor-pointer items-center justify-between border-b border-white/5 px-4 py-3 text-left transition last:border-b-0 ${isSelected ? 'bg-cyan-500/20 text-cyan-100' : 'text-gray-300 hover:bg-white/5'}`}
                               >
                                 <span className="pr-3 text-xs sm:text-sm">{product.name}</span>
                                 <span className="flex shrink-0 items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em]">
@@ -1109,13 +1109,16 @@ export default function App() {
                   <span className="text-xs font-mono uppercase tracking-[0.22em] text-cyan-200">
                     Products: {selectedProducts.length} | Total: PHP {totalAmount}
                   </span>
+                  <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
+                    <ArrowLeft size={15} /> Back
+                  </motion.button>
                   <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
-                    Next: Client Details <ArrowRight size={15} />
+                    Next: Payment Portal <ArrowRight size={15} />
                   </motion.button>
                 </div>
               </CyberCard>
             </motion.div>
-          ) : stage === 2 ? (
+          ) : stage === 1 ? (
             <motion.div
               key="stage-2-client"
               initial={{ opacity: 0, x: 20 }}
@@ -1177,12 +1180,9 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="mt-7 flex flex-col sm:flex-row items-center justify-between gap-3">
-                  <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
-                    <ArrowLeft size={15} /> Back
-                  </motion.button>
+                <div className="mt-7 flex flex-col sm:flex-row items-center justify-end gap-3">
                   <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
-                    Next: Payment Portal <ArrowRight size={15} />
+                    Next: Order <ArrowRight size={15} />
                   </motion.button>
                 </div>
               </CyberCard>
