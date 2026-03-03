@@ -244,7 +244,21 @@ export default async function handler(req: any, res: any) {
 
   const sourceResponse = await fetchDownloadStream(sourceUrl);
   if (!sourceResponse.ok) {
-    return res.status(502).send('Could not fetch file from source.');
+    const errorText = await sourceResponse.text().catch(() => '');
+    console.error('[delivery-file] Source fetch failed:', {
+      status: sourceResponse.status,
+      text: errorText.substring(0, 500),
+      url: sourceUrl
+    });
+    return res.status(502).send(`Error: Service could not retrieve the file (Status ${sourceResponse.status}). Please refresh and try again.`);
+  }
+
+  // If we still have HTML at this point, even after our retry logic in fetchDownloadStream, it's likely a persistent error page.
+  const sourceContentType = String(sourceResponse.headers.get('content-type') ?? '').toLowerCase();
+  if (sourceContentType.includes('text/html')) {
+    const htmlSnippet = await sourceResponse.text().catch(() => '');
+    console.error('[delivery-file] Persistent HTML response from source:', htmlSnippet.substring(0, 500));
+    return res.status(502).send('Error: Google Drive prevented a direct download. This can happen if the file is restricted or the quota is exceeded. Please message us on Facebook.');
   }
 
   const consumeTicket = await supabase

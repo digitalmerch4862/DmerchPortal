@@ -124,19 +124,13 @@ export default function Delivery() {
 
       // Cache buster for the download trigger
       const downloadUrl = `/api/delivery-file?ticket=${encodeURIComponent(payload.downloadTicket)}&cb=${Date.now()}`;
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      document.body.appendChild(iframe);
-      iframe.src = downloadUrl;
+
+      // Open in same tab or new one? User said "window open"
+      // window.open(downloadUrl, '_blank') is usually better for downloads to prevent navigation away.
+      window.open(downloadUrl, '_blank');
 
       setDownloadSuccess((prev) => ({ ...prev, [productName]: 'Downloading... Check your browser tray.' }));
       setTimeout(() => setDownloadSuccess((prev) => ({ ...prev, [productName]: '' })), 7000);
-
-      setTimeout(() => {
-        if (document.body.contains(iframe)) {
-          document.body.removeChild(iframe);
-        }
-      }, 60000);
     } catch (err: any) {
       console.error('Download error:', err);
       setDownloadErrors((prev) => ({
