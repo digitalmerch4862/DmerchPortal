@@ -72,38 +72,56 @@ const pickFilename = (contentDisposition: string | null, fallback: string) => {
 const extractGoogleConfirmUrl = (html: string, baseUrl: string) => {
   const decodedHtml = html.replace(/&amp;/g, '&');
 
-  const fullMatch = decodedHtml.match(/https:\/\/drive\.usercontent\.google\.com\/download[^"'\s]+/i);
-  if (fullMatch && fullMatch[0]) {
-    return fullMatch[0];
-  }
+  // Try to find the download link in various formats
+  const patterns = [
+    /https:\/\/drive\.usercontent\.google\.com\/download[^"'\s]+/i,
+    /href="([^"]*confirm=[^"]*)"/i,
+    /confirm=([^"&\s]+)/i,
+    /id="uc-download-link" href="([^"]+)"/i
+  ];
 
-  const hrefMatch = decodedHtml.match(/href="([^"]*confirm=[^"]*)"/i);
-  if (hrefMatch && hrefMatch[1]) {
-    return new URL(hrefMatch[1], baseUrl).toString();
+  for (const pattern of patterns) {
+    const match = decodedHtml.match(pattern);
+    if (match && match[0]) {
+      let url = match[1] || match[0];
+      if (url.startsWith('/')) {
+        url = new URL(url, baseUrl).toString();
+      }
+      return url;
+    }
   }
 
   return '';
 };
 
 const fetchDownloadStream = async (sourceUrl: string) => {
-  let response = await fetch(sourceUrl, { redirect: 'follow' });
+  let response = await fetch(sourceUrl, {
+    redirect: 'follow',
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+  });
+
   const contentType = String(response.headers.get('content-type') ?? '').toLowerCase();
 
-  if (!contentType.includes('text/html')) {
-    return response;
+  // If it's a small HTML page, it might be a Google Drive warning page
+  if (contentType.includes('text/html')) {
+    const html = await response.text();
+    const confirmUrl = extractGoogleConfirmUrl(html, sourceUrl);
+    if (confirmUrl) {
+      console.log('[delivery-file] found Google confirmation URL, retrying...');
+      const cookie = response.headers.get('set-cookie');
+      return fetch(confirmUrl, {
+        redirect: 'follow',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          cookie: cookie || ''
+        }
+      });
+    }
+    // If it's HTML but not a confirmation page, it might be an error or a tiny file
+    return new Response(html, { status: response.status, headers: response.headers });
   }
-
-  const html = await response.text();
-  const confirmUrl = extractGoogleConfirmUrl(html, sourceUrl);
-  if (!confirmUrl) {
-    return new Response('Remote file host blocked direct download.', { status: 502, headers: { 'Content-Type': 'text/plain' } });
-  }
-
-  const cookie = response.headers.get('set-cookie');
-  response = await fetch(confirmUrl, {
-    redirect: 'follow',
-    headers: cookie ? { cookie } : undefined,
-  });
 
   return response;
 };

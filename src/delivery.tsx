@@ -126,8 +126,8 @@ export default function Delivery() {
       const downloadUrl = `/api/delivery-file?ticket=${encodeURIComponent(payload.downloadTicket)}&cb=${Date.now()}`;
       const iframe = document.createElement('iframe');
       iframe.style.display = 'none';
-      iframe.src = downloadUrl;
       document.body.appendChild(iframe);
+      iframe.src = downloadUrl;
 
       setDownloadSuccess((prev) => ({ ...prev, [productName]: 'Downloading... Check your browser tray.' }));
       setTimeout(() => setDownloadSuccess((prev) => ({ ...prev, [productName]: '' })), 7000);
