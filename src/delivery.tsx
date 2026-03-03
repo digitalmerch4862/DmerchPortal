@@ -121,18 +121,18 @@ export default function Delivery() {
 
       if (payload.products) setProducts(payload.products);
 
-      // Use hidden anchor tag for more reliable cross-browser direct downloading
+      // Use hidden iframe to trigger the download without navigating the main window
       const downloadUrl = `/api/delivery-file?ticket=${encodeURIComponent(payload.downloadTicket)}`;
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      document.body.appendChild(link);
-      link.click();
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = downloadUrl;
+      document.body.appendChild(iframe);
 
       setTimeout(() => {
-        if (document.body.contains(link)) {
-          document.body.removeChild(link);
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
         }
-      }, 100);
+      }, 60000); // Wait 1 minute before cleanup
     } catch (err: any) {
       console.error('Download error:', err);
       setDownloadErrors((prev) => ({
