@@ -190,8 +190,12 @@ export default async function handler(req: any, res: any) {
   if (
     String(row.email).toLowerCase() !== parsed.email.toLowerCase()
     || String(row.serial_no).toUpperCase() !== parsed.serialNo.toUpperCase()
-    || String(row.product_name) !== parsed.productName
+    || String(row.product_name).trim().toLowerCase() !== String(parsed.productName).trim().toLowerCase()
   ) {
+    console.error('[delivery-file] ticket mismatch', {
+      db: { email: row.email, serial: row.serial_no, product: row.product_name },
+      token: { email: parsed.email, serial: parsed.serialNo, product: parsed.productName }
+    });
     return res.status(401).send('Ticket mismatch.');
   }
 
