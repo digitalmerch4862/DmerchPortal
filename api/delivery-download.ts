@@ -87,6 +87,25 @@ const sanitizeFileName = (name: string) => {
   return hasExtension ? normalized : `${normalized}.bin`;
 };
 
+const isMissingTicketTableError = (error: { code?: string; message?: string; details?: string; hint?: string } | null | undefined) => {
+  if (!error) {
+    return false;
+  }
+
+  if (error.code === 'PGRST205') {
+    return true;
+  }
+
+  const text = `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''}`.toLowerCase();
+  return text.includes('delivery_download_tickets')
+    && (
+      text.includes('schema cache')
+      || text.includes('relation')
+      || text.includes('does not exist')
+      || text.includes('could not find the table')
+    );
+};
+
 const aggregateApprovedProducts = (rows: Array<{ products_json: unknown; serial_no: string }>) => {
   const byKey = new Map<string, { name: string; amount: number; os?: string; fileLink?: string; serialNo: string }>();
   for (const row of rows) {
@@ -242,7 +261,26 @@ export default async function handler(req: any, res: any) {
       });
 
     if (insertTicket.error) {
-      return res.status(500).json({ ok: false, error: insertTicket.error.message });
+      console.error('[delivery-download] ticket insert failed', {
+        code: insertTicket.error.code,
+        message: insertTicket.error.message,
+        details: insertTicket.error.details,
+        hint: insertTicket.error.hint,
+      });
+
+      if (isMissingTicketTableError(insertTicket.error)) {
+        return res.status(503).json({
+          ok: false,
+          error: 'Download service is temporarily unavailable. Please try again later.',
+          code: 'DOWNLOAD_SERVICE_UNAVAILABLE',
+        });
+      }
+
+      return res.status(500).json({
+        ok: false,
+        error: 'Unable to prepare download right now. Please try again.',
+        code: 'DOWNLOAD_PREPARE_FAILED',
+      });
     }
 
     const downloadTicket = signDownloadTicket(

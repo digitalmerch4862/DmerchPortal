@@ -16,13 +16,6 @@ type DeliveryAuthResponse = {
   error?: string;
 };
 
-const DOWNLOAD_STATUS_STEPS = [
-  'Verifying your order...',
-  'Authenticating access...',
-  'Securing download link...',
-  'Almost ready — hang tight...',
-];
-
 export default function Delivery() {
   const [email, setEmail] = useState('');
   const [serialNo, setSerialNo] = useState('');
@@ -31,13 +24,8 @@ export default function Delivery() {
   const [status, setStatus] = useState('Authenticate using your email and order serial to access your downloads.');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  // Modal state
-  const [showModal, setShowModal] = useState(false);
-  const [activeProduct, setActiveProduct] = useState<DeliveryProduct | null>(null);
-  const [modalPhase, setModalPhase] = useState<'loading' | 'error'>('loading');
-  const [progress, setProgress] = useState(0);
-  const [modalError, setModalError] = useState('');
+  const [downloadingProduct, setDownloadingProduct] = useState('');
+  const [downloadErrors, setDownloadErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -110,25 +98,9 @@ export default function Delivery() {
     }
   };
 
-  const openDownloadModal = (product: DeliveryProduct) => {
-    setActiveProduct(product);
-    setShowModal(true);
-    setModalPhase('loading');
-    setProgress(0);
-    setModalError('');
-    void triggerSecureDownload(product.name);
-  };
-
-  const closeModal = useCallback(() => {
-    setShowModal(false);
-    setActiveProduct(null);
-    setModalPhase('loading');
-    setProgress(0);
-    setModalError('');
-  }, []);
-
   const triggerSecureDownload = useCallback(async (productName: string) => {
-    setModalError('');
+    setDownloadErrors((prev) => ({ ...prev, [productName]: '' }));
+    setDownloadingProduct(productName);
 
     try {
       const response = await fetch('/api/delivery-download', {
@@ -139,8 +111,10 @@ export default function Delivery() {
       const payload = (await response.json()) as { ok: boolean; downloadTicket?: string; error?: string; products?: DeliveryProduct[] };
 
       if (!payload.ok || !payload.downloadTicket) {
-        setModalError(payload.error ?? 'Download is not available.');
-        setModalPhase('error');
+        setDownloadErrors((prev) => ({
+          ...prev,
+          [productName]: payload.error ?? 'Download is not available right now. Please try again.',
+        }));
         if (payload.products) setProducts(payload.products);
         return;
       }
@@ -155,46 +129,15 @@ export default function Delivery() {
           document.body.removeChild(iframe);
         }
       }, 45000);
-
-      window.setTimeout(() => closeModal(), 1200);
     } catch {
-      setModalError('Download failed. Please try again.');
-      setModalPhase('error');
+      setDownloadErrors((prev) => ({
+        ...prev,
+        [productName]: 'Download failed. Please try again.',
+      }));
+    } finally {
+      setDownloadingProduct('');
     }
-  }, [token, closeModal]);
-
-  // ---- INLINE STYLES (guaranteed to work, no CSS dependency) ----
-  const overlayStyle: React.CSSProperties = {
-    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-    background: 'rgba(0, 5, 10, 0.9)',
-    backdropFilter: 'blur(10px)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    zIndex: 9999, padding: '20px',
-  };
-
-  const modalStyle: React.CSSProperties = {
-    width: '100%', maxWidth: '460px',
-    background: '#071018',
-    border: '1px solid rgba(0, 243, 255, 0.4)',
-    boxShadow: '0 0 60px rgba(0, 243, 255, 0.2), inset 0 0 20px rgba(0, 243, 255, 0.05)',
-    borderRadius: '16px', padding: '28px',
-    position: 'relative', overflow: 'hidden',
-  };
-
-  const progressContainerStyle: React.CSSProperties = {
-    width: '100%', height: '8px',
-    background: 'rgba(0, 243, 255, 0.1)',
-    borderRadius: '4px', overflow: 'hidden',
-    border: '1px solid rgba(0, 243, 255, 0.2)',
-  };
-
-  const progressBarStyle: React.CSSProperties = {
-    height: '100%', width: `${progress}%`,
-    background: 'linear-gradient(90deg, #00f3ff, #39f4b8, #ff00ff)',
-    backgroundSize: '200% 100%',
-    boxShadow: '0 0 12px rgba(0, 243, 255, 0.5)',
-    transition: 'width 0.08s linear',
-  };
+  }, [token]);
 
   return (
     <div className="min-h-screen bg-[#050505] text-white px-4 py-10">
@@ -252,9 +195,13 @@ export default function Delivery() {
                   <p className="mt-1 text-xs text-cyan-200">OS: {product.os ?? 'Multi'} | Amount: PHP {product.amount}</p>
                   <div className="mt-3">
                     <button type="button" className="cyber-btn cyber-btn-primary"
-                      onClick={() => openDownloadModal(product)}>
-                      <Download size={14} /> Download
+                      onClick={() => { void triggerSecureDownload(product.name); }}
+                      disabled={downloadingProduct === product.name}>
+                      <Download size={14} /> {downloadingProduct === product.name ? 'Starting...' : 'Download'}
                     </button>
+                    {downloadErrors[product.name] ? (
+                      <p className="mt-2 text-xs text-red-300">{downloadErrors[product.name]}</p>
+                    ) : null}
                   </div>
                 </div>
               ))}
@@ -262,77 +209,6 @@ export default function Delivery() {
           </section>
         )}
       </main>
-
-      {/* ===== DOWNLOAD MODAL ===== */}
-      {showModal && activeProduct && (
-        <div style={overlayStyle}>
-          <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
-            {/* Top accent bar */}
-            <div style={{
-              position: 'absolute', top: 0, left: 0, width: '100%', height: '2px',
-              background: 'linear-gradient(90deg, transparent, #00f3ff, transparent)'
-            }} />
-
-            <h3 style={{
-              fontSize: '16px', fontWeight: 700, color: '#e0f2fe',
-              textTransform: 'uppercase', letterSpacing: '0.15em'
-            }}>
-              Preparing Download
-            </h3>
-
-            <p style={{ marginTop: '10px', fontSize: '13px', color: 'rgba(186, 230, 253, 0.75)' }}>
-              {modalPhase === 'loading' && (
-                <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{
-                    display: 'inline-block', width: '12px', height: '12px',
-                    border: '2px solid rgba(0,243,255,0.3)',
-                    borderTop: '2px solid #00f3ff',
-                    borderRadius: '50%',
-                    animation: 'spin 0.8s linear infinite',
-                  }} />
-                  Securing your file — please wait...
-                </span>
-              )}
-              {modalPhase === 'error' && 'An error occurred during the download.'}
-            </p>
-
-            <div style={{ marginTop: '24px' }}>
-              {/* LOADING: spinner only */}
-              {modalPhase === 'loading' && (
-                <div style={{ textAlign: 'center', padding: '8px 0' }}>
-                  <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-                  <div style={{
-                    display: 'inline-block', width: '32px', height: '32px',
-                    border: '3px solid rgba(0,243,255,0.2)',
-                    borderTop: '3px solid #00f3ff',
-                    borderRadius: '50%',
-                    animation: 'spin 0.9s linear infinite',
-                  }} />
-                  <p style={{ marginTop: '10px', fontSize: '11px', color: 'rgba(186,230,253,0.5)', fontFamily: 'monospace' }}>
-                    Download will start automatically in this tab.
-                  </p>
-                </div>
-              )}
-
-              {/* ERROR */}
-              {modalPhase === 'error' && (
-                <div>
-                  <p style={{ fontSize: '12px', color: '#f87171', textAlign: 'center', marginBottom: '12px' }}>
-                    {modalError}
-                  </p>
-                  <button onClick={closeModal} style={{
-                    width: '100%', padding: '10px', fontSize: '11px', fontWeight: 700,
-                    textTransform: 'uppercase', letterSpacing: '0.1em',
-                    color: '#67e8f9', background: 'transparent',
-                    border: '1px solid rgba(0, 243, 255, 0.3)',
-                    borderRadius: '8px', cursor: 'pointer',
-                  }}>Close</button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

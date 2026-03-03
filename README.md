@@ -21,10 +21,16 @@ View your app in AI Studio: https://ai.studio/apps/135be59a-af92-4139-a395-68210
 
 ## Verification API setup
 
-1. Run `supabase/migrations/0001_verification_orders.sql` and then `supabase/migrations/0002_verification_orders_multi_products.sql` in your Supabase SQL editor.
+1. Run these SQL scripts in your Supabase SQL editor (in this order):
+   - `supabase/migrations/0001_verification_orders.sql`
+   - `supabase/migrations/0002_verification_orders_multi_products.sql`
+   - `db/20260226_create_buyer_entitlements.sql`
+   - `db/20260303_create_delivery_download_tickets.sql`
 2. Configure server environment variables in Vercel:
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `RESEND_API_KEY`
    - `RESEND_FROM_EMAIL`
    - `ADMIN_EMAIL`
+   - `DELIVERY_TOKEN_SECRET`
+   - `BYPASS_DOWNLOAD_LIMIT`

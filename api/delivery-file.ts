@@ -108,6 +108,25 @@ const fetchDownloadStream = async (sourceUrl: string) => {
   return response;
 };
 
+const isMissingTicketTableError = (error: { code?: string; message?: string; details?: string; hint?: string } | null | undefined) => {
+  if (!error) {
+    return false;
+  }
+
+  if (error.code === 'PGRST205') {
+    return true;
+  }
+
+  const text = `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''}`.toLowerCase();
+  return text.includes('delivery_download_tickets')
+    && (
+      text.includes('schema cache')
+      || text.includes('relation')
+      || text.includes('does not exist')
+      || text.includes('could not find the table')
+    );
+};
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') {
     return res.status(405).send('Method not allowed.');
@@ -142,7 +161,20 @@ export default async function handler(req: any, res: any) {
     .eq('ticket_id', parsed.ticketId)
     .single();
 
-  if (ticketLookup.error || !ticketLookup.data) {
+  if (ticketLookup.error) {
+    console.error('[delivery-file] ticket lookup failed', {
+      code: ticketLookup.error.code,
+      message: ticketLookup.error.message,
+      details: ticketLookup.error.details,
+      hint: ticketLookup.error.hint,
+    });
+
+    if (isMissingTicketTableError(ticketLookup.error)) {
+      return res.status(503).send('Download service is temporarily unavailable. Please try again later.');
+    }
+  }
+
+  if (!ticketLookup.data) {
     return res.status(404).send('Ticket not found.');
   }
 
@@ -201,7 +233,20 @@ export default async function handler(req: any, res: any) {
     .select('ticket_id')
     .single();
 
-  if (consumeTicket.error || !consumeTicket.data) {
+  if (consumeTicket.error) {
+    console.error('[delivery-file] consume ticket failed', {
+      code: consumeTicket.error.code,
+      message: consumeTicket.error.message,
+      details: consumeTicket.error.details,
+      hint: consumeTicket.error.hint,
+    });
+
+    if (isMissingTicketTableError(consumeTicket.error)) {
+      return res.status(503).send('Download service is temporarily unavailable. Please try again later.');
+    }
+  }
+
+  if (!consumeTicket.data) {
     return res.status(409).send('Ticket already consumed.');
   }
 
