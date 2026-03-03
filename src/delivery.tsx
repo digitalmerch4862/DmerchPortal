@@ -25,6 +25,7 @@ export default function Delivery() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [downloadingProduct, setDownloadingProduct] = useState('');
+  const [downloadSuccess, setDownloadSuccess] = useState<Record<string, string>>({});
   const [downloadErrors, setDownloadErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -121,18 +122,21 @@ export default function Delivery() {
 
       if (payload.products) setProducts(payload.products);
 
-      // Use hidden iframe to trigger the download without navigating the main window
-      const downloadUrl = `/api/delivery-file?ticket=${encodeURIComponent(payload.downloadTicket)}`;
+      // Cache buster for the download trigger
+      const downloadUrl = `/api/delivery-file?ticket=${encodeURIComponent(payload.downloadTicket)}&cb=${Date.now()}`;
       const iframe = document.createElement('iframe');
       iframe.style.display = 'none';
       iframe.src = downloadUrl;
       document.body.appendChild(iframe);
 
+      setDownloadSuccess((prev) => ({ ...prev, [productName]: 'Downloading... Check your browser tray.' }));
+      setTimeout(() => setDownloadSuccess((prev) => ({ ...prev, [productName]: '' })), 7000);
+
       setTimeout(() => {
         if (document.body.contains(iframe)) {
           document.body.removeChild(iframe);
         }
-      }, 60000); // Wait 1 minute before cleanup
+      }, 60000);
     } catch (err: any) {
       console.error('Download error:', err);
       setDownloadErrors((prev) => ({
@@ -204,6 +208,9 @@ export default function Delivery() {
                       disabled={downloadingProduct === product.name}>
                       <Download size={14} /> {downloadingProduct === product.name ? 'Starting...' : 'Download'}
                     </button>
+                    {downloadSuccess[product.name] ? (
+                      <p className="mt-2 text-xs text-green-400 font-medium">{downloadSuccess[product.name]}</p>
+                    ) : null}
                     {downloadErrors[product.name] ? (
                       <p className="mt-2 text-xs text-red-300">{downloadErrors[product.name]}</p>
                     ) : null}

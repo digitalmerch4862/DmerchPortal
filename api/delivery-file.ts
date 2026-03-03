@@ -273,23 +273,23 @@ export default async function handler(req: any, res: any) {
   res.setHeader('Content-Type', contentType);
   res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
 
-  // Stream the response directly from the source to the client
   if (!sourceResponse.body) {
+    console.error('[delivery-file] source body null');
     return res.status(502).send('Source produced no body.');
   }
 
-  // Use the native Web Streams API to pipe to the Node.js response
-  const reader = sourceResponse.body.getReader();
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    res.write(value);
+  try {
+    const reader = (sourceResponse.body as any).getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(value);
+    }
+    res.end();
+  } catch (err: any) {
+    console.error('[delivery-file] stream error:', err.message);
+    if (!res.writableEnded) res.end();
   }
-
-  return res.end();
 }
