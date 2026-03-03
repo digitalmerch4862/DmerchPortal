@@ -70,22 +70,33 @@ const pickFilename = (contentDisposition: string | null, fallback: string) => {
 };
 
 const extractGoogleConfirmUrl = (html: string, baseUrl: string) => {
-  const decodedHtml = html.replace(/&amp;/g, '&');
-
   // Try to find the download link in various formats
+  // We decode common HTML entities first
+  const decodedHtml = html.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+
   const patterns = [
     /https:\/\/drive\.usercontent\.google\.com\/download[^"'\s]+/i,
+    /https:\/\/drive\.google\.com\/uc\?id=[^&]+&export=download&confirm=[^"'\s&]+/i,
+    /https:\/\/drive\.google\.com\/u\/[0-9]+\/uc\?id=[^&]+&export=download&confirm=[^"'\s&]+/i,
     /href="([^"]*confirm=[^"]*)"/i,
-    /confirm=([^"&\s]+)/i,
-    /id="uc-download-link" href="([^"]+)"/i
+    /confirm=([^"&\s<>\|]+)/i,
+    /id="uc-download-link" href="([^"]+)"/i,
+    /action="([^"]*confirm=[^"]*)"/i
   ];
 
   for (const pattern of patterns) {
     const match = decodedHtml.match(pattern);
-    if (match && match[0]) {
+    if (match) {
       let url = match[1] || match[0];
       if (url.startsWith('/')) {
         url = new URL(url, baseUrl).toString();
+      }
+      // If it's just the confirm code, we need to rebuild the URL
+      if (url.length < 20 && !url.includes('http')) {
+        const idMatch = baseUrl.match(/id=([a-zA-Z0-9_-]+)/);
+        if (idMatch) {
+          return `https://drive.google.com/uc?id=${idMatch[1]}&export=download&confirm=${url}`;
+        }
       }
       return url;
     }
@@ -98,7 +109,7 @@ const fetchDownloadStream = async (sourceUrl: string) => {
   let response = await fetch(sourceUrl, {
     redirect: 'follow',
     headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
     }
   });
 
@@ -110,12 +121,15 @@ const fetchDownloadStream = async (sourceUrl: string) => {
     const confirmUrl = extractGoogleConfirmUrl(html, sourceUrl);
     if (confirmUrl) {
       console.log('[delivery-file] found Google confirmation URL, retrying...');
-      const cookie = response.headers.get('set-cookie');
+      // Combine all set-cookie headers
+      const cookies = response.headers.get('set-cookie') || '';
+
       return fetch(confirmUrl, {
         redirect: 'follow',
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          cookie: cookie || ''
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Referer': sourceUrl,
+          'Cookie': cookies
         }
       });
     }
