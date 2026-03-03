@@ -273,6 +273,19 @@ export default async function handler(req: any, res: any) {
   res.setHeader('Expires', '0');
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
 
-  const arrayBuffer = await sourceResponse.arrayBuffer();
-  return res.status(200).send(Buffer.from(arrayBuffer));
+  // Stream the response directly from the source to the client
+  if (!sourceResponse.body) {
+    return res.status(502).send('Source produced no body.');
+  }
+
+  // Use the native Web Streams API to pipe to the Node.js response
+  const reader = sourceResponse.body.getReader();
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    res.write(value);
+  }
+
+  return res.end();
 }

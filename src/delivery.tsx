@@ -120,19 +120,24 @@ export default function Delivery() {
       }
 
       if (payload.products) setProducts(payload.products);
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.src = `/api/delivery-file?ticket=${encodeURIComponent(payload.downloadTicket)}`;
-      document.body.appendChild(iframe);
-      window.setTimeout(() => {
-        if (document.body.contains(iframe)) {
-          document.body.removeChild(iframe);
+
+      // Use hidden anchor tag for more reliable cross-browser direct downloading
+      const downloadUrl = `/api/delivery-file?ticket=${encodeURIComponent(payload.downloadTicket)}`;
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      document.body.appendChild(link);
+      link.click();
+
+      setTimeout(() => {
+        if (document.body.contains(link)) {
+          document.body.removeChild(link);
         }
-      }, 45000);
-    } catch {
+      }, 100);
+    } catch (err: any) {
+      console.error('Download error:', err);
       setDownloadErrors((prev) => ({
         ...prev,
-        [productName]: 'Download failed. Please try again.',
+        [productName]: 'Download connection failed. Please check your internet and try again.',
       }));
     } finally {
       setDownloadingProduct('');

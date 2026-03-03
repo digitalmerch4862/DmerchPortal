@@ -233,9 +233,10 @@ export default async function handler(req: any, res: any) {
       return res.status(403).json({ ok: false, error: 'Download limit reached. Please contact support.', code: 'DOWNLOAD_LIMIT_REACHED' });
     }
 
-    const target = products.find((item) => item.name === productName);
+    const target = products.find((item) => String(item.name).trim().toLowerCase() === productName.toLowerCase());
     if (!target) {
-      return res.status(404).json({ ok: false, error: 'Selected product is not mapped for this order.' });
+      console.error('[delivery-download] product not found in approved list', { productName, available: products.map(p => p.name) });
+      return res.status(404).json({ ok: false, error: 'Selected product is not found in your approved orders.' });
     }
 
     const targetLink = String(target.fileLink ?? '').trim();
