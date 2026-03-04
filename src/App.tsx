@@ -5,7 +5,7 @@
 
 import { type ComponentType, type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft, Home } from 'lucide-react';
+import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft, Home, ShoppingCart, Mail } from 'lucide-react';
 import gcashQr from './gcash-qr.png';
 import gotymeQr from './gotyme-qr.png';
 import { productCatalog, type ProductItem } from './data/products';
@@ -543,8 +543,30 @@ export default function App() {
       return availableProducts.slice(0, 50);
     }
 
+    const tokens = query.split(/\s+/).filter(Boolean);
+
     return availableProducts
-      .filter((item) => item.name.toLowerCase().includes(query));
+      .map((item) => {
+        const name = item.name.toLowerCase();
+        let score = 0;
+
+        if (name === query) {
+          score += 100;
+        } else if (name.startsWith(query)) {
+          score += 50;
+        } else if (tokens.length > 1 && tokens.every((token) => name.includes(token))) {
+          score += 25;
+        } else if (tokens.every((token) => name.includes(token))) {
+          score += 15;
+        } else if (tokens.some((token) => name.includes(token))) {
+          score += 10;
+        }
+
+        return { ...item, _score: score };
+      })
+      .filter((item) => item._score > 0)
+      .sort((a, b) => b._score - a._score)
+      .map(({ _score, ...item }) => item);
   }, [availableProducts, productQuery]);
 
   const totalAmount = useMemo(() => {
@@ -1012,7 +1034,7 @@ export default function App() {
 
                   <div className="relative">
                     <div className="relative">
-                      <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cyan-300/70" />
+                      <ArrowRight size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-green-400 drop-shadow-[0_0_6px_rgba(34,197,94,0.6)]" />
                       <input
                         value={productQuery}
                         onChange={(event) => {
@@ -1022,7 +1044,7 @@ export default function App() {
                         }}
                         onFocus={() => setIsProductMenuOpen(true)}
                         className="w-full rounded-md border border-cyan-500/50 bg-black/50 pl-10 pr-4 py-3 text-sm text-gray-100 outline-none transition focus:border-cyan-300 focus:shadow-[0_0_18px_rgba(0,255,255,0.2)]"
-                        placeholder="Search product name"
+                        placeholder="PRODUCT LIST HERE"
                       />
                     </div>
 
@@ -1062,8 +1084,8 @@ export default function App() {
                       disabled={!selectedProduct}
                       className="cyber-btn cyber-btn-secondary"
                     >
-                      <Plus size={14} />
-                      Add Product
+                      <ShoppingCart size={14} className="text-green-400 drop-shadow-[0_0_6px_rgba(34,197,94,0.6)]" />
+                      Add to Cart
                     </motion.button>
                     <div className="rounded-md border border-cyan-500/40 bg-black/40 px-4 py-2 text-xs font-mono uppercase tracking-[0.2em] text-cyan-200">
                       {selectedProduct ? `Ready: PHP ${selectedProduct.amount}` : 'Select from list'}
@@ -1533,14 +1555,14 @@ export default function App() {
               <Facebook size={34} />
             </motion.a>
             <motion.a
-              whileHover={{ scale: 1.15, color: '#FF0000' }}
-              href="https://youtube.com/@digitalmerch-sy7yt?si=c8VCo5afd47Rf5Df"
+              whileHover={{ scale: 1.15 }}
+              href="mailto:digitalmerch4862@gmail.com"
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-300 transition-colors"
-              title="YouTube"
+              title="Email"
             >
-              <Youtube size={34} />
+              <Mail size={34} className="text-green-400 drop-shadow-[0_0_8px_rgba(34,197,94,0.8)]" />
             </motion.a>
             <motion.a
               whileHover={{ scale: 1.15, color: '#E4405F' }}
