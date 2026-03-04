@@ -1347,6 +1347,28 @@ export default function Admin() {
                   <button onClick={() => { void migrateProductsToSupabase(); }} className="cyber-btn cyber-btn-secondary border-amber-500/40 text-amber-200">
                     <Upload size={14} /> Migrate Local
                   </button>
+                  <button
+                    onClick={() => {
+                      const header = 'Name,File Link,OS,Amount\n';
+                      const rowsCsv = filteredProducts.map((item) => {
+                        return `"${item.name}","${item.fileLink || ''}","${item.os}","${item.amount}"`;
+                      }).join('\n');
+                      const csv = header + rowsCsv;
+                      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                      const d = new Date();
+                      a.download = `DMerch-${d.getFullYear()}-${months[d.getMonth()]}-${String(d.getDate()).padStart(2,'0')}.csv`;
+                      document.body.appendChild(a);
+                      a.click();
+                      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+                    }}
+                    className="cyber-btn cyber-btn-secondary"
+                  >
+                    <Download size={14} /> Export CSV
+                  </button>
                 </div>
               </div>
               <div className="mb-3 flex flex-wrap gap-2 rounded-md border border-cyan-500/20 bg-black/25 p-2">
