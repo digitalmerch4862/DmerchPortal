@@ -1,0 +1,587 @@
+import crypto from 'crypto';
+import { createClient } from '@supabase/supabase-js';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+type OrderProduct = {
+  name: string;
+  amount: number;
+  os?: string;
+  fileLink?: string;
+};
+
+type BuyerEntitlement = {
+  email: string;
+  approved_product_count: number;
+  download_used: number;
+  download_limit: number;
+  is_unlimited: boolean;
+};
+
+type DownloadTicketPayload = {
+  ticketId: string;
+  email: string;
+  serialNo: string;
+  productName: string;
+  exp: number;
+};
+
+const readBody = async (req: any) => {
+  if (typeof req.body === 'string') {
+    return JSON.parse(req.body);
+  }
+  if (req.body && typeof req.body === 'object') {
+    return req.body;
+  }
+  return {};
+};
+
+const base64UrlEncode = (value: string) => Buffer.from(value, 'utf8').toString('base64url');
+const base64UrlDecode = (value: string) => Buffer.from(value, 'base64url').toString('utf8');
+
+const signPayload = (payload: object, secret: string) => {
+  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+  const signature = crypto.createHmac('sha256', secret).update(encodedPayload).digest('base64url');
+  return `${encodedPayload}.${signature}`;
+};
+
+const verifyToken = (token: string, secret: string) => {
+  const [encodedPayload, signature] = token.split('.');
+  if (!encodedPayload || !signature) {
+    return null;
+  }
+  const expected = crypto.createHmac('sha256', secret).update(encodedPayload).digest('base64url');
+  if (signature !== expected) {
+    return null;
+  }
+  try {
+    return JSON.parse(base64UrlDecode(encodedPayload)) as { email: string; serialNo: string };
+  } catch {
+    return null;
+  }
+};
+
+const decodeToken = (token: string, secret: string) => {
+  const [payload, signature] = token.split('.');
+  if (!payload || !signature) {
+    return null;
+  }
+  const expected = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+  if (expected !== signature) {
+    return null;
+  }
+  try {
+    return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { email: string; serialNo: string };
+  } catch {
+    return null;
+  }
+};
+
+const signDownloadTicket = (payload: DownloadTicketPayload, secret: string) => {
+  const encodedPayload = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+  const signature = crypto.createHmac('sha256', secret).update(encodedPayload).digest('base64url');
+  return `${encodedPayload}.${signature}`;
+};
+
+const verifyTicket = (ticket: string, secret: string): DownloadTicketPayload | null => {
+  const [encodedPayload, signature] = ticket.split('.');
+  if (!encodedPayload || !signature) {
+    return null;
+  }
+
+  const expected = crypto.createHmac('sha256', secret).update(encodedPayload).digest('base64url');
+  if (signature !== expected) {
+    return null;
+  }
+
+  try {
+    const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8')) as DownloadTicketPayload;
+    if (!payload.ticketId || !payload.email || !payload.serialNo || !payload.productName || !payload.exp) {
+      return null;
+    }
+    if (payload.exp < Math.floor(Date.now() / 1000)) {
+      return null;
+    }
+    return payload;
+  } catch {
+    return null;
+  }
+};
+
+const isApprovedStatus = (status: string) => status.toLowerCase().includes('review:approved');
+
+const aggregateApprovedProducts = (rows: Array<{ products_json: unknown; serial_no: string }>) => {
+  const byKey = new Map<string, { name: string; amount: number; os?: string; fileLink?: string; serialNo: string }>();
+
+  for (const row of rows) {
+    const products = Array.isArray(row.products_json) ? (row.products_json as OrderProduct[]) : [];
+    for (const product of products) {
+      const name = String(product.name ?? '').trim();
+      if (!name) {
+        continue;
+      }
+
+      const key = name.toLowerCase();
+      const current = byKey.get(key);
+      const link = String(product.fileLink ?? '').trim();
+      if (!current) {
+        byKey.set(key, {
+          name,
+          amount: Number(product.amount ?? 0),
+          os: product.os,
+          fileLink: link,
+          serialNo: row.serial_no,
+        });
+        continue;
+      }
+
+      if (!current.fileLink && link) {
+        byKey.set(key, {
+          ...current,
+          fileLink: link,
+          serialNo: row.serial_no,
+        });
+      }
+    }
+  }
+
+  return Array.from(byKey.values());
+};
+
+const toDirectDownloadLink = (url: string) => {
+  if (!url.includes('drive.google.com')) {
+    return url;
+  }
+
+  const match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (match && match[1]) {
+    return `https://drive.usercontent.google.com/download?id=${match[1]}&export=download`;
+  }
+
+  return url;
+};
+
+const sanitizeFileName = (name: string) => {
+  const normalized = name.replace(/[^a-zA-Z0-9._ -]/g, '').trim();
+  if (!normalized) {
+    return 'digitalmerch-download.bin';
+  }
+
+  const hasExtension = /\.[a-zA-Z0-9]{2,6}$/.test(normalized);
+  return hasExtension ? normalized : `${normalized}.bin`;
+};
+
+const isMissingTicketTableError = (error: { code?: string; message?: string; details?: string; hint?: string } | null | undefined) => {
+  if (!error) {
+    return false;
+  }
+
+  if (error.code === 'PGRST205') {
+    return true;
+  }
+
+  const text = `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''}`.toLowerCase();
+  return text.includes('delivery_download_tickets')
+    && (
+      text.includes('schema cache')
+      || text.includes('relation')
+      || text.includes('does not exist')
+      || text.includes('could not find the table')
+    );
+};
+
+async function handleAuth(req: any, res: any, supabase: any, tokenSecret: string) {
+  const body = await readBody(req);
+  const incomingToken = String(body.token ?? '').trim();
+  let email = String(body.email ?? '').trim().toLowerCase();
+  let serialNo = String(body.serialNo ?? '').trim().toUpperCase();
+
+  if (incomingToken) {
+    const parsed = verifyToken(incomingToken, tokenSecret);
+    if (!parsed) {
+      return res.status(401).json({ ok: false, error: 'Invalid access token.' });
+    }
+    email = String(parsed.email ?? '').trim().toLowerCase();
+    serialNo = String(parsed.serialNo ?? '').trim().toUpperCase();
+  }
+
+  if (!email || !serialNo) {
+    return res.status(400).json({ ok: false, error: 'Email and order serial are required.' });
+  }
+
+  const orderLookup = await supabase
+    .from('verification_orders')
+    .select('serial_no, email, email_status, products_json')
+    .eq('serial_no', serialNo)
+    .single();
+
+  if (orderLookup.error || !orderLookup.data) {
+    console.log(`[delivery-auth] Order not found for serial: ${serialNo}`);
+    return res.status(404).json({ ok: false, error: 'Order record not found for this serial number.' });
+  }
+
+  const storedEmail = String(orderLookup.data.email ?? '').trim().toLowerCase();
+  if (storedEmail !== email) {
+    console.log(`[delivery-auth] Email mismatch for serial ${serialNo}. Input: ${email}, Stored: ${storedEmail}`);
+    return res.status(401).json({ ok: false, error: 'The email provided does not match the record for this serial number.' });
+  }
+
+  const emailStatus = String(orderLookup.data.email_status ?? '');
+  if (!isApprovedStatus(emailStatus)) {
+    return res.status(403).json({ ok: false, error: 'Order is not approved for delivery yet.' });
+  }
+
+  const approvedOrders = await supabase
+    .from('verification_orders')
+    .select('serial_no, products_json, email_status')
+    .eq('email', email)
+    .ilike('email_status', '%review:approved%')
+    .order('created_at', { ascending: false })
+    .limit(300);
+
+  if (approvedOrders.error) {
+    return res.status(500).json({ ok: false, error: approvedOrders.error.message });
+  }
+
+  const approvedRows = (approvedOrders.data ?? []).filter((row) => isApprovedStatus(String(row.email_status ?? '')));
+  const products = aggregateApprovedProducts(approvedRows);
+
+  const entitlementLookup = await supabase
+    .from('buyer_entitlements')
+    .select('email, approved_product_count, download_used, download_limit, is_unlimited')
+    .eq('email', email)
+    .single();
+
+  const entitlement = entitlementLookup.data as BuyerEntitlement | null;
+
+  const token = signPayload({ email, serialNo }, tokenSecret);
+
+  return res.status(200).json({
+    ok: true,
+    token,
+    serialNo,
+    products: products.map((item) => ({
+      name: item.name,
+      amount: item.amount,
+      os: item.os,
+    })),
+    entitlement: entitlement
+      ? {
+        approvedProductCount: Number(entitlement.approved_product_count ?? 0),
+        downloadUsed: Number(entitlement.download_used ?? 0),
+        downloadLimit: Number(entitlement.download_limit ?? 10),
+        isUnlimited: Boolean(entitlement.is_unlimited),
+      }
+      : {
+        approvedProductCount: 0,
+        downloadUsed: 0,
+        downloadLimit: 10,
+        isUnlimited: false,
+      },
+    authRule: 'email_plus_serial_required',
+    scope: 'all_approved_products_for_email',
+  });
+}
+
+async function handleDownload(req: any, res: any, supabase: any, tokenSecret: string, bypassDownloadLimit: boolean) {
+  const body = await readBody(req);
+  const token = String(body.token ?? '').trim();
+  const productName = String(body.productName ?? '').trim();
+
+  if (!token || !productName) {
+    return res.status(400).json({ ok: false, error: 'Token and productName are required.' });
+  }
+
+  const tokenPayload = decodeToken(token, tokenSecret);
+  if (!tokenPayload) {
+    return res.status(401).json({ ok: false, error: 'Invalid token.' });
+  }
+
+  const orderLookup = await supabase
+    .from('verification_orders')
+    .select('id, serial_no, email, email_status')
+    .eq('serial_no', tokenPayload.serialNo)
+    .ilike('email', tokenPayload.email)
+    .single();
+
+  if (orderLookup.error || !orderLookup.data) {
+    return res.status(404).json({ ok: false, error: 'Order not found.' });
+  }
+
+  const status = String(orderLookup.data.email_status ?? '');
+  if (!isApprovedStatus(status)) {
+    return res.status(403).json({ ok: false, error: 'Order is not approved yet.' });
+  }
+
+  const approvedOrders = await supabase
+    .from('verification_orders')
+    .select('serial_no, products_json, email_status')
+    .eq('email', tokenPayload.email)
+    .ilike('email_status', '%review:approved%')
+    .order('created_at', { ascending: false })
+    .limit(300);
+
+  if (approvedOrders.error) {
+    return res.status(500).json({ ok: false, error: approvedOrders.error.message });
+  }
+
+  const approvedRows = (approvedOrders.data ?? []).filter((row) => isApprovedStatus(String(row.email_status ?? '')));
+  const products = aggregateApprovedProducts(approvedRows);
+
+  const entitlementLookup = await supabase
+    .from('buyer_entitlements')
+    .select('email, approved_product_count, download_used, download_limit, is_unlimited')
+    .eq('email', tokenPayload.email)
+    .single();
+
+  const entitlement: BuyerEntitlement = entitlementLookup.data ?? {
+    email: tokenPayload.email,
+    approved_product_count: 0,
+    download_used: 0,
+    download_limit: 10,
+    is_unlimited: false,
+  };
+
+  const used = Number(entitlement.download_used ?? 0);
+  const limit = Number(entitlement.download_limit ?? 10);
+  if (!bypassDownloadLimit && !entitlement.is_unlimited && used >= limit) {
+    return res.status(403).json({ ok: false, error: 'Download limit reached. Please contact support.', code: 'DOWNLOAD_LIMIT_REACHED' });
+  }
+
+  const target = products.find((item) => String(item.name).trim().toLowerCase() === productName.toLowerCase());
+  if (!target) {
+    console.error('[delivery-download] product not found in approved list', { productName, available: products.map(p => p.name) });
+    return res.status(404).json({ ok: false, error: 'Selected product is not found in your approved orders.' });
+  }
+
+  const targetLink = String(target.fileLink ?? '').trim();
+  if (!targetLink) {
+    return res.status(400).json({ ok: false, error: 'No delivery link configured yet for this product.' });
+  }
+
+  const ticketId = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + 60 * 1000);
+  const sourceUrl = toDirectDownloadLink(targetLink);
+  const fileName = sanitizeFileName(target.name);
+
+  const insertTicket = await supabase
+    .from('delivery_download_tickets')
+    .insert({
+      ticket_id: ticketId,
+      email: tokenPayload.email,
+      serial_no: tokenPayload.serialNo,
+      product_name: target.name,
+      source_url: sourceUrl,
+      file_name: fileName,
+      expires_at: expiresAt.toISOString(),
+    });
+
+  if (insertTicket.error) {
+    console.error('[delivery-download] ticket insert failed', {
+      code: insertTicket.error.code,
+      message: insertTicket.error.message,
+      details: insertTicket.error.details,
+      hint: insertTicket.error.hint,
+    });
+
+    if (isMissingTicketTableError(insertTicket.error)) {
+      return res.status(503).json({
+        ok: false,
+        error: 'Download service is temporarily unavailable. Please try again later.',
+        code: 'DOWNLOAD_SERVICE_UNAVAILABLE',
+      });
+    }
+
+    return res.status(500).json({
+      ok: false,
+      error: 'Unable to prepare download right now. Please try again.',
+      code: 'DOWNLOAD_PREPARE_FAILED',
+    });
+  }
+
+  const downloadTicket = signDownloadTicket(
+    {
+      ticketId,
+      email: tokenPayload.email,
+      serialNo: tokenPayload.serialNo,
+      productName: target.name,
+      exp: Math.floor(expiresAt.getTime() / 1000),
+    },
+    tokenSecret,
+  );
+
+  return res.status(200).json({
+    ok: true,
+    downloadTicket,
+    fileName,
+    products: products.map((item) => ({
+      name: item.name,
+      amount: item.amount,
+      os: item.os,
+    })),
+    entitlement: {
+      isUnlimited: Boolean(entitlement.is_unlimited),
+      downloadUsed: used,
+      downloadLimit: limit,
+    },
+  });
+}
+
+async function handleFile(req: any, res: any, supabase: any, tokenSecret: string, bypassDownloadLimit: boolean) {
+  const ticket = String(req.query?.ticket ?? '').trim();
+  if (!ticket) {
+    return res.status(400).send('Missing ticket.');
+  }
+
+  const parsed = verifyTicket(ticket, tokenSecret);
+  if (!parsed) {
+    return res.status(401).send('Invalid or expired ticket.');
+  }
+
+  const ticketLookup = await supabase
+    .from('delivery_download_tickets')
+    .select('ticket_id, email, serial_no, product_name, source_url, file_name, expires_at, used_at')
+    .eq('ticket_id', parsed.ticketId)
+    .single();
+
+  if (ticketLookup.error) {
+    console.error('[delivery-file] ticket lookup failed', {
+      code: ticketLookup.error.code,
+      message: ticketLookup.error.message,
+      details: ticketLookup.error.details,
+      hint: ticketLookup.error.hint,
+    });
+  }
+
+  if (!ticketLookup.data) {
+    return res.status(404).send('Ticket not found.');
+  }
+
+  const row = ticketLookup.data;
+  if (row.used_at) {
+    return res.status(409).send('Ticket already used.');
+  }
+
+  if (new Date(String(row.expires_at)).getTime() < Date.now()) {
+    return res.status(401).send('Ticket expired.');
+  }
+
+  if (
+    String(row.email).toLowerCase() !== parsed.email.toLowerCase()
+    || String(row.serial_no).toUpperCase() !== parsed.serialNo.toUpperCase()
+    || String(row.product_name).trim().toLowerCase() !== String(parsed.productName).trim().toLowerCase()
+  ) {
+    console.error('[delivery-file] ticket mismatch', {
+      db: { email: row.email, serial: row.serial_no, product: row.product_name },
+      token: { email: parsed.email, serial: parsed.serialNo, product: parsed.productName }
+    });
+    return res.status(401).send('Ticket mismatch.');
+  }
+
+  const entitlementLookup = await supabase
+    .from('buyer_entitlements')
+    .select('email, approved_product_count, download_used, download_limit, is_unlimited')
+    .eq('email', parsed.email)
+    .single();
+
+  const entitlement: BuyerEntitlement = entitlementLookup.data ?? {
+    email: parsed.email,
+    approved_product_count: 0,
+    download_used: 0,
+    download_limit: 10,
+    is_unlimited: false,
+  };
+
+  const used = Number(entitlement.download_used ?? 0);
+  const limit = Number(entitlement.download_limit ?? 10);
+  if (!bypassDownloadLimit && !entitlement.is_unlimited && used >= limit) {
+    return res.status(403).send('Download limit reached.');
+  }
+
+  const sourceUrl = String(row.source_url ?? '').trim();
+  if (!sourceUrl) {
+    return res.status(400).send('File source is unavailable.');
+  }
+
+  const consumeTicket = await supabase
+    .from('delivery_download_tickets')
+    .update({ used_at: new Date().toISOString() })
+    .eq('ticket_id', parsed.ticketId)
+    .is('used_at', null)
+    .select('ticket_id')
+    .single();
+
+  if (consumeTicket.error || !consumeTicket.data) {
+    return res.status(409).send('Ticket already used or expired.');
+  }
+
+  if (!entitlement.is_unlimited) {
+    await supabase
+      .from('buyer_entitlements')
+      .upsert({
+        email: parsed.email,
+        approved_product_count: Number(entitlement.approved_product_count ?? 0),
+        download_used: used + 1,
+        download_limit: limit,
+        is_unlimited: false,
+      }, { onConflict: 'email' });
+  }
+
+  res.writeHead(302, { Location: sourceUrl });
+  return res.end();
+}
+
+export default async function handler(req: any, res: any) {
+  const path = req.query?.path ?? '';
+
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin']);
+    res.setHeader('Access-Control-Allow-Methods', corsHeaders['Access-Control-Allow-Methods']);
+    res.setHeader('Access-Control-Allow-Headers', corsHeaders['Access-Control-Allow-Headers']);
+    return res.status(204).end();
+  }
+
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const tokenSecret = process.env.DELIVERY_TOKEN_SECRET ?? supabaseServiceRoleKey;
+  const bypassDownloadLimit = String(process.env.BYPASS_DOWNLOAD_LIMIT ?? '').toLowerCase() === 'true';
+
+  if (!supabaseUrl || !supabaseServiceRoleKey || !tokenSecret) {
+    return res.status(500).json({ ok: false, error: 'Missing server configuration.' });
+  }
+
+  try {
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    if (path === 'auth') {
+      if (req.method !== 'POST') {
+        return res.status(405).json({ ok: false, error: 'Method not allowed.' });
+      }
+      return handleAuth(req, res, supabase, tokenSecret);
+    }
+
+    if (path === 'download') {
+      if (req.method !== 'POST') {
+        return res.status(405).json({ ok: false, error: 'Method not allowed.' });
+      }
+      return handleDownload(req, res, supabase, tokenSecret, bypassDownloadLimit);
+    }
+
+    if (path === 'file') {
+      if (req.method !== 'GET') {
+        return res.status(405).send('Method not allowed.');
+      }
+      return handleFile(req, res, supabase, tokenSecret, bypassDownloadLimit);
+    }
+
+    return res.status(400).json({ ok: false, error: 'Invalid path. Use auth, download, or file.' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error instanceof Error ? error.message : 'Unexpected server error' });
+  }
+}

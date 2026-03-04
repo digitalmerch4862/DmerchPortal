@@ -852,7 +852,7 @@ export default function Admin() {
 
     setInboxLoading(true);
     try {
-      const response = await fetch('/api/admin-inbox-clear', {
+      const response = await fetch('/api/admin-inbox?path=clear', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -931,7 +931,7 @@ export default function Admin() {
       return false;
     }
 
-    const response = await fetch('/api/admin-crm-manage', {
+    const response = await fetch('/api/admin-crm?path=manage', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -43,7 +43,7 @@ export default function Delivery() {
       setLoading(true);
       setError('');
       try {
-        const response = await fetch('/api/delivery-auth', {
+        const response = await fetch('/api/delivery?path=auth', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token }),
@@ -77,7 +77,7 @@ export default function Delivery() {
     setStatus('Verifying your order details...');
 
     try {
-      const response = await fetch('/api/delivery-auth', {
+      const response = await fetch('/api/delivery?path=auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, serialNo }),
@@ -104,7 +104,7 @@ export default function Delivery() {
     setDownloadingProduct(productName);
 
     try {
-      const response = await fetch('/api/delivery-download', {
+      const response = await fetch('/api/delivery?path=download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, productName }),
@@ -123,7 +123,7 @@ export default function Delivery() {
       if (payload.products) setProducts(payload.products);
 
       // Cache buster for the download trigger
-      const downloadUrl = `/api/delivery-file?ticket=${encodeURIComponent(payload.downloadTicket)}&cb=${Date.now()}`;
+      const downloadUrl = `/api/delivery?path=file?ticket=${encodeURIComponent(payload.downloadTicket)}&cb=${Date.now()}`;
 
       // Open in same tab or new one? User said "window open"
       // window.open(downloadUrl, '_blank') is usually better for downloads to prevent navigation away.

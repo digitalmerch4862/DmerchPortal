@@ -9,11 +9,11 @@ const resolveCorsOrigin = (req: any) => {
   return allowed.has(incoming) ? incoming : appBase;
 };
 
-const setCors = (req: any, res: any) => {
+const setCors = (req: any, res: any, methods: string = 'GET, OPTIONS') => {
   const origin = resolveCorsOrigin(req);
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', methods);
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 };
 
@@ -57,86 +57,66 @@ const requireAdmin = async (req: any, supabase: any) => {
   return { ok: true as const, user: userLookup.data.user };
 };
 
-export default async function handler(req: any, res: any) {
-  setCors(req, res);
+const archiveTag = 'inbox:archived';
 
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
+async function handleGetInbox(req: any, res: any, supabase: any) {
+  const authCheck = await requireAdmin(req, supabase);
+  if (!authCheck.ok) {
+    return res.status(authCheck.status).json({ ok: false, error: authCheck.error });
   }
 
-  if (req.method !== 'GET') {
-    return res.status(405).json({ ok: false, error: 'Method not allowed.' });
+  const lookup = await supabase
+    .from('verification_orders')
+    .select('serial_no, username, email, created_at, products_json, email_status, payment_portal_used, payment_detail_used')
+    .not('email_status', 'ilike', '%inbox:archived%')
+    .order('created_at', { ascending: false })
+    .limit(120);
+
+  if (lookup.error) {
+    return res.status(500).json({ ok: false, error: lookup.error.message });
   }
 
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !supabaseServiceRoleKey) {
-    return res.status(500).json({ ok: false, error: 'Missing server configuration.' });
-  }
+  const productsLookup = await supabase
+    .from('products')
+    .select('name, file_url')
+    .order('name');
 
-  try {
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-
-    const authCheck = await requireAdmin(req, supabase);
-    if (!authCheck.ok) {
-      return res.status(authCheck.status).json({ ok: false, error: authCheck.error });
-    }
-
-    const lookup = await supabase
-      .from('verification_orders')
-      .select('serial_no, username, email, created_at, products_json, email_status, payment_portal_used, payment_detail_used')
-      .not('email_status', 'ilike', '%inbox:archived%')
-      .order('created_at', { ascending: false })
-      .limit(120);
-
-    if (lookup.error) {
-      return res.status(500).json({ ok: false, error: lookup.error.message });
-    }
-
-    // Fetch all products to enable auto-mapping
-    const productsLookup = await supabase
-      .from('products')
-      .select('name, file_url')
-      .order('name');
-
-    const productUrlMap = new Map<string, string>();
-    if (!productsLookup.error && productsLookup.data) {
-      for (const p of productsLookup.data) {
-        const key = String(p.name ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
-        if (key && p.file_url) {
-          productUrlMap.set(key, String(p.file_url));
-        }
+  const productUrlMap = new Map<string, string>();
+  if (!productsLookup.error && productsLookup.data) {
+    for (const p of productsLookup.data) {
+      const key = String(p.name ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+      if (key && p.file_url) {
+        productUrlMap.set(key, String(p.file_url));
       }
     }
+  }
 
-    const emails = Array.from(new Set((lookup.data ?? []).map((row) => String(row.email ?? '').trim().toLowerCase()).filter(Boolean)));
-    const entitlementMap = new Map<string, { download_used: number; download_limit: number; is_unlimited: boolean }>();
+  const emails = Array.from(new Set((lookup.data ?? []).map((row) => String(row.email ?? '').trim().toLowerCase()).filter(Boolean)));
+  const entitlementMap = new Map<string, { download_used: number; download_limit: number; is_unlimited: boolean }>();
 
-    if (emails.length > 0) {
-      const entitlements = await supabase
-        .from('buyer_entitlements')
-        .select('email, download_used, download_limit, is_unlimited')
-        .in('email', emails);
+  if (emails.length > 0) {
+    const entitlements = await supabase
+      .from('buyer_entitlements')
+      .select('email, download_used, download_limit, is_unlimited')
+      .in('email', emails);
 
-      if (!entitlements.error) {
-        for (const row of entitlements.data ?? []) {
-          entitlementMap.set(String((row as any).email ?? '').trim().toLowerCase(), {
-            download_used: Number((row as any).download_used ?? 0),
-            download_limit: Number((row as any).download_limit ?? 10),
-            is_unlimited: Boolean((row as any).is_unlimited),
-          });
-        }
+    if (!entitlements.error) {
+      for (const row of entitlements.data ?? []) {
+        entitlementMap.set(String((row as any).email ?? '').trim().toLowerCase(), {
+          download_used: Number((row as any).download_used ?? 0),
+          download_limit: Number((row as any).download_limit ?? 10),
+          is_unlimited: Boolean((row as any).is_unlimited),
+        });
       }
     }
+  }
 
-    const inbox = (lookup.data ?? [])
-      .filter((row) => {
-        const statusValue = String(row.email_status ?? '');
-        return !isArchivedInboxStatus(statusValue) && getReviewStatus(statusValue) === 'pending';
-      })
-      .map((row) => {
+  const inbox = (lookup.data ?? [])
+    .filter((row) => {
+      const statusValue = String(row.email_status ?? '');
+      return !isArchivedInboxStatus(statusValue) && getReviewStatus(statusValue) === 'pending';
+    })
+    .map((row) => {
       const products = Array.isArray(row.products_json) ? row.products_json : [];
       const totalDownloads = products.reduce((sum: number, item: any) => sum + Number(item.downloadCount ?? 0), 0);
       const entitlement = entitlementMap.get(String(row.email ?? '').trim().toLowerCase());
@@ -163,9 +143,83 @@ export default async function handler(req: any, res: any) {
           return acc;
         }, {}),
       };
-      });
+    });
 
-    return res.status(200).json({ ok: true, inbox });
+  return res.status(200).json({ ok: true, inbox });
+}
+
+async function handleClearInbox(req: any, res: any, supabase: any) {
+  const authCheck = await requireAdmin(req, supabase);
+  if (!authCheck.ok) {
+    return res.status(authCheck.status).json({ ok: false, error: authCheck.error });
+  }
+
+  const lookup = await supabase
+    .from('verification_orders')
+    .select('id, email_status')
+    .not('email_status', 'ilike', `%${archiveTag}%`)
+    .order('created_at', { ascending: false })
+    .limit(2000);
+
+  if (lookup.error) {
+    return res.status(500).json({ ok: false, error: lookup.error.message });
+  }
+
+  const targets = lookup.data ?? [];
+  if (targets.length === 0) {
+    return res.status(200).json({ ok: true, archivedCount: 0 });
+  }
+
+  await Promise.all(
+    targets.map((row) => {
+      const current = String(row.email_status ?? '').trim();
+      const next = current ? `${current} | ${archiveTag}` : archiveTag;
+      return supabase
+        .from('verification_orders')
+        .update({ email_status: next })
+        .eq('id', row.id);
+    }),
+  );
+
+  return res.status(200).json({ ok: true, archivedCount: targets.length });
+}
+
+export default async function handler(req: any, res: any) {
+  const path = req.query?.path ?? '';
+
+  if (path === 'clear') {
+    setCors(req, res, 'POST, OPTIONS');
+  } else {
+    setCors(req, res, 'GET, OPTIONS');
+  }
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    return res.status(500).json({ ok: false, error: 'Missing server configuration.' });
+  }
+
+  try {
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    if (path === 'clear') {
+      if (req.method !== 'POST') {
+        return res.status(405).json({ ok: false, error: 'Method not allowed.' });
+      }
+      return handleClearInbox(req, res, supabase);
+    }
+
+    if (req.method !== 'GET') {
+      return res.status(405).json({ ok: false, error: 'Method not allowed.' });
+    }
+
+    return handleGetInbox(req, res, supabase);
   } catch (error) {
     return res.status(500).json({ ok: false, error: error instanceof Error ? error.message : 'Unexpected server error' });
   }

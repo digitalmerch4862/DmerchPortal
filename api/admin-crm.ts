@@ -9,11 +9,11 @@ const resolveCorsOrigin = (req: any) => {
   return allowed.has(incoming) ? incoming : appBase;
 };
 
-const setCors = (req: any, res: any) => {
+const setCors = (req: any, res: any, methods: string = 'GET, OPTIONS') => {
   const origin = resolveCorsOrigin(req);
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', methods);
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 };
 
@@ -57,47 +57,47 @@ const getReviewStatus = (status: string): 'pending' | 'approved' | 'rejected' =>
 
 const isArchivedCrmStatus = (status: string) => status.toLowerCase().includes('crm:archived');
 
-export default async function handler(req: any, res: any) {
-  setCors(req, res);
+const readBody = async (req: any) => {
+  if (typeof req.body === 'string') {
+    return JSON.parse(req.body);
+  }
+  if (req.body && typeof req.body === 'object') {
+    return req.body;
+  }
+  return {};
+};
 
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
+const appendStatusTag = (currentStatus: string, tag: string) => {
+  const parts = String(currentStatus ?? '')
+    .split('|')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (!parts.includes(tag)) {
+    parts.push(tag);
+  }
+  return parts.join(' | ');
+};
+
+async function handleGetCrm(req: any, res: any, supabase: any) {
+  const authCheck = await requireAdmin(req, supabase);
+  if (!authCheck.ok) {
+    return res.status(authCheck.status).json({ ok: false, error: authCheck.error });
   }
 
-  if (req.method !== 'GET') {
-    return res.status(405).json({ ok: false, error: 'Method not allowed.' });
+  const lookup = await supabase
+    .from('verification_orders')
+    .select('serial_no, username, email, created_at, products_json, total_amount, amount, email_status')
+    .not('email_status', 'ilike', '%crm:archived%')
+    .order('created_at', { ascending: false })
+    .limit(5000);
+
+  if (lookup.error) {
+    return res.status(500).json({ ok: false, error: lookup.error.message });
   }
 
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !supabaseServiceRoleKey) {
-    return res.status(500).json({ ok: false, error: 'Missing server configuration.' });
-  }
-
-  try {
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-
-    const authCheck = await requireAdmin(req, supabase);
-    if (!authCheck.ok) {
-      return res.status(authCheck.status).json({ ok: false, error: authCheck.error });
-    }
-
-    const lookup = await supabase
-      .from('verification_orders')
-      .select('serial_no, username, email, created_at, products_json, total_amount, amount, email_status')
-      .not('email_status', 'ilike', '%crm:archived%')
-      .order('created_at', { ascending: false })
-      .limit(5000);
-
-    if (lookup.error) {
-      return res.status(500).json({ ok: false, error: lookup.error.message });
-    }
-
-    const rows = (lookup.data ?? [])
-      .filter((row) => !isArchivedCrmStatus(String(row.email_status ?? '')))
-      .map((row) => {
+  const rows = (lookup.data ?? [])
+    .filter((row) => !isArchivedCrmStatus(String(row.email_status ?? '')))
+    .map((row) => {
       const products = Array.isArray(row.products_json) ? row.products_json : [];
       const productNames = products
         .map((item: any) => String(item?.name ?? '').trim())
@@ -112,9 +112,126 @@ export default async function handler(req: any, res: any) {
         totalAmount: Number(row.total_amount ?? row.amount ?? 0),
         status: getReviewStatus(String(row.email_status ?? '')),
       };
-      });
+    });
 
-    return res.status(200).json({ ok: true, rows });
+  return res.status(200).json({ ok: true, rows });
+}
+
+async function handleManageCrm(req: any, res: any, supabase: any) {
+  const authCheck = await requireAdmin(req, supabase);
+  if (!authCheck.ok) {
+    return res.status(authCheck.status).json({ ok: false, error: authCheck.error });
+  }
+
+  const body = await readBody(req);
+  const serialNo = String(body.serialNo ?? '').trim().toUpperCase();
+  const action = String(body.action ?? '').trim().toLowerCase();
+
+  if (!serialNo || !action) {
+    return res.status(400).json({ ok: false, error: 'serialNo and action are required.' });
+  }
+
+  const lookup = await supabase
+    .from('verification_orders')
+    .select('id, email_status')
+    .eq('serial_no', serialNo)
+    .single();
+
+  if (lookup.error || !lookup.data) {
+    return res.status(404).json({ ok: false, error: 'Order not found.' });
+  }
+
+  if (action === 'archive') {
+    const nextStatus = appendStatusTag(String(lookup.data.email_status ?? ''), 'crm:archived');
+    const archiveUpdate = await supabase
+      .from('verification_orders')
+      .update({ email_status: nextStatus })
+      .eq('id', lookup.data.id);
+
+    if (archiveUpdate.error) {
+      return res.status(500).json({ ok: false, error: archiveUpdate.error.message });
+    }
+
+    return res.status(200).json({ ok: true, action: 'archive' });
+  }
+
+  if (action !== 'edit') {
+    return res.status(400).json({ ok: false, error: 'Unsupported action.' });
+  }
+
+  const buyerName = String(body.buyerName ?? '').trim();
+  const buyerEmail = String(body.buyerEmail ?? '').trim().toLowerCase();
+  const totalAmount = Number(body.totalAmount ?? 0);
+  const productsRaw = Array.isArray(body.products) ? body.products : [];
+  const products = productsRaw.map((item: unknown) => String(item ?? '').trim()).filter(Boolean);
+
+  if (!buyerName || !buyerEmail || !Number.isFinite(totalAmount) || totalAmount <= 0 || products.length === 0) {
+    return res.status(400).json({ ok: false, error: 'buyerName, buyerEmail, products, and totalAmount are required.' });
+  }
+
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailPattern.test(buyerEmail)) {
+    return res.status(400).json({ ok: false, error: 'Invalid buyer email address.' });
+  }
+
+  const perProductAmount = Number((totalAmount / products.length).toFixed(2));
+  const productsJson = products.map((name) => ({ name, amount: perProductAmount }));
+
+  const editUpdate = await supabase
+    .from('verification_orders')
+    .update({
+      username: buyerName,
+      email: buyerEmail,
+      product_name: products[0],
+      amount: totalAmount,
+      total_amount: totalAmount,
+      products_json: productsJson,
+    })
+    .eq('id', lookup.data.id);
+
+  if (editUpdate.error) {
+    return res.status(500).json({ ok: false, error: editUpdate.error.message });
+  }
+
+  return res.status(200).json({ ok: true, action: 'edit' });
+}
+
+export default async function handler(req: any, res: any) {
+  const path = req.query?.path ?? '';
+
+  if (path === 'manage') {
+    setCors(req, res, 'POST, OPTIONS');
+  } else {
+    setCors(req, res, 'GET, OPTIONS');
+  }
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    return res.status(500).json({ ok: false, error: 'Missing server configuration.' });
+  }
+
+  try {
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    if (path === 'manage') {
+      if (req.method !== 'POST') {
+        return res.status(405).json({ ok: false, error: 'Method not allowed.' });
+      }
+      return handleManageCrm(req, res, supabase);
+    }
+
+    if (req.method !== 'GET') {
+      return res.status(405).json({ ok: false, error: 'Method not allowed.' });
+    }
+
+    return handleGetCrm(req, res, supabase);
   } catch (error) {
     return res.status(500).json({ ok: false, error: error instanceof Error ? error.message : 'Unexpected server error' });
   }
