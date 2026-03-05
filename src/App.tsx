@@ -5,7 +5,7 @@
 
 import { type ComponentType, type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft, Home, ShoppingCart, Mail, Cpu, Gamepad2, PlayCircle, Book, Palette, Layers, BookOpen, ChevronDown, ChevronRight as ChevronRightIcon } from 'lucide-react';
+import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft, Home, ShoppingCart, Mail, Cpu, Gamepad2, PlayCircle, Book, Palette, Layers, BookOpen, ChevronDown, ChevronRight as ChevronRightIcon, GraduationCap, Eye, Clock, Users, FileText, Star } from 'lucide-react';
 import gcashQr from './gcash-qr.png';
 import gotymeQr from './gotyme-qr.png';
 import { productCatalog, type ProductItem } from './data/products';
@@ -109,8 +109,8 @@ const getCategoryIcon = (category: string) => {
   const cat = (category || '').toLowerCase();
   if (cat.includes('software')) return Cpu;
   if (cat.includes('game')) return Gamepad2;
-  if (cat.includes('course')) return PlayCircle;
-  if (cat.includes('book')) return BookOpen;
+  if (cat.includes('course')) return GraduationCap;
+  if (cat.includes('ebook') || cat.includes('book')) return BookOpen;
   if (cat.includes('design') || cat.includes('graphic')) return Palette;
   if (cat.includes('engineering')) return Layers;
   return PackageSearch;
@@ -236,8 +236,10 @@ export default function App() {
   const [submitResult, setSubmitResult] = useState<VerificationApiResponse | null>(null);
   const [lastSubmittedProducts, setLastSubmittedProducts] = useState<ProductItem[]>([]);
   const [liveAvailmentIndex, setLiveAvailmentIndex] = useState(0);
-  const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
+const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
   const [expandedSubs, setExpandedSubs] = useState<Record<string, boolean>>({});
+  const [showCourses, setShowCourses] = useState(false);
+  const [previewCourse, setPreviewCourse] = useState<ProductItem | null>(null);
   const productPickerRef = useRef<HTMLDivElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const uploadSfxIntervalRef = useRef<number | null>(null);
@@ -603,8 +605,22 @@ export default function App() {
       }
     }
 
-    return sorted;
+return sorted;
   }, [filteredProducts]);
+
+  const { softwareProducts, coursesProducts, hasCourses, courseCount } = useMemo(() => {
+    const courses = categorizedProducts['Courses'] || {};
+    const has = Object.keys(courses).length > 0;
+    const count = Object.values(courses).flat().length;
+    const software = { ...categorizedProducts };
+    delete software['Courses'];
+    return { 
+      softwareProducts: software, 
+      coursesProducts: courses, 
+      hasCourses: has, 
+      courseCount: count 
+    };
+  }, [categorizedProducts]);
 
   const addProductToCart = (product: ProductItem) => {
     setSubmitError('');
@@ -1099,9 +1115,9 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    {Object.entries(categorizedProducts).length > 0 ? (
-                      Object.entries(categorizedProducts).map(([category, subs]) => {
+<div className="space-y-2">
+                    {Object.entries(softwareProducts).length > 0 ? (
+                      Object.entries(softwareProducts).map(([category, subs]) => {
                         const CatIcon = getCategoryIcon(category);
                         const isCatOpen = productQuery.trim().length > 0 || expandedCats[category] === true;
                         const totalInCat = Object.values(subs).reduce((sum, arr) => sum + arr.length, 0);
@@ -1175,8 +1191,85 @@ export default function App() {
                         <PackageSearch className="mx-auto mb-3 text-gray-600" size={32} />
                         <p className="text-xs font-mono uppercase tracking-[0.2em] text-gray-500">No matching products found</p>
                       </div>
-                    )}
+)}
                   </div>
+
+                  {hasCourses && (
+                    <div className="mt-4 rounded-lg border border-[#ff00ff]/30 bg-[#1a051a]/80 overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setShowCourses(!showCourses)}
+                        className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-[#ff00ff]/5 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <GraduationCap size={16} className="text-[#ff00ff] drop-shadow-[0_0_6px_rgba(255,0,255,0.5)]" />
+                          <span className="text-xs sm:text-sm font-black uppercase tracking-[0.2em] text-[#ff00ff]">COURSES</span>
+                          <span className="text-[9px] font-mono text-gray-500">{courseCount} available</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[8px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase tracking-wider">
+                            Preview
+                          </span>
+                          {showCourses 
+                            ? <ChevronDown size={16} className="text-cyan-400" /> 
+                            : <ChevronRightIcon size={16} className="text-gray-500" />
+                          }
+                        </div>
+                      </button>
+
+                      {showCourses && (
+                        <div className="border-t border-[#ff00ff]/15 bg-black/20">
+                          {Object.entries(coursesProducts).map(([sub, courses]) => {
+                            const subKey = `courses::${sub}`;
+                            const isSubOpen = expandedSubs[subKey] === true;
+
+                            return (
+                              <div key={sub} className="border-b border-[#ff00ff]/10 last:border-b-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedSubs((prev) => ({ ...prev, [subKey]: !prev[subKey] }))}
+                                  className="w-full flex items-center justify-between gap-2 px-6 py-2.5 hover:bg-[#ff00ff]/5 transition-colors"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    {isSubOpen
+                                      ? <ChevronDown size={12} className="text-cyan-400" />
+                                      : <ChevronRightIcon size={12} className="text-gray-600" />
+                                    }
+                                    <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-[#ff00ff]">{sub}</span>
+                                  </div>
+                                  <span className="text-[9px] font-mono text-gray-500">{courses.length}</span>
+                                </button>
+
+                                {isSubOpen && (
+                                  <div className="bg-black/20 pb-2">
+                                    {courses.map((course) => (
+                                      <div 
+                                        key={course.name} 
+                                        className="mx-2 px-4 py-3 flex items-center justify-between gap-3 rounded-md border border-[#ff00ff]/10 bg-black/30 hover:bg-[#ff00ff]/5 transition-all group cursor-pointer"
+                                        onClick={() => setPreviewCourse(course)}
+                                      >
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-sm text-gray-200 truncate group-hover:text-[#ff00ff] transition-colors">{course.name}</p>
+                                          <p className="text-[11px] font-mono text-amber-300 mt-0.5">PHP {course.amount}</p>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          className="flex-shrink-0 px-3 py-1.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-300 text-[9px] font-bold uppercase tracking-[0.1em] hover:bg-amber-500/20 transition-colors flex items-center gap-1.5"
+                                        >
+                                          <Eye size={12} />
+                                          Preview
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="mt-4 space-y-2">
                     {selectedProducts.length > 0 ? (
@@ -1214,11 +1307,118 @@ export default function App() {
                   <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
                     <ArrowLeft size={15} /> Back
                   </motion.button>
-                  <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
+<motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
                     Next: Payment Portal <ArrowRight size={15} />
                   </motion.button>
                 </div>
               </CyberCard>
+
+              <AnimatePresence>
+                {previewCourse && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+                    onClick={() => setPreviewCourse(null)}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.9, opacity: 0 }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="relative w-full max-w-lg rounded-xl border border-[#ff00ff]/50 bg-[#0a0a0a] p-0 overflow-hidden shadow-[0_0_50px_rgba(255,0,255,0.3)]"
+                    >
+                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#ff00ff] via-cyan-500 to-[#ff00ff] animate-pulse" />
+                      
+                      <div className="p-6">
+                        <div className="flex items-start justify-between gap-4 mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-[#ff00ff]/20 border border-[#ff00ff]/40">
+                              <GraduationCap size={24} className="text-[#ff00ff]" />
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-amber-300">Course Preview</p>
+                              <h3 className="text-lg font-bold text-white leading-tight">{previewCourse.name}</h3>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewCourse(null)}
+                            className="p-1.5 rounded-full border border-gray-600 hover:border-red-400 hover:bg-red-500/10 transition-colors"
+                          >
+                            <X size={16} className="text-gray-400 hover:text-red-300" />
+                          </button>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-4 text-xs text-gray-400">
+                            <div className="flex items-center gap-1.5">
+                              <Clock size={14} className="text-cyan-400" />
+                              <span>Lifetime Access</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Users size={14} className="text-cyan-400" />
+                              <span>Self-Paced</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <FileText size={14} className="text-cyan-400" />
+                              <span>Certificate</span>
+                            </div>
+                          </div>
+
+                          <div className="p-4 rounded-lg bg-black/40 border border-cyan-500/20">
+                            <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-cyan-300 mb-2">What You'll Learn</p>
+                            <ul className="space-y-2">
+                              {['Comprehensive curriculum', 'Hands-on projects', 'Lifetime access', 'Certificate of completion'].map((item, i) => (
+                                <li key={i} className="flex items-center gap-2 text-sm text-gray-300">
+                                  <Star size={12} className="text-amber-400 flex-shrink-0" />
+                                  {item}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          {previewCourse.fileLink && (
+                            <a
+                              href={previewCourse.fileLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center justify-center gap-2 w-full py-3 rounded-lg border border-cyan-500/40 bg-cyan-500/10 text-cyan-300 text-sm font-semibold hover:bg-cyan-500/20 transition-colors"
+                            >
+                              <Eye size={16} />
+                              Preview Course Content
+                            </a>
+                          )}
+
+                          <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                            <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-amber-300 text-center">
+                              This is a preview only. Purchase to unlock full access.
+                            </p>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-2 border-t border-gray-800">
+                            <div>
+                              <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-gray-500">Price</p>
+                              <p className="text-2xl font-black text-[#ff00ff] drop-shadow-[0_0_10px_rgba(255,0,255,0.5)]">PHP {previewCourse.amount}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                addProductToCart(previewCourse);
+                                setPreviewCourse(null);
+                              }}
+                              className="px-6 py-3 rounded-lg bg-gradient-to-r from-[#ff00ff] to-cyan-500 text-white font-bold text-sm uppercase tracking-wider hover:shadow-[0_0_20px_rgba(255,0,255,0.5)] transition-all"
+                            >
+                              Add to Cart
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           ) : stage === 1 ? (
             <motion.div
