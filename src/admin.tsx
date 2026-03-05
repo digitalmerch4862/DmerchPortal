@@ -299,7 +299,7 @@ export default function Admin() {
   const [expandedCrmUser, setExpandedCrmUser] = useState<string | null>(null);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [massAmount, setMassAmount] = useState('');
-  const [massOs, setMassOs] = useState('');
+  const [massCategory, setMassCategory] = useState('');
   const [inboxLoading, setInboxLoading] = useState(false);
   const [crmLoading, setCrmLoading] = useState(false);
   const [inboxError, setInboxError] = useState('');
@@ -794,13 +794,13 @@ export default function Admin() {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) return;
 
-    const nextOs = massOs.trim();
-    if (!nextOs) {
+    const nextCategory = massCategory.trim();
+    if (!nextCategory) {
       return;
     }
-    setProducts((current) => current.map((item) => (selectedProductIds.includes(item.id) ? { ...item, os: nextOs } : item)));
-    await supabase.from('products').update({ os: nextOs }).in('id', selectedProductIds);
-    setMassOs('');
+    setProducts((current) => current.map((item) => (selectedProductIds.includes(item.id) ? { ...item, category: nextCategory } : item)));
+    await supabase.from('products').update({ category: nextCategory }).in('id', selectedProductIds);
+    setMassCategory('');
   };
 
   const deleteSelectedProducts = async () => {
@@ -1407,8 +1407,8 @@ export default function Admin() {
                 />
                 <button disabled={selectedCount === 0} onClick={applyMassAmount} className="cyber-btn cyber-btn-secondary">Mass Edit Amount</button>
                 <input
-                  value={massOs}
-                  onChange={(event) => setMassOs(event.target.value)}
+                  value={massCategory}
+                  onChange={(event) => setMassCategory(event.target.value)}
                   className="rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
                   placeholder="Mass Category"
                 />

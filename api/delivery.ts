@@ -159,7 +159,7 @@ const toDirectDownloadLink = (url: string) => {
 
   const match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
   if (match && match[1]) {
-    return `https://drive.usercontent.google.com/download?id=${match[1]}&export=download`;
+    return `https://drive.google.com/uc?export=download&id=${match[1]}`;
   }
 
   return url;

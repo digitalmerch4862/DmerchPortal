@@ -5,7 +5,7 @@
 
 import { type ComponentType, type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft, Home, ShoppingCart, Mail, Cpu, Gamepad2, PlayCircle, Book, Palette, Layers, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft, Home, ShoppingCart, Mail, Cpu, Gamepad2, PlayCircle, Book, Palette, Layers, BookOpen, ChevronDown, ChevronRight as ChevronRightIcon } from 'lucide-react';
 import gcashQr from './gcash-qr.png';
 import gotymeQr from './gotyme-qr.png';
 import { productCatalog, type ProductItem } from './data/products';
@@ -158,8 +158,7 @@ const getCategoryIcon = (category: string) => {
   return PackageSearch;
 };
 
-function ProductCard({ product, onAdd }: { product: ProductItem; onAdd: (product: ProductItem) => void }) {
-  const Icon = getCategoryIcon(product.category || '');
+function ProductListItem({ product, onAdd }: { product: ProductItem; onAdd: (product: ProductItem) => void }) {
   const [added, setAdded] = useState(false);
 
   const handleAdd = () => {
@@ -169,38 +168,21 @@ function ProductCard({ product, onAdd }: { product: ProductItem; onAdd: (product
   };
 
   return (
-    <motion.div
-      whileHover={{ y: -5, scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      className="relative flex-shrink-0 w-44 sm:w-52 h-64 rounded-xl border border-cyan-500/30 bg-[#090d17]/90 p-4 flex flex-col items-center justify-between group"
-    >
-      <div className="absolute top-2 right-2 z-10 bg-[#ff00ff] text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-[0_0_10px_rgba(255,0,255,0.4)]">
-        PHP {product.amount}
-      </div>
-
-      <div className="absolute inset-0 rounded-xl bg-gradient-to-b from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-
-      <div className="mt-4 p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/20 group-hover:border-cyan-400 group-hover:shadow-[0_0_15px_rgba(0,243,255,0.1)] transition-all">
-        <Icon size={36} className="text-cyan-400 drop-shadow-[0_0_5px_rgba(0,243,255,0.4)]" />
-      </div>
-
-      <div className="text-center mt-2 px-1 w-full">
-        <p className="text-[11px] font-bold text-gray-200 line-clamp-2 leading-tight min-h-[2.2rem]">{product.name}</p>
-        <p className="text-[8px] uppercase tracking-[0.15em] text-cyan-400/60 font-mono mt-1 truncate">{product.sub_category || 'General'}</p>
-      </div>
-
+    <div className="flex items-center justify-between gap-2 border-b border-cyan-500/10 px-3 py-2.5 hover:bg-cyan-500/5 transition-colors last:border-b-0">
+      <p className="text-xs sm:text-sm text-gray-200 flex-1 min-w-0 truncate">{product.name}</p>
+      <span className="flex-shrink-0 text-[10px] font-mono uppercase tracking-[0.15em] text-cyan-300">PHP {product.amount}</span>
       <button
         type="button"
         onClick={handleAdd}
-        className={`relative z-10 w-full mt-auto py-2 rounded border text-[9px] font-black uppercase tracking-[0.2em] transition-all duration-300 ${
+        className={`flex-shrink-0 px-3 py-1.5 rounded border text-[9px] font-bold uppercase tracking-[0.15em] transition-all duration-300 ${
           added
-            ? 'bg-green-500 border-green-400 text-black shadow-[0_0_12px_rgba(34,197,94,0.5)]'
+            ? 'bg-green-500 border-green-400 text-black shadow-[0_0_10px_rgba(34,197,94,0.4)]'
             : 'bg-cyan-500/10 border-cyan-500/40 text-cyan-300 hover:bg-cyan-500 hover:text-black hover:border-cyan-400'
         }`}
       >
-        {added ? <span className="flex items-center justify-center gap-1"><Check size={10} /> Added!</span> : 'Add to Cart'}
+        {added ? <span className="flex items-center gap-1"><Check size={10} /> Added</span> : '+ Add'}
       </button>
-    </motion.div>
+    </div>
   );
 }
 
@@ -297,6 +279,8 @@ export default function App() {
   const [submitResult, setSubmitResult] = useState<VerificationApiResponse | null>(null);
   const [lastSubmittedProducts, setLastSubmittedProducts] = useState<ProductItem[]>([]);
   const [liveAvailmentIndex, setLiveAvailmentIndex] = useState(0);
+  const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
+  const [expandedSubs, setExpandedSubs] = useState<Record<string, boolean>>({});
   const productPickerRef = useRef<HTMLDivElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const uploadSfxIntervalRef = useRef<number | null>(null);
@@ -1136,66 +1120,77 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="space-y-8">
+                  <div className="space-y-2">
                     {Object.entries(categorizedProducts).length > 0 ? (
-                      Object.entries(categorizedProducts).map(([category, subs]) => (
-                        <div key={category} className="space-y-4">
-                          <div className="flex items-center gap-3">
-                            <h3 className="text-sm font-black uppercase tracking-[0.3em] text-[#ff00ff] drop-shadow-[0_0_8px_rgba(255,0,255,0.5)]">{category}</h3>
-                            <div className="h-[1px] flex-grow bg-gradient-to-r from-[#ff00ff]/50 to-transparent" />
-                          </div>
+                      Object.entries(categorizedProducts).map(([category, subs]) => {
+                        const CatIcon = getCategoryIcon(category);
+                        const isCatOpen = productQuery.trim().length > 0 || expandedCats[category] === true;
+                        const totalInCat = Object.values(subs).reduce((sum, arr) => sum + arr.length, 0);
 
-                          {Object.entries(subs).map(([sub, products]) => {
-                            const rowId = `scroll-${category}-${sub}`.replace(/\s+/g, '-');
-                            const scroll = (dir: 'left' | 'right') => {
-                              const el = document.getElementById(rowId);
-                              if (el) el.scrollBy({ left: dir === 'left' ? -220 : 220, behavior: 'smooth' });
-                            };
-                            return (
-                              <div key={`${category}-${sub}`} className="space-y-2">
-                                <div className="flex items-center justify-between px-1">
-                                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-300/70">{sub}</span>
-                                  <span className="text-[9px] font-mono text-gray-500">{products.length} Items</span>
-                                </div>
-
-                                <div className="relative group/row">
-                                  {/* Left Button */}
-                                  <button
-                                    type="button"
-                                    onClick={() => scroll('left')}
-                                    className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 z-20 h-10 w-8 flex items-center justify-center rounded-md bg-black/80 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/20 hover:border-cyan-400 transition-all shadow-[0_0_10px_rgba(0,243,255,0.2)]"
-                                    aria-label="Scroll left"
-                                  >
-                                    <ChevronLeft size={16} />
-                                  </button>
-
-                                  {/* Scroll Row */}
-                                  <div
-                                    id={rowId}
-                                    className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x px-2"
-                                  >
-                                    {products.map((product) => (
-                                      <div key={product.name} className="snap-start">
-                                        <ProductCard product={product} onAdd={addProductToCart} />
-                                      </div>
-                                    ))}
-                                  </div>
-
-                                  {/* Right Button */}
-                                  <button
-                                    type="button"
-                                    onClick={() => scroll('right')}
-                                    className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1 z-20 h-10 w-8 flex items-center justify-center rounded-md bg-black/80 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/20 hover:border-cyan-400 transition-all shadow-[0_0_10px_rgba(0,243,255,0.2)]"
-                                    aria-label="Scroll right"
-                                  >
-                                    <ChevronRight size={16} />
-                                  </button>
-                                </div>
+                        return (
+                          <div key={category} className="rounded-lg border border-cyan-500/25 bg-[#060b14]/80 overflow-hidden">
+                            {/* Category Header */}
+                            <button
+                              type="button"
+                              onClick={() => setExpandedCats((prev) => ({ ...prev, [category]: !prev[category] }))}
+                              className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-cyan-500/5 transition-colors"
+                            >
+                              <div className="flex items-center gap-3">
+                                <CatIcon size={16} className="text-[#ff00ff] drop-shadow-[0_0_6px_rgba(255,0,255,0.5)]" />
+                                <span className="text-xs sm:text-sm font-black uppercase tracking-[0.2em] text-[#ff00ff]">{category}</span>
+                                <span className="text-[9px] font-mono text-gray-500">{totalInCat} items</span>
                               </div>
-                            );
-                          })}
-                        </div>
-                      ))
+                              {isCatOpen
+                                ? <ChevronDown size={16} className="text-cyan-400" />
+                                : <ChevronRightIcon size={16} className="text-gray-500" />
+                              }
+                            </button>
+
+                            {/* Sub-categories (collapsible) */}
+                            {isCatOpen && (
+                              <div className="border-t border-cyan-500/15">
+                                {Object.entries(subs).map(([sub, products]) => {
+                                  const subKey = `${category}::${sub}`;
+                                  const isSubOpen = productQuery.trim().length > 0 || expandedSubs[subKey] === true;
+
+                                  return (
+                                    <div key={subKey} className="border-b border-cyan-500/10 last:border-b-0">
+                                      {/* Sub-category Header */}
+                                      <button
+                                        type="button"
+                                        onClick={() => setExpandedSubs((prev) => ({ ...prev, [subKey]: !prev[subKey] }))}
+                                        className="w-full flex items-center justify-between gap-2 px-6 py-2.5 hover:bg-cyan-500/5 transition-colors"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          {isSubOpen
+                                            ? <ChevronDown size={12} className="text-cyan-400" />
+                                            : <ChevronRightIcon size={12} className="text-gray-600" />
+                                          }
+                                          <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">{sub}</span>
+                                        </div>
+                                        <span className="text-[9px] font-mono text-gray-500">{products.length}</span>
+                                      </button>
+
+                                      {/* Product List (collapsible) */}
+                                      {isSubOpen && (
+                                        <div className="bg-black/20">
+                                          {products.map((product) => (
+                                            <ProductListItem
+                                              key={product.name}
+                                              product={product}
+                                              onAdd={addProductToCart}
+                                            />
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
                     ) : (
                       <div className="rounded-md border border-dashed border-cyan-500/30 px-4 py-12 text-center">
                         <PackageSearch className="mx-auto mb-3 text-gray-600" size={32} />
