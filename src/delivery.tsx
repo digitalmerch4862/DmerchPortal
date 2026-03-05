@@ -1,5 +1,7 @@
 import React, { FormEvent, useEffect, useMemo, useState, useCallback } from 'react';
-import { Download, ShieldCheck } from 'lucide-react';
+import { Download, ShieldCheck, ExternalLink } from 'lucide-react';
+
+const NEW_DOMAIN = 'https://dmerchportal.digitalmerchs.store';
 
 type DeliveryProduct = {
   name: string;
@@ -16,6 +18,18 @@ type DeliveryAuthResponse = {
   error?: string;
 };
 
+// Check if we're on the wrong/old domain and redirect if so
+const checkAndRedirect = () => {
+  const currentOrigin = window.location.origin;
+  const newOrigin = NEW_DOMAIN;
+  if (currentOrigin !== newOrigin) {
+    const newUrl = newOrigin + window.location.pathname + window.location.search;
+    window.location.replace(newUrl);
+    return true;
+  }
+  return false;
+};
+
 export default function Delivery() {
   const [email, setEmail] = useState('');
   const [serialNo, setSerialNo] = useState('');
@@ -24,9 +38,18 @@ export default function Delivery() {
   const [status, setStatus] = useState('Authenticate using your email and order serial to access your downloads.');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
   const [downloadingProduct, setDownloadingProduct] = useState('');
   const [downloadSuccess, setDownloadSuccess] = useState<Record<string, string>>({});
   const [downloadErrors, setDownloadErrors] = useState<Record<string, string>>({});
+  const [apiUnreachable, setApiUnreachable] = useState(false);
+
+  // On mount: if on wrong domain, auto-redirect preserving the access token
+  useEffect(() => {
+    if (checkAndRedirect()) {
+      setRedirecting(true);
+    }
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -52,12 +75,12 @@ export default function Delivery() {
         try {
           payload = (await response.json()) as DeliveryAuthResponse;
         } catch {
-          setError(`Server returned an invalid response (HTTP ${response.status}). Please try verifying manually.`);
+          // Silently fall back to manual form — no error shown
           setToken('');
           return;
         }
         if (!response.ok || !payload.ok || !payload.token) {
-          setError(payload.error ?? 'Access link is invalid. Please verify manually.');
+          // Silently fall back to manual form
           setToken('');
           return;
         }
@@ -65,8 +88,8 @@ export default function Delivery() {
         setSerialNo(payload.serialNo ?? '');
         setProducts(payload.products ?? []);
         setStatus('Access granted. You may now download your purchased products.');
-      } catch (err) {
-        setError(`Could not validate access link: ${err instanceof Error ? err.message : 'network error'}. Please try verifying manually below.`);
+      } catch {
+        // Network failure — silently show manual form
         setToken('');
       } finally {
         setLoading(false);
@@ -82,6 +105,7 @@ export default function Delivery() {
     event.preventDefault();
     setLoading(true);
     setError('');
+    setApiUnreachable(false);
     setStatus('Verifying your order details...');
 
     try {
@@ -90,9 +114,18 @@ export default function Delivery() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, serialNo }),
       });
-      const payload = (await response.json()) as DeliveryAuthResponse;
+
+      let payload: DeliveryAuthResponse;
+      try {
+        payload = (await response.json()) as DeliveryAuthResponse;
+      } catch {
+        setApiUnreachable(true);
+        setStatus('Authenticate using your email and order serial to access your downloads.');
+        return;
+      }
+
       if (!response.ok || !payload.ok || !payload.token) {
-        setError(payload.error ?? 'Invalid email or serial number.');
+        setError(payload.error ?? 'Invalid email or serial number. Please double-check and try again.');
         setStatus('Authentication failed.');
         return;
       }
@@ -100,8 +133,8 @@ export default function Delivery() {
       setProducts(payload.products ?? []);
       setStatus('Access granted. You may now download your purchased products.');
     } catch {
-      setError('Unable to verify order right now. Please retry.');
-      setStatus('Authentication failed.');
+      setApiUnreachable(true);
+      setStatus('Authenticate using your email and order serial to access your downloads.');
     } finally {
       setLoading(false);
     }
@@ -130,11 +163,7 @@ export default function Delivery() {
 
       if (payload.products) setProducts(payload.products);
 
-      // Cache buster for the download trigger
       const downloadUrl = `/api/delivery?path=file&ticket=${encodeURIComponent(payload.downloadTicket)}&cb=${Date.now()}`;
-
-      // Open in same tab or new one? User said "window open"
-      // window.open(downloadUrl, '_blank') is usually better for downloads to prevent navigation away.
       window.open(downloadUrl, '_blank');
 
       setDownloadSuccess((prev) => ({ ...prev, [productName]: 'Downloading... Check your browser tray.' }));
@@ -150,6 +179,20 @@ export default function Delivery() {
     }
   }, [token]);
 
+  // Build the correct delivery URL on the new domain for this session
+  const newDomainUrl = `${NEW_DOMAIN}/delivery${window.location.search}`;
+
+  if (redirecting) {
+    return (
+      <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center px-4">
+        <div className="text-center space-y-3">
+          <p className="text-cyan-300 text-sm font-mono uppercase tracking-widest">Redirecting...</p>
+          <p className="text-xs text-cyan-100/60">Taking you to the new delivery portal.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#050505] text-white px-4 py-10">
       <main className="mx-auto max-w-3xl space-y-4">
@@ -159,6 +202,23 @@ export default function Delivery() {
           <p className="mt-2 text-xs text-cyan-100/80">{status}</p>
           {error ? <p className="mt-2 text-xs text-red-300">{error}</p> : null}
         </section>
+
+        {/* Show redirect notice if API is unreachable (old domain) */}
+        {apiUnreachable && (
+          <section className="rounded-xl border border-red-500/50 bg-[#1a0505]/90 p-4">
+            <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-red-300 mb-2">⚠ Wrong Domain Detected</p>
+            <p className="text-xs text-red-100/80 mb-3">
+              You are accessing this page from an old link. Please use the new delivery portal link below to access your downloads.
+            </p>
+            <a
+              href={newDomainUrl}
+              className="inline-flex items-center gap-2 rounded-lg bg-cyan-500 px-4 py-2 text-xs font-bold uppercase tracking-widest text-black hover:bg-cyan-400 transition-colors"
+            >
+              <ExternalLink size={13} />
+              Go to New Delivery Portal
+            </a>
+          </section>
+        )}
 
         <section className="rounded-xl border border-amber-500/35 bg-[#171005]/80 p-4">
           <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-amber-200">Visit Us</p>
