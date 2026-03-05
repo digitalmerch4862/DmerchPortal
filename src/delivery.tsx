@@ -165,12 +165,12 @@ export default function Delivery() {
           <p className="mt-2 text-xs text-amber-100/90">
             Visit us at{' '}
             <a
-              href="https://paymentportal.digitalmerchs.store"
+              href="https://dmerchportal.digitalmerchs.store"
               target="_blank"
               rel="noopener noreferrer"
               className="font-semibold text-amber-300 underline decoration-amber-400/70 underline-offset-2 hover:text-amber-200"
             >
-              paymentportal.digitalmerchs.store
+              dmerchportal.digitalmerchs.store
             </a>{' '}
             for more products.
           </p>
