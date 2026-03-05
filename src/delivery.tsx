@@ -66,7 +66,7 @@ export default function Delivery() {
       setLoading(true);
       setError('');
       try {
-        const response = await fetch('/api/delivery?path=auth', {
+        const response = await fetch(`${NEW_DOMAIN}/api/delivery?path=auth`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token }),
@@ -75,12 +75,12 @@ export default function Delivery() {
         try {
           payload = (await response.json()) as DeliveryAuthResponse;
         } catch {
-          // Silently fall back to manual form — no error shown
+          setError(`Server returned an invalid response (HTTP ${response.status}). Please try verifying manually.`);
           setToken('');
           return;
         }
         if (!response.ok || !payload.ok || !payload.token) {
-          // Silently fall back to manual form
+          setError(payload.error ?? 'Access link is invalid. Please verify manually.');
           setToken('');
           return;
         }
@@ -88,8 +88,8 @@ export default function Delivery() {
         setSerialNo(payload.serialNo ?? '');
         setProducts(payload.products ?? []);
         setStatus('Access granted. You may now download your purchased products.');
-      } catch {
-        // Network failure — silently show manual form
+      } catch (err) {
+        setError(`Could not validate access link: ${err instanceof Error ? err.message : 'network error'}. Please try verifying manually below.`);
         setToken('');
       } finally {
         setLoading(false);
@@ -109,7 +109,7 @@ export default function Delivery() {
     setStatus('Verifying your order details...');
 
     try {
-      const response = await fetch('/api/delivery?path=auth', {
+      const response = await fetch(`${NEW_DOMAIN}/api/delivery?path=auth`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, serialNo }),
@@ -119,8 +119,8 @@ export default function Delivery() {
       try {
         payload = (await response.json()) as DeliveryAuthResponse;
       } catch {
-        setApiUnreachable(true);
-        setStatus('Authenticate using your email and order serial to access your downloads.');
+        setError(`Server returned an invalid response (HTTP ${response.status}).`);
+        setStatus('Authentication failed.');
         return;
       }
 
@@ -133,8 +133,8 @@ export default function Delivery() {
       setProducts(payload.products ?? []);
       setStatus('Access granted. You may now download your purchased products.');
     } catch {
-      setApiUnreachable(true);
-      setStatus('Authenticate using your email and order serial to access your downloads.');
+      setError('Unable to verify order right now. Please retry.');
+      setStatus('Authentication failed.');
     } finally {
       setLoading(false);
     }
@@ -145,7 +145,7 @@ export default function Delivery() {
     setDownloadingProduct(productName);
 
     try {
-      const response = await fetch('/api/delivery?path=download', {
+      const response = await fetch(`${NEW_DOMAIN}/api/delivery?path=download`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, productName }),
@@ -163,7 +163,7 @@ export default function Delivery() {
 
       if (payload.products) setProducts(payload.products);
 
-      const downloadUrl = `/api/delivery?path=file&ticket=${encodeURIComponent(payload.downloadTicket)}&cb=${Date.now()}`;
+      const downloadUrl = `${NEW_DOMAIN}/api/delivery?path=file&ticket=${encodeURIComponent(payload.downloadTicket)}&cb=${Date.now()}`;
       window.open(downloadUrl, '_blank');
 
       setDownloadSuccess((prev) => ({ ...prev, [productName]: 'Downloading... Check your browser tray.' }));
