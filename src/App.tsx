@@ -576,6 +576,41 @@ export default function App() {
     }
   }, []);
 
+  const filteredProducts = useMemo(() => {
+    const query = productQuery.trim().toLowerCase();
+    if (!query) {
+      return availableProducts;
+    }
+
+    const tokens = query.split(/\s+/).filter(Boolean);
+
+    return availableProducts
+      .map((item) => {
+        const name = item.name.toLowerCase();
+        const cat = (item.category || '').toLowerCase();
+        const sub = (item.sub_category || '').toLowerCase();
+        const searchTarget = `${name} ${cat} ${sub}`;
+        let score = 0;
+
+        if (name === query || cat === query) {
+          score += 100;
+        } else if (name.startsWith(query) || cat.startsWith(query)) {
+          score += 50;
+        } else if (tokens.length > 1 && tokens.every((token) => searchTarget.includes(token))) {
+          score += 25;
+        } else if (tokens.every((token) => searchTarget.includes(token))) {
+          score += 15;
+        } else if (tokens.some((token) => searchTarget.includes(token))) {
+          score += 10;
+        }
+
+        return { ...item, _score: score };
+      })
+      .filter((item) => item._score > 0)
+      .sort((a, b) => b._score - a._score)
+      .map(({ _score, ...item }) => item);
+  }, [availableProducts, productQuery]);
+
   const categorizedProducts = useMemo(() => {
     const groups: Record<string, Record<string, ProductItem[]>> = {};
 
@@ -613,41 +648,6 @@ export default function App() {
 
     return availableProducts.find((item) => item.name === selectedProductName) ?? null;
   }, [availableProducts, selectedProductName]);
-
-  const filteredProducts = useMemo(() => {
-    const query = productQuery.trim().toLowerCase();
-    if (!query) {
-      return availableProducts;
-    }
-
-    const tokens = query.split(/\s+/).filter(Boolean);
-
-    return availableProducts
-      .map((item) => {
-        const name = item.name.toLowerCase();
-        const cat = (item.category || '').toLowerCase();
-        const sub = (item.sub_category || '').toLowerCase();
-        const searchTarget = `${name} ${cat} ${sub}`;
-        let score = 0;
-
-        if (name === query || cat === query) {
-          score += 100;
-        } else if (name.startsWith(query) || cat.startsWith(query)) {
-          score += 50;
-        } else if (tokens.length > 1 && tokens.every((token) => searchTarget.includes(token))) {
-          score += 25;
-        } else if (tokens.every((token) => searchTarget.includes(token))) {
-          score += 15;
-        } else if (tokens.some((token) => searchTarget.includes(token))) {
-          score += 10;
-        }
-
-        return { ...item, _score: score };
-      })
-      .filter((item) => item._score > 0)
-      .sort((a, b) => b._score - a._score)
-      .map(({ _score, ...item }) => item);
-  }, [availableProducts, productQuery]);
 
   const totalAmount = useMemo(() => {
     return selectedProducts.reduce((sum, item) => sum + item.amount, 0);
