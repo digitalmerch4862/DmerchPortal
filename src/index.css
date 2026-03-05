@@ -396,3 +396,11 @@
   height: 2px;
   background: linear-gradient(90deg, transparent, #00f3ff, transparent);
 }
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

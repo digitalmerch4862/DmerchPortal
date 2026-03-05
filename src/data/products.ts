@@ -1,6 +1,8 @@
 export type ProductItem = {
   name: string;
   amount: number;
+  category?: string;
+  sub_category?: string;
 };
 
 const PRODUCT_ROWS = `

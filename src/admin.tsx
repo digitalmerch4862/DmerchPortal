@@ -10,6 +10,8 @@ type AdminProduct = {
   amount: number;
   os: string;
   fileLink: string;
+  category: string;
+  sub_category: string;
 };
 
 type InboxItem = {
@@ -76,6 +78,8 @@ const parseStoredProducts = (raw: string | null): AdminProduct[] => {
       amount: Number((item as any)?.amount ?? 0),
       os: String((item as any)?.os ?? '').trim() || inferOs(String((item as any)?.name ?? '')),
       fileLink: String((item as any)?.fileLink ?? '').trim(),
+      category: String((item as any)?.category ?? 'Software').trim(),
+      sub_category: String((item as any)?.sub_category ?? 'General').trim(),
     })).filter((item) => item.name.length > 0 && Number.isFinite(item.amount));
   } catch {
     return [];
@@ -114,10 +118,12 @@ const parseBulkRows = (raw: string): AdminProduct[] => {
     }
 
     const name = String(parts[0] ?? '').trim();
-    const fileLink = String(parts[1] ?? '').trim();
+    const category = String(parts[1] ?? 'Software').trim();
+    const sub_category = String(parts[2] ?? 'General').trim();
+    const fileLink = String(parts[3] ?? '').trim();
     // Default OS to 'Multi' or infer, default amount to 99
-    const os = String(parts[2] ?? '').trim() || inferOs(name);
-    const amountStr = String(parts[3] ?? '').trim();
+    const os = String(parts[4] ?? '').trim() || inferOs(name);
+    const amountStr = String(parts[5] ?? '').trim();
     const amount = amountStr ? Number(amountStr) : 99;
 
     if (!name || Number.isNaN(amount)) {
@@ -130,6 +136,8 @@ const parseBulkRows = (raw: string): AdminProduct[] => {
       amount,
       os,
       fileLink,
+      category,
+      sub_category,
     });
   }
 
@@ -368,6 +376,8 @@ export default function Admin() {
           amount: Number(p.price || 0),
           os: p.os || inferOs(p.name),
           fileLink: p.file_url || '',
+          category: p.category || 'Software',
+          sub_category: p.sub_category || 'General',
         })));
       }
     };
@@ -609,6 +619,8 @@ export default function Admin() {
     if (patch.amount !== undefined) updateMap.price = patch.amount;
     if (patch.os !== undefined) updateMap.os = patch.os;
     if (patch.fileLink !== undefined) updateMap.file_url = patch.fileLink;
+    if (patch.category !== undefined) updateMap.category = patch.category;
+    if (patch.sub_category !== undefined) updateMap.sub_category = patch.sub_category;
 
     if (Object.keys(updateMap).length > 0) {
       await supabase.from('products').update(updateMap).eq('id', id);
@@ -634,6 +646,8 @@ export default function Admin() {
       price_usd: 1.00,
       os: 'Windows',
       file_url: '',
+      category: 'Software',
+      sub_category: 'General',
     };
 
     const { data, error } = await supabase.from('products').insert(newProduct).select().single();
@@ -650,6 +664,8 @@ export default function Admin() {
           amount: Number(data.price || 0),
           os: data.os || 'Windows',
           fileLink: data.file_url || '',
+          category: data.category || 'Software',
+          sub_category: data.sub_category || 'General',
         },
         ...current,
       ]);
@@ -676,6 +692,8 @@ export default function Admin() {
       price_usd: Math.max(1.00, Number((p.amount / 50).toFixed(2))),
       os: p.os,
       file_url: p.fileLink,
+      category: p.category,
+      sub_category: p.sub_category,
     }));
 
     const { error } = await supabase.from('products').insert(toInsert);
@@ -693,6 +711,8 @@ export default function Admin() {
           amount: Number(p.price || 0),
           os: p.os || inferOs(p.name),
           fileLink: p.file_url || '',
+          category: p.category || 'Software',
+          sub_category: p.sub_category || 'General',
         })));
       }
     }
@@ -713,6 +733,8 @@ export default function Admin() {
       price_usd: Math.max(1.00, Number((p.amount / 50).toFixed(2))),
       os: p.os,
       file_url: p.fileLink,
+      category: p.category,
+      sub_category: p.sub_category,
     }));
 
     const { error } = await supabase.from('products').insert(toInsert);
@@ -729,6 +751,8 @@ export default function Admin() {
           amount: Number(p.price || 0),
           os: p.os || inferOs(p.name),
           fileLink: p.file_url || '',
+          category: p.category || 'Software',
+          sub_category: p.sub_category || 'General',
         })));
       }
       alert('Successfully imported products!');
@@ -1393,11 +1417,13 @@ export default function Admin() {
                 <button disabled={selectedCount === 0} onClick={deleteSelectedProducts} className="cyber-btn cyber-btn-secondary">Mass Delete</button>
               </div>
               <div className="max-h-[420px] overflow-auto rounded-lg border border-cyan-500/20">
-                <table className="w-full min-w-[980px] border-collapse text-xs">
+                <table className="w-full min-w-[1200px] border-collapse text-xs">
                   <thead className="bg-cyan-500/10 text-cyan-200">
                     <tr>
                       <th className="px-2 py-2 text-center"></th>
                       <th className="px-2 py-2 text-left">File Name</th>
+                      <th className="px-2 py-2 text-left">Category</th>
+                      <th className="px-2 py-2 text-left">Sub-Category</th>
                       <th className="px-2 py-2 text-left">File Link</th>
                       <th className="px-2 py-2 text-left">OS</th>
                       <th className="px-2 py-2 text-right">Amount</th>
@@ -1419,6 +1445,12 @@ export default function Admin() {
                         </td>
                         <td className="px-2 py-2">
                           <input value={item.name} onChange={(event) => updateProduct(item.id, { name: event.target.value })} className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1" />
+                        </td>
+                        <td className="px-2 py-2">
+                          <input value={item.category} onChange={(event) => updateProduct(item.id, { category: event.target.value })} className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1" placeholder="Software, Games, etc." />
+                        </td>
+                        <td className="px-2 py-2">
+                          <input value={item.sub_category} onChange={(event) => updateProduct(item.id, { sub_category: event.target.value })} className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1" placeholder="Graphics, Engineering, etc." />
                         </td>
                         <td className="px-2 py-2">
                           <input value={item.fileLink} onChange={(event) => updateProduct(item.id, { fileLink: event.target.value })} className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1" placeholder="https://drive.google.com/..." />
@@ -1443,12 +1475,12 @@ export default function Admin() {
 
             <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-4 sm:p-5">
               <p className="mb-2 inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300"><Upload size={14} />Bulk Upload (CSV/TSV Paste)</p>
-              <p className="mb-3 text-xs text-cyan-100/80">Format: <span className="font-mono">File Name, File Link, Operating System, Amount</span>. Amount is optional and defaults to 99.</p>
+              <p className="mb-3 text-xs text-cyan-100/80">Format: <span className="font-mono">File Name, Category, Sub-Category, File Link, Operating System, Amount</span>. Category defaults to Software if empty.</p>
               <textarea
                 value={bulkData}
                 onChange={(event) => setBulkData(event.target.value)}
                 className="h-28 w-full rounded-md border border-cyan-500/35 bg-black/40 p-3 text-xs"
-                placeholder="Adobe Photoshop 2025 v26.0 for Windows(OS),https://drive.google.com/file/d/.../view,Windows,99"
+                placeholder="Adobe Photoshop 2025, Software, Graphics, https://drive.google.com/..., Windows, 99"
               />
               <div className="mt-3 flex justify-end">
                 <button onClick={applyBulkImport} className="cyber-btn cyber-btn-primary">Import Rows</button>

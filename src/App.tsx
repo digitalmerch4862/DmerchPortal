@@ -5,7 +5,7 @@
 
 import { type ComponentType, type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft, Home, ShoppingCart, Mail } from 'lucide-react';
+import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft, Home, ShoppingCart, Mail, Cpu, Gamepad2, PlayCircle, Book, Palette, Layers, BookOpen } from 'lucide-react';
 import gcashQr from './gcash-qr.png';
 import gotymeQr from './gotyme-qr.png';
 import { productCatalog, type ProductItem } from './data/products';
@@ -147,6 +147,51 @@ function GlitchText({ text, className = '' }: { text: string; className?: string
   );
 }
 
+const getCategoryIcon = (category: string) => {
+  const cat = (category || '').toLowerCase();
+  if (cat.includes('software')) return Cpu;
+  if (cat.includes('game')) return Gamepad2;
+  if (cat.includes('course')) return PlayCircle;
+  if (cat.includes('book')) return BookOpen;
+  if (cat.includes('design') || cat.includes('graphic')) return Palette;
+  if (cat.includes('engineering')) return Layers;
+  return PackageSearch;
+};
+
+function ProductCard({ product, onAdd }: { product: ProductItem; onAdd: (product: ProductItem) => void }) {
+  const Icon = getCategoryIcon(product.category || '');
+
+  return (
+    <motion.div
+      whileHover={{ y: -5, scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      className="relative flex-shrink-0 w-44 sm:w-52 h-64 rounded-xl border border-cyan-500/30 bg-[#090d17]/90 p-4 flex flex-col items-center justify-between group overflow-hidden"
+    >
+      <div className="absolute top-2 right-2 z-10 bg-magenta-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-[0_0_10px_rgba(255,0,255,0.4)]">
+        PHP {product.amount}
+      </div>
+
+      <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+
+      <div className="mt-4 p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/20 group-hover:border-cyan-400 group-hover:shadow-[0_0_15px_rgba(0,243,255,0.1)] transition-all">
+        <Icon size={36} className="text-cyan-400 drop-shadow-[0_0_5px_rgba(0,243,255,0.4)]" />
+      </div>
+
+      <div className="text-center mt-2 px-1 w-full">
+        <p className="text-[11px] font-bold text-gray-200 line-clamp-2 leading-tight min-h-[2.2rem]">{product.name}</p>
+        <p className="text-[8px] uppercase tracking-[0.15em] text-cyan-400/60 font-mono mt-1 truncate">{product.sub_category || 'General'}</p>
+      </div>
+
+      <button
+        onClick={(e) => { e.stopPropagation(); onAdd(product); }}
+        className="w-full mt-auto py-2 rounded bg-cyan-500/10 border border-cyan-500/40 text-[9px] font-black uppercase tracking-[0.2em] text-cyan-300 hover:bg-cyan-500 hover:text-black transition-all"
+      >
+        Add to Cart
+      </button>
+    </motion.div>
+  );
+}
+
 function CyberCard({ children, title, icon: Icon, color = 'cyan' }: { children: ReactNode; title: string; icon: ComponentType<{ className?: string; size?: number }>; color?: 'cyan' | 'magenta' }) {
   void title;
   void Icon;
@@ -275,13 +320,15 @@ export default function App() {
 
       const { data, error } = await supabase
         .from('products')
-        .select('name, price')
+        .select('name, price, category, sub_category')
         .order('name');
 
       if (!error && data && data.length > 0) {
         setAvailableProducts(data.map(p => ({
           name: String(p.name ?? '').trim(),
           amount: Number(p.price || 0),
+          category: p.category || undefined,
+          sub_category: p.sub_category || undefined,
         })));
       }
     };
@@ -529,6 +576,36 @@ export default function App() {
     }
   }, []);
 
+  const categorizedProducts = useMemo(() => {
+    const groups: Record<string, Record<string, ProductItem[]>> = {};
+
+    filteredProducts.forEach((product) => {
+      const cat = product.category || 'Other';
+      const sub = product.sub_category || 'General';
+
+      if (!groups[cat]) {
+        groups[cat] = {};
+      }
+      if (!groups[cat][sub]) {
+        groups[cat][sub] = [];
+      }
+      groups[cat][sub].push(product);
+    });
+
+    return groups;
+  }, [filteredProducts]);
+
+  const addProductToCart = (product: ProductItem) => {
+    setSubmitError('');
+    setSelectedProducts((prev) => {
+      const alreadyAdded = prev.some((item) => item.name === product.name && item.amount === product.amount);
+      if (alreadyAdded) {
+        return prev;
+      }
+      return [...prev, product];
+    });
+  };
+
   const selectedProduct = useMemo(() => {
     if (!selectedProductName) {
       return null;
@@ -540,7 +617,7 @@ export default function App() {
   const filteredProducts = useMemo(() => {
     const query = productQuery.trim().toLowerCase();
     if (!query) {
-      return availableProducts.slice(0, 50);
+      return availableProducts;
     }
 
     const tokens = query.split(/\s+/).filter(Boolean);
@@ -548,17 +625,20 @@ export default function App() {
     return availableProducts
       .map((item) => {
         const name = item.name.toLowerCase();
+        const cat = (item.category || '').toLowerCase();
+        const sub = (item.sub_category || '').toLowerCase();
+        const searchTarget = `${name} ${cat} ${sub}`;
         let score = 0;
 
-        if (name === query) {
+        if (name === query || cat === query) {
           score += 100;
-        } else if (name.startsWith(query)) {
+        } else if (name.startsWith(query) || cat.startsWith(query)) {
           score += 50;
-        } else if (tokens.length > 1 && tokens.every((token) => name.includes(token))) {
+        } else if (tokens.length > 1 && tokens.every((token) => searchTarget.includes(token))) {
           score += 25;
-        } else if (tokens.every((token) => name.includes(token))) {
+        } else if (tokens.every((token) => searchTarget.includes(token))) {
           score += 15;
-        } else if (tokens.some((token) => name.includes(token))) {
+        } else if (tokens.some((token) => searchTarget.includes(token))) {
           score += 10;
         }
 
@@ -1032,64 +1112,54 @@ export default function App() {
                     <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-gray-400">Multi-Product Enabled</span>
                   </div>
 
-                  <div className="relative">
+                  <div className="relative mb-6">
                     <div className="relative">
-                      <ArrowRight size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-green-400 drop-shadow-[0_0_6px_rgba(34,197,94,0.6)]" />
+                      <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cyan-400 drop-shadow-[0_0_6px_rgba(0,243,255,0.6)]" />
                       <input
                         value={productQuery}
-                        onChange={(event) => {
-                          setProductQuery(event.target.value);
-                          setSelectedProductName('');
-                          setIsProductMenuOpen(true);
-                        }}
-                        onFocus={() => setIsProductMenuOpen(true)}
+                        onChange={(event) => setProductQuery(event.target.value)}
                         className="w-full rounded-md border border-cyan-500/50 bg-black/50 pl-10 pr-4 py-3 text-sm text-gray-100 outline-none transition focus:border-cyan-300 focus:shadow-[0_0_18px_rgba(0,255,255,0.2)]"
-                        placeholder="PRODUCT LIST HERE"
+                        placeholder="SEARCH PRODUCTS OR CATEGORIES..."
                       />
                     </div>
-
-                    {isProductMenuOpen && (
-                      <div className="absolute z-30 mt-2 max-h-64 w-full overflow-auto rounded-md border border-cyan-500/40 bg-[#090d17] shadow-[0_0_28px_rgba(0,200,255,0.15)]">
-                        {filteredProducts.length > 0 ? (
-                          filteredProducts.map((product) => {
-                            const isSelected = selectedProductName === product.name;
-                            return (
-                              <button
-                                key={`${product.name}-${product.amount}`}
-                                type="button"
-                                onClick={() => handleSelectProduct(product.name)}
-                                className={`flex w-full cursor-pointer items-center justify-between border-b border-white/5 px-4 py-3 text-left transition last:border-b-0 ${isSelected ? 'bg-cyan-500/20 text-cyan-100' : 'text-gray-300 hover:bg-white/5'}`}
-                              >
-                                <span className="pr-3 text-xs sm:text-sm">{product.name}</span>
-                                <span className="flex shrink-0 items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em]">
-                                  PHP {product.amount}
-                                  {isSelected ? <Check size={14} /> : null}
-                                </span>
-                              </button>
-                            );
-                          })
-                        ) : (
-                          <div className="px-4 py-4 text-xs font-mono uppercase tracking-[0.2em] text-gray-500">No matching product</div>
-                        )}
-                      </div>
-                    )}
                   </div>
 
-                  <div className="mt-3 flex flex-col sm:flex-row gap-3">
-                    <motion.button
-                      type="button"
-                      whileHover={!selectedProduct ? undefined : { scale: 1.02 }}
-                      whileTap={!selectedProduct ? undefined : { scale: 0.98 }}
-                      onClick={handleAddSelectedProduct}
-                      disabled={!selectedProduct}
-                      className="cyber-btn cyber-btn-secondary"
-                    >
-                      <ShoppingCart size={14} className="text-green-400 drop-shadow-[0_0_6px_rgba(34,197,94,0.6)]" />
-                      Add to Cart
-                    </motion.button>
-                    <div className="rounded-md border border-cyan-500/40 bg-black/40 px-4 py-2 text-xs font-mono uppercase tracking-[0.2em] text-cyan-200">
-                      {selectedProduct ? `Ready: PHP ${selectedProduct.amount}` : 'Select from list'}
-                    </div>
+                  <div className="space-y-8 overflow-hidden">
+                    {Object.entries(categorizedProducts).length > 0 ? (
+                      Object.entries(categorizedProducts).map(([category, subs]) => (
+                        <div key={category} className="space-y-4">
+                          <div className="flex items-center gap-3">
+                            <h3 className="text-sm font-black uppercase tracking-[0.3em] text-magenta-500 drop-shadow-[0_0_8px_rgba(255,0,255,0.5)]">{category}</h3>
+                            <div className="h-[1px] flex-grow bg-gradient-to-r from-magenta-500/50 to-transparent" />
+                          </div>
+                          
+                          {Object.entries(subs).map(([sub, products]) => (
+                            <div key={`${category}-${sub}`} className="space-y-2">
+                              <div className="flex items-center justify-between px-1">
+                                <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-300/70">{sub}</span>
+                                <span className="text-[9px] font-mono text-gray-500">{products.length} Items</span>
+                              </div>
+                              
+                              <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
+                                {products.map((product) => (
+                                  <div key={product.name} className="snap-start">
+                                    <ProductCard 
+                                      product={product} 
+                                      onAdd={addProductToCart} 
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rounded-md border border-dashed border-cyan-500/30 px-4 py-12 text-center">
+                        <PackageSearch className="mx-auto mb-3 text-gray-600" size={32} />
+                        <p className="text-xs font-mono uppercase tracking-[0.2em] text-gray-500">No matching products found</p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-4 space-y-2">
