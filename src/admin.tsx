@@ -790,7 +790,7 @@ export default function Admin() {
     setMassAmount('');
   };
 
-  const applyMassOs = async () => {
+  const applyMassCategory = async () => {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) return;
 
@@ -1372,9 +1372,9 @@ export default function Admin() {
                   </button>
                   <button
                     onClick={() => {
-                      const header = 'Name,File Link,OS,Amount\n';
+                      const header = 'Name,File Link,Category,Sub Category,Amount\n';
                       const rowsCsv = filteredProducts.map((item) => {
-                        return `"${item.name}","${item.fileLink || ''}","${item.os}","${item.amount}"`;
+                        return `"${item.name}","${item.fileLink || ''}","${item.category || ''}","${item.sub_category || ''}","${item.amount}"`;
                       }).join('\n');
                       const csv = header + rowsCsv;
                       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1412,7 +1412,7 @@ export default function Admin() {
                   className="rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
                   placeholder="Mass Category"
                 />
-                <button disabled={selectedCount === 0} onClick={applyMassOs} className="cyber-btn cyber-btn-secondary">Mass Edit Category</button>
+                <button disabled={selectedCount === 0} onClick={applyMassCategory} className="cyber-btn cyber-btn-secondary">Mass Edit Category</button>
                 <button disabled={selectedCount === 0} onClick={deleteSelectedProducts} className="cyber-btn cyber-btn-secondary">Mass Delete</button>
               </div>
               <div className="max-h-[420px] overflow-auto rounded-lg border border-cyan-500/20">
@@ -1421,9 +1421,9 @@ export default function Admin() {
                     <tr>
                       <th className="px-2 py-2 text-center"></th>
                       <th className="px-2 py-2 text-left">File Name</th>
-                      <th className="px-2 py-2 text-left">Category</th>
-                      <th className="px-2 py-2 text-left">Sub-Category</th>
                       <th className="px-2 py-2 text-left">File Link</th>
+                      <th className="px-2 py-2 text-left">Category</th>
+                      <th className="px-2 py-2 text-left">Sub Category</th>
                       <th className="px-2 py-2 text-right">Amount</th>
                       <th className="px-2 py-2 text-center">Action</th>
                     </tr>
@@ -1445,13 +1445,13 @@ export default function Admin() {
                           <input value={item.name} onChange={(event) => updateProduct(item.id, { name: event.target.value })} className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1" />
                         </td>
                         <td className="px-2 py-2">
+                          <input value={item.fileLink} onChange={(event) => updateProduct(item.id, { fileLink: event.target.value })} className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1" placeholder="https://drive.google.com/..." />
+                        </td>
+                        <td className="px-2 py-2">
                           <input value={item.category} onChange={(event) => updateProduct(item.id, { category: event.target.value })} className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1" placeholder="Software, Games, etc." />
                         </td>
                         <td className="px-2 py-2">
-                          <input value={item.sub_category} onChange={(event) => updateProduct(item.id, { sub_category: event.target.value })} className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1" placeholder="Graphics, Engineering, etc." />
-                        </td>
-                        <td className="px-2 py-2">
-                          <input value={item.fileLink} onChange={(event) => updateProduct(item.id, { fileLink: event.target.value })} className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1" placeholder="https://drive.google.com/..." />
+                          <input value={item.sub_category} onChange={(event) => updateProduct(item.id, { sub_category: event.target.value })} className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1" placeholder="Graphics, Games, etc." />
                         </td>
                         <td className="px-2 py-2">
                           <input type="number" value={item.amount} onChange={(event) => updateProduct(item.id, { amount: Number(event.target.value || 0) })} className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1 text-right" />
