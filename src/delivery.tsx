@@ -48,7 +48,14 @@ export default function Delivery() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token }),
         });
-        const payload = (await response.json()) as DeliveryAuthResponse;
+        let payload: DeliveryAuthResponse;
+        try {
+          payload = (await response.json()) as DeliveryAuthResponse;
+        } catch {
+          setError(`Server returned an invalid response (HTTP ${response.status}). Please try verifying manually.`);
+          setToken('');
+          return;
+        }
         if (!response.ok || !payload.ok || !payload.token) {
           setError(payload.error ?? 'Access link is invalid. Please verify manually.');
           setToken('');
@@ -58,8 +65,9 @@ export default function Delivery() {
         setSerialNo(payload.serialNo ?? '');
         setProducts(payload.products ?? []);
         setStatus('Access granted. You may now download your purchased products.');
-      } catch {
-        setError('Could not validate access link. Please try again.');
+      } catch (err) {
+        setError(`Could not validate access link: ${err instanceof Error ? err.message : 'network error'}. Please try verifying manually below.`);
+        setToken('');
       } finally {
         setLoading(false);
       }
