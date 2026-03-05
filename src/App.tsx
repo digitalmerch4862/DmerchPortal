@@ -566,22 +566,44 @@ export default function App() {
   }, [availableProducts, productQuery]);
 
   const categorizedProducts = useMemo(() => {
-    const groups: Record<string, Record<string, ProductItem[]>> = {};
+    const raw: Record<string, Record<string, ProductItem[]>> = {};
 
     filteredProducts.forEach((product) => {
       const cat = product.category || 'Software';
       const sub = product.sub_category || 'General';
 
-      if (!groups[cat]) {
-        groups[cat] = {};
+      if (!raw[cat]) {
+        raw[cat] = {};
       }
-      if (!groups[cat][sub]) {
-        groups[cat][sub] = [];
+      if (!raw[cat][sub]) {
+        raw[cat][sub] = [];
       }
-      groups[cat][sub].push(product);
+      raw[cat][sub].push(product);
     });
 
-    return groups;
+    // Sort categories alphabetically
+    const sortedCats = Object.keys(raw).sort((a, b) => a.localeCompare(b));
+    const sorted: Record<string, Record<string, ProductItem[]>> = {};
+
+    for (const cat of sortedCats) {
+      const subs = raw[cat];
+      // Sort sub-categories: General first, Others last, rest alphabetical
+      const sortedSubKeys = Object.keys(subs).sort((a, b) => {
+        const aLower = a.toLowerCase();
+        const bLower = b.toLowerCase();
+        if (aLower === 'general') return -1;
+        if (bLower === 'general') return 1;
+        if (aLower === 'others') return 1;
+        if (bLower === 'others') return -1;
+        return a.localeCompare(b);
+      });
+      sorted[cat] = {};
+      for (const sub of sortedSubKeys) {
+        sorted[cat][sub] = subs[sub];
+      }
+    }
+
+    return sorted;
   }, [filteredProducts]);
 
   const addProductToCart = (product: ProductItem) => {
