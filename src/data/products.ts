@@ -3,6 +3,7 @@ export type ProductItem = {
   amount: number;
   category?: string;
   sub_category?: string;
+  fileLink?: string;
 };
 
 const PRODUCT_ROWS = `
@@ -297,7 +298,7 @@ const toProduct = (row: string): ProductItem | null => {
       return null;
     }
 
-    return {name, amount};
+    return { name, amount };
   }
 
   const fallback = cleaned.match(/^(.*?)(\d+(?:\.\d+)?)$/);
@@ -311,7 +312,7 @@ const toProduct = (row: string): ProductItem | null => {
     return null;
   }
 
-  return {name, amount};
+  return { name, amount };
 };
 
 const parsedProducts = PRODUCT_ROWS.split('\n')

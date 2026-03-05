@@ -429,6 +429,7 @@ export default async function handler(req: any, res: any) {
       .map((item) => ({
         name: String(item?.name ?? '').trim(),
         amount: Number(item?.amount ?? 0),
+        fileLink: String(item?.fileLink ?? '').trim(),
       }))
       .filter((item) => item.name && !Number.isNaN(item.amount) && item.amount > 0);
     const productName = products[0]?.name ?? String(payload.productName ?? '').trim();

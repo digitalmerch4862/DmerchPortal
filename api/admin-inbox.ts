@@ -136,7 +136,10 @@ async function handleGetInbox(req: any, res: any, supabase: any) {
         deliveryLinksByProduct: products.reduce((acc: any, item: any) => {
           const name = String(item?.name ?? '').trim();
           const key = name.toLowerCase().replace(/\s+/g, ' ');
-          const url = productUrlMap.get(key);
+          let url = productUrlMap.get(key);
+          if (!url && typeof item?.fileLink === 'string' && item.fileLink.trim() !== '') {
+            url = item.fileLink.trim();
+          }
           if (url) {
             acc[name] = url;
           }

@@ -73,55 +73,13 @@ type CheckoutDraft = {
   selectedProducts: ProductItem[];
 };
 
-type UpsellCategory =
-  | 'Design Suite'
-  | 'Video & Audio'
-  | 'CAD & 3D'
-  | 'Office & Productivity'
-  | 'Utilities & Security'
-  | 'Gaming'
-  | 'Mobile Apps'
-  | 'Other';
+
 
 type FakeAvailment = {
   buyer: string;
   location: string;
   product: string;
   timeLabel: string;
-};
-
-const getProductCategory = (productName: string): UpsellCategory => {
-  const name = productName.toLowerCase();
-
-  if (/(adobe|canva|coreldraw|lightroom|photoshop|illustrator|indesign|fresco|xd)/.test(name)) {
-    return 'Design Suite';
-  }
-
-  if (/(premiere|after effects|audition|media encoder|davinci|filmora|fl studio|protools|final cut|capcut|dehancer|topaz video|virtual dj)/.test(name)) {
-    return 'Video & Audio';
-  }
-
-  if (/(autocad|autodesk|revit|maya|naviswork|solidworks|sketchup|rhino|vray|lumion|enscape)/.test(name)) {
-    return 'CAD & 3D';
-  }
-
-  if (/(office|quickbooks|acrobat|foxit|wps|turbotax)/.test(name)) {
-    return 'Office & Productivity';
-  }
-
-  if (/(mcafee|norton|easeus|winrar|idm|download manager|deep freeze|partition|virus|utilities)/.test(name)) {
-    return 'Utilities & Security';
-  }
-
-  if (/(call of duty|nba|motogp|spider-man|sekiro|starcraft|red dead|cities - skylines)/.test(name)) {
-    return 'Gaming';
-  }
-
-  if (/(android|apk|pixelcut|mobile)/.test(name)) {
-    return 'Mobile Apps';
-  }
-
-  return 'Other';
 };
 
 const FAKE_AVAILMENTS: FakeAvailment[] = [
@@ -158,7 +116,7 @@ const getCategoryIcon = (category: string) => {
   return PackageSearch;
 };
 
-function ProductListItem({ product, onAdd }: { product: ProductItem; onAdd: (product: ProductItem) => void }) {
+function ProductListItem({ product, onAdd }: { key?: string | number; product: ProductItem; onAdd: (product: ProductItem) => void }) {
   const [added, setAdded] = useState(false);
 
   const handleAdd = () => {
@@ -174,11 +132,10 @@ function ProductListItem({ product, onAdd }: { product: ProductItem; onAdd: (pro
       <button
         type="button"
         onClick={handleAdd}
-        className={`flex-shrink-0 px-3 py-1.5 rounded border text-[9px] font-bold uppercase tracking-[0.15em] transition-all duration-300 ${
-          added
-            ? 'bg-green-500 border-green-400 text-black shadow-[0_0_10px_rgba(34,197,94,0.4)]'
-            : 'bg-cyan-500/10 border-cyan-500/40 text-cyan-300 hover:bg-cyan-500 hover:text-black hover:border-cyan-400'
-        }`}
+        className={`flex-shrink-0 px-3 py-1.5 rounded border text-[9px] font-bold uppercase tracking-[0.15em] transition-all duration-300 ${added
+          ? 'bg-green-500 border-green-400 text-black shadow-[0_0_10px_rgba(34,197,94,0.4)]'
+          : 'bg-cyan-500/10 border-cyan-500/40 text-cyan-300 hover:bg-cyan-500 hover:text-black hover:border-cyan-400'
+          }`}
       >
         {added ? <span className="flex items-center gap-1"><Check size={10} /> Added</span> : '+ Add'}
       </button>
@@ -269,7 +226,7 @@ export default function App() {
   const [productQuery, setProductQuery] = useState('');
   const [selectedProductName, setSelectedProductName] = useState('');
   const [selectedProducts, setSelectedProducts] = useState<ProductItem[]>([]);
-  const [availableProducts, setAvailableProducts] = useState<ProductItem[]>(productCatalog);
+  const [availableProducts, setAvailableProducts] = useState<ProductItem[]>([]);
   const [isProductMenuOpen, setIsProductMenuOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitProgress, setSubmitProgress] = useState(0);
@@ -316,7 +273,7 @@ export default function App() {
 
       const { data, error } = await supabase
         .from('products')
-        .select('name, price, category, sub_category')
+        .select('name, price, category, sub_category, file_url')
         .order('name');
 
       if (!error && data && data.length > 0) {
@@ -325,6 +282,7 @@ export default function App() {
           amount: Number(p.price || 0),
           category: p.category || undefined,
           sub_category: p.sub_category || undefined,
+          fileLink: p.file_url || undefined,
         })));
       }
     };
@@ -375,11 +333,11 @@ export default function App() {
       }
 
       const selectedMethodValue = parsed.selectedMethod === 'gotyme'
-          ? 'gotyme'
-          : 'gcash';
+        ? 'gotyme'
+        : 'gcash';
       const paymentPortalValue = parsed.paymentPortalUsed === 'gotyme'
-          ? 'gotyme'
-          : 'gcash';
+        ? 'gotyme'
+        : 'gcash';
 
       setSelectedMethod(selectedMethodValue);
       setPaymentPortalUsed(paymentPortalValue);
@@ -611,7 +569,7 @@ export default function App() {
     const groups: Record<string, Record<string, ProductItem[]>> = {};
 
     filteredProducts.forEach((product) => {
-      const cat = product.category || 'Other';
+      const cat = product.category || 'Software';
       const sub = product.sub_category || 'General';
 
       if (!groups[cat]) {
@@ -652,10 +610,9 @@ export default function App() {
   const orderSummaryItems = useMemo(() => {
     const source = selectedProducts.length > 0 ? selectedProducts : lastSubmittedProducts;
     return source.map((item) => {
-      const category = getProductCategory(item.name);
       return {
         ...item,
-        category,
+        category: item.category || 'Software',
       };
     });
   }, [lastSubmittedProducts, selectedProducts]);
