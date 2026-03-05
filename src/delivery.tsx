@@ -123,7 +123,7 @@ export default function Delivery() {
       if (payload.products) setProducts(payload.products);
 
       // Cache buster for the download trigger
-      const downloadUrl = `/api/delivery?path=file?ticket=${encodeURIComponent(payload.downloadTicket)}&cb=${Date.now()}`;
+      const downloadUrl = `/api/delivery?path=file&ticket=${encodeURIComponent(payload.downloadTicket)}&cb=${Date.now()}`;
 
       // Open in same tab or new one? User said "window open"
       // window.open(downloadUrl, '_blank') is usually better for downloads to prevent navigation away.
