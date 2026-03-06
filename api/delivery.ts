@@ -230,11 +230,6 @@ async function handleAuth(req: any, res: any, supabase: any, tokenSecret: string
     return res.status(401).json({ ok: false, error: 'The email provided does not match the record for this serial number.' });
   }
 
-  const emailStatus = String(orderLookup.data.email_status ?? '');
-  if (!isApprovedStatus(emailStatus)) {
-    return res.status(403).json({ ok: false, error: 'Order is not approved for delivery yet.' });
-  }
-
   const approvedOrders = await supabase
     .from('verification_orders')
     .select('serial_no, products_json, email_status')
@@ -248,6 +243,15 @@ async function handleAuth(req: any, res: any, supabase: any, tokenSecret: string
   }
 
   const approvedRows = (approvedOrders.data ?? []).filter((row) => isApprovedStatus(String(row.email_status ?? '')));
+  const emailStatus = String(orderLookup.data.email_status ?? '');
+  const hasApproved = approvedRows.length > 0;
+  if (!isApprovedStatus(emailStatus) && !hasApproved) {
+    return res.status(403).json({ ok: false, error: 'Order is not approved for delivery yet.' });
+  }
+
+  const serialForToken = isApprovedStatus(emailStatus)
+    ? serialNo
+    : String(approvedRows[0]?.serial_no ?? serialNo).toUpperCase();
   const products = aggregateApprovedProducts(approvedRows);
 
   const entitlementLookup = await supabase
@@ -258,12 +262,12 @@ async function handleAuth(req: any, res: any, supabase: any, tokenSecret: string
 
   const entitlement = entitlementLookup.data as BuyerEntitlement | null;
 
-  const token = signPayload({ email, serialNo }, tokenSecret);
+  const token = signPayload({ email, serialNo: serialForToken }, tokenSecret);
 
   return res.status(200).json({
     ok: true,
     token,
-    serialNo,
+    serialNo: serialForToken,
     products: products.map((item) => ({
       name: item.name,
       amount: item.amount,
