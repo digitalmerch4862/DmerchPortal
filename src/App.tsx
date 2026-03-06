@@ -280,7 +280,7 @@ const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
         .select('name, price, category, sub_category, file_url')
         .order('name');
 
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         setAvailableProducts(data.map(p => ({
           name: String(p.name ?? '').trim(),
           amount: Number(p.price || 0),
@@ -293,6 +293,16 @@ const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
 
     void logVisit();
     void fetchSupabaseProducts();
+
+    const supabase = getSupabaseBrowserClient();
+    const realtimeChannel = supabase
+      ? supabase
+        .channel('products-stage2')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
+          void fetchSupabaseProducts();
+        })
+        .subscribe()
+      : null;
 
     // Still listen for storage sync for compatibility
     const handleStorageSync = (event: StorageEvent) => {
@@ -312,6 +322,9 @@ const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
     window.addEventListener('storage', handleStorageSync);
     return () => {
       window.removeEventListener('storage', handleStorageSync);
+      if (realtimeChannel && supabase) {
+        void supabase.removeChannel(realtimeChannel);
+      }
     };
   }, []);
 

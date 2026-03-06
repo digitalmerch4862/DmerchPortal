@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Search, ChevronDown, Sparkles, ShoppingCart, X } from 'lucide-react';
-import { productCatalog, type ProductItem } from './data/products';
+import { type ProductItem } from './data/products';
+import { getSupabaseBrowserClient } from './lib/supabase-browser';
 
 type CatalogTab = 'all' | 'software' | 'games' | 'courses' | 'others';
 type SortKey = 'az' | 'price-low' | 'price-high' | 'newest';
@@ -41,18 +42,65 @@ const getBadges = (product: ProductItem, isFeatured: boolean) => {
 };
 
 export default function CatalogPage() {
+  const [products, setProducts] = useState<ProductItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<CatalogTab>('all');
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('az');
   const [visibleCount, setVisibleCount] = useState(18);
   const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(null);
 
-  const featured = useMemo(() => productCatalog.slice(0, 8), []);
-  const courseCount = useMemo(() => productCatalog.filter((item) => getCatalogGroup(item) === 'courses').length, []);
+  useEffect(() => {
+    let mounted = true;
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      setIsLoading(false);
+      return () => undefined;
+    }
+
+    const fetchProducts = async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('name, price, category, sub_category, file_url')
+        .order('name');
+
+      if (!mounted) return;
+      if (error || !data) {
+        setIsLoading(false);
+        return;
+      }
+
+      setProducts(data.map((item) => ({
+        name: String(item.name ?? '').trim(),
+        amount: Number(item.price || 0),
+        category: item.category || undefined,
+        sub_category: item.sub_category || undefined,
+        fileLink: item.file_url || undefined,
+      })));
+      setIsLoading(false);
+    };
+
+    void fetchProducts();
+
+    const channel = supabase
+      .channel('products-catalog')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
+        void fetchProducts();
+      })
+      .subscribe();
+
+    return () => {
+      mounted = false;
+      void supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const featured = useMemo(() => products.slice(0, 8), [products]);
+  const courseCount = useMemo(() => products.filter((item) => getCatalogGroup(item) === 'courses').length, [products]);
 
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
-    let items = productCatalog;
+    let items = products;
 
     if (activeTab !== 'all') {
       items = items.filter((item) => getCatalogGroup(item) === activeTab);
@@ -189,6 +237,12 @@ export default function CatalogPage() {
             </span>
           </div>
 
+          {isLoading && (
+            <div className="mt-4 rounded-2xl border border-cyan-500/20 bg-black/50 p-6 text-center text-sm text-gray-400">
+              Syncing catalog...
+            </div>
+          )}
+
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {visibleProducts.map((item, index) => {
               const isFeatured = index < 6 && activeTab === 'all' && !search;
@@ -230,7 +284,7 @@ export default function CatalogPage() {
             })}
           </div>
 
-          {filteredProducts.length === 0 && (
+          {!isLoading && filteredProducts.length === 0 && (
             <div className="mt-6 rounded-2xl border border-cyan-500/20 bg-black/50 p-6 text-center text-sm text-gray-400">
               No products match that search yet.
             </div>
