@@ -104,9 +104,6 @@ export default function CatalogPage() {
             <a href="/" className="cyber-btn cyber-btn-secondary text-[10px]">
               <ArrowLeft size={14} /> Back to Portal
             </a>
-            <a href="/landing" className="cyber-btn cyber-btn-secondary text-[10px]">
-              View Landing
-            </a>
             <a href="/" className="cyber-btn cyber-btn-primary text-[10px]">
               <ShoppingCart size={14} /> Checkout
             </a>

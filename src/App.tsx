@@ -1148,7 +1148,7 @@ return sorted;
                     <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-gray-400">Multi-Product Enabled</span>
                   </div>
 
-                  <div className="mb-4 flex justify-end">
+                  <div className="mb-4 flex justify-center">
                     <a href="/catalog" className="cyber-btn cyber-btn-primary text-[10px] cyber-breath">
                       View Products Catalog
                     </a>
@@ -1351,8 +1351,17 @@ return sorted;
                   </div>
                 </div>
 
-                <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-4 py-3">
-                  <span className="text-xs font-mono uppercase tracking-[0.22em] text-cyan-200">
+                <div className="mt-6 flex flex-col gap-3 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 sm:flex-row sm:items-center">
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={handleClientSignOut}
+                    className="cyber-btn cyber-btn-secondary border-red-400/60 text-red-200 hover:text-white"
+                  >
+                    <LogOut size={15} /> Sign Out
+                  </motion.button>
+                  <span className="flex-1 text-center text-xs font-mono uppercase tracking-[0.22em] text-cyan-200">
                     Products: {selectedProducts.length} | Total: PHP {totalAmount}
                   </span>
                   <div className="flex flex-wrap items-center justify-center gap-2">
@@ -1361,15 +1370,6 @@ return sorted;
                         <ArrowLeft size={15} /> Back
                       </motion.button>
                     )}
-                    <motion.button
-                      type="button"
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={handleClientSignOut}
-                      className="cyber-btn cyber-btn-secondary border-red-400/60 text-red-200 hover:text-white"
-                    >
-                      <LogOut size={15} /> Sign Out
-                    </motion.button>
                     <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
                       Next: Payment Portal <ArrowRight size={15} />
                     </motion.button>
