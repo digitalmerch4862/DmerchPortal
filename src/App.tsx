@@ -1353,69 +1353,139 @@ return sorted;
                     </div>
                   )}
 
-                  <div className="mt-4 rounded-lg border border-cyan-500/30 bg-[#06101a]/80 p-4">
-                    <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-cyan-300">Checkout List</p>
-                    <div className="mt-3 space-y-2">
+                  <div className="mt-4 rounded-xl border border-cyan-500/40 bg-[#031018]/80 p-4 shadow-[0_0_30px_rgba(0,195,255,0.1)]">
+                    <div className="hidden md:block overflow-x-auto">
+                      <table className="w-full min-w-[660px] border-collapse text-xs sm:text-sm font-mono uppercase tracking-[0.12em] text-cyan-100">
+                        <thead>
+                          <tr className="border-b border-cyan-500/30 text-cyan-300">
+                            <th className="py-2 px-2 text-left font-semibold">Product</th>
+                            <th className="py-2 px-2 text-left font-semibold">Category</th>
+                            <th className="py-2 px-2 text-right font-semibold">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedProducts.length > 0 ? (
+                            selectedProducts.map((item) => (
+                              <tr key={`${item.name}-${item.amount}`} className="border-b border-cyan-500/15">
+                                <td className="py-2 px-2 text-left normal-case tracking-normal break-words">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span>{item.name}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => removeSelectedProduct(item.name)}
+                                      className="inline-flex h-6 w-6 items-center justify-center rounded border border-red-400/40 text-red-300 hover:bg-red-500/10"
+                                      title="Remove product"
+                                    >
+                                      <X size={12} />
+                                    </button>
+                                  </div>
+                                </td>
+                                <td className="py-2 px-2 text-left normal-case tracking-normal">{item.category || 'Software'}</td>
+                                <td className="py-2 px-2 text-right">PHP {item.amount}</td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr className="border-b border-cyan-500/15">
+                              <td className="py-3 px-2 text-center text-gray-500" colSpan={3}>No products to review yet</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="space-y-2 md:hidden">
                       {selectedProducts.length > 0 ? (
                         selectedProducts.map((item) => (
-                          <div
-                            key={`${item.name}-${item.amount}`}
-                            className="flex items-start justify-between gap-3 rounded-md border border-cyan-500/30 bg-black/40 px-3 py-2"
-                          >
-                            <div>
-                              <p className="text-sm text-cyan-100">{item.name}</p>
-                              <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">PHP {item.amount}</p>
+                          <div key={`${item.name}-${item.amount}`} className="rounded-md border border-cyan-500/25 bg-black/35 px-3 py-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">Product</p>
+                                <p className="mt-1 text-sm text-cyan-100 normal-case tracking-normal break-words">{item.name}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeSelectedProduct(item.name)}
+                                className="inline-flex h-6 w-6 items-center justify-center rounded border border-red-400/40 text-red-300 hover:bg-red-500/10"
+                                title="Remove product"
+                              >
+                                <X size={12} />
+                              </button>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => removeSelectedProduct(item.name)}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded border border-red-400/40 text-red-300 hover:bg-red-500/10"
-                              title="Remove product"
-                            >
-                              <X size={12} />
-                            </button>
+                            <div className="mt-2 grid grid-cols-1 gap-2">
+                              <div>
+                                <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">Category</p>
+                                <p className="text-xs text-cyan-100 normal-case tracking-normal">{item.category || 'Software'}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">Amount</p>
+                                <p className="text-xs text-cyan-100">PHP {item.amount}</p>
+                              </div>
+                            </div>
                           </div>
                         ))
                       ) : (
-                        <div className="rounded-md border border-dashed border-cyan-500/30 px-4 py-4 text-center text-xs font-mono uppercase tracking-[0.2em] text-gray-500">
-                          No products added yet
-                        </div>
+                        <div className="rounded-md border border-cyan-500/25 bg-black/35 px-3 py-3 text-center text-xs text-gray-500">No products to review yet</div>
                       )}
+                    </div>
+
+                    <div className="mt-3 flex flex-col gap-2 rounded-md border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-xs font-mono uppercase tracking-[0.15em] text-cyan-100">Total: PHP {totalAmount}</p>
                     </div>
                   </div>
 
-                  <div className="mt-4 rounded-lg border border-[#ff8a00]/40 bg-[#1a0e05] p-4 shadow-[0_0_25px_rgba(255,138,0,0.2)]">
+                  <div className="mt-4 rounded-xl border border-[#ff8a00]/40 bg-[#1a0e05] p-4 shadow-[0_0_35px_rgba(255,128,0,0.2)]">
                     <div className="mb-3 flex items-center gap-2 text-[#ffb257]">
-                      <PackageSearch size={14} />
+                      <PackageSearch size={15} />
                       <span className="text-[11px] font-mono uppercase tracking-[0.25em]">Verification Summary</span>
                     </div>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div>
-                        <span className="mb-1 block text-[10px] font-mono uppercase tracking-[0.2em] text-[#ffbd75]">Products Selected</span>
-                        <p className="text-sm text-[#ffd2a1]">{selectedProducts.length} item(s)</p>
+                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Payment Portal Used</span>
+                        <div className="rounded-md border border-[#ffb257]/40 bg-[#ff8a00]/10 px-3 py-2 text-xs font-mono uppercase tracking-[0.16em] text-[#ffd2a1]">
+                          PayMongo QRPH
+                        </div>
                       </div>
+
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">
+                          PayMongo Reference / Sender Name
+                        </span>
+                        <input
+                          value={paymongoReference}
+                          onChange={(event) => setPaymongoReference(event.target.value)}
+                          className="w-full rounded-md border border-[#ff8a00]/50 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-[#ffb257] focus:shadow-[0_0_18px_rgba(255,138,0,0.24)]"
+                          placeholder="e.g. JUAN DELA CRUZ / QRPH REF"
+                        />
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Reference No (Last 6 Digits)</span>
+                        <input
+                          value={referenceNo}
+                          onChange={(event) => {
+                            const digitsOnly = event.target.value.replace(/\D/g, '');
+                            setReferenceNo(digitsOnly.slice(-6));
+                          }}
+                          inputMode="numeric"
+                          maxLength={6}
+                          className="w-full rounded-md border border-[#ff8a00]/50 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-[#ffb257] focus:shadow-[0_0_18px_rgba(255,138,0,0.24)]"
+                          placeholder="e.g. 123456"
+                        />
+                        <span className="mt-2 block text-[10px] font-mono uppercase tracking-[0.18em] text-[#ffbd75]">Sample: 987654 (last 6 digits only)</span>
+                      </label>
                       <div>
-                        <span className="mb-1 block text-[10px] font-mono uppercase tracking-[0.2em] text-[#ffbd75]">Total Amount</span>
-                        <p className="text-sm text-[#ffd2a1]">PHP {totalAmount}</p>
-                      </div>
-                      <div>
-                        <span className="mb-1 block text-[10px] font-mono uppercase tracking-[0.2em] text-[#ffbd75]">Payment Portal</span>
-                        <p className="text-sm text-[#ffd2a1]">PayMongo QRPH</p>
-                      </div>
-                      <div>
-                        <span className="mb-1 block text-[10px] font-mono uppercase tracking-[0.2em] text-[#ffbd75]">Status</span>
-                        <p className="text-sm text-[#ffd2a1]">Ready for payment verification</p>
+                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Total Amount</span>
+                        <div className="rounded-md border border-[#ff8a00]/50 bg-black/30 px-4 py-3 text-sm font-mono uppercase tracking-[0.15em] text-[#ffc680]">
+                          PHP {totalAmount}
+                        </div>
                       </div>
                     </div>
                   </div>
 
                   <div className="mt-4 rounded-lg border border-red-400/40 bg-red-500/10 p-4">
-                    <div className="mb-2 flex items-center gap-2 text-red-300">
-                      <ShieldAlert size={14} />
-                      <span className="text-[11px] font-mono uppercase tracking-[0.25em]">Warning</span>
-                    </div>
-                    <p className="text-xs text-red-200">
-                      Review your product list before proceeding. Cancelled items will not be delivered once payment is verified.
+                    <p className="text-xs font-mono uppercase tracking-[0.22em] text-red-200">
+                      WARNING!!! SUBMITTING FAKE PAYMENT DETAILS WILL LEAD TO PERMANENT ACCOUNT BAN.
                     </p>
                   </div>
 
