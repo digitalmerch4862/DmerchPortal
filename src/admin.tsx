@@ -803,6 +803,44 @@ export default function Admin() {
     setMassCategory('');
   };
 
+  const exportProductsCsv = async () => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+
+    const { data, error } = await supabase
+      .from('products')
+      .select('name, price, price_usd, os, file_url, category, sub_category')
+      .order('name');
+
+    if (error || !data) {
+      alert(`Export error: ${error?.message ?? 'Unable to export products.'}`);
+      return;
+    }
+
+    const header = 'Name,Price,Price USD,OS,File Link,Category,Sub Category\n';
+    const rows = data.map((item) => {
+      const name = String(item.name ?? '').replace(/"/g, '""');
+      const fileLink = String(item.file_url ?? '').replace(/"/g, '""');
+      const category = String(item.category ?? '').replace(/"/g, '""');
+      const subCategory = String(item.sub_category ?? '').replace(/"/g, '""');
+      const os = String(item.os ?? '').replace(/"/g, '""');
+      const price = Number(item.price ?? 0).toFixed(2);
+      const priceUsd = Number(item.price_usd ?? 0).toFixed(2);
+      return `"${name}","${price}","${priceUsd}","${os}","${fileLink}","${category}","${subCategory}"`;
+    }).join('\n');
+
+    const csv = header + rows;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `dmerch-products-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const deleteSelectedProducts = async () => {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) return;
@@ -1477,7 +1515,8 @@ export default function Admin() {
                 className="h-28 w-full rounded-md border border-cyan-500/35 bg-black/40 p-3 text-xs"
                 placeholder="Adobe Photoshop 2025, https://drive.google.com/..., Software, Graphics, 99"
               />
-              <div className="mt-3 flex justify-end">
+              <div className="mt-3 flex flex-wrap justify-end gap-2">
+                <button onClick={exportProductsCsv} className="cyber-btn cyber-btn-secondary">Export CSV</button>
                 <button onClick={applyBulkImport} className="cyber-btn cyber-btn-primary">Import Rows</button>
               </div>
             </section>
