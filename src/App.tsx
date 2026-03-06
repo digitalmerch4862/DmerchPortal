@@ -5,7 +5,7 @@
 
 import { type ComponentType, type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft, Home, ShoppingCart, Mail, Cpu, Gamepad2, PlayCircle, Book, Palette, Layers, BookOpen, ChevronDown, ChevronRight as ChevronRightIcon, GraduationCap, Eye, Clock, Users, FileText, Star } from 'lucide-react';
+import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft, Home, ShoppingCart, Mail, Cpu, Gamepad2, PlayCircle, Book, Palette, Layers, BookOpen, ChevronDown, ChevronRight as ChevronRightIcon, GraduationCap, Eye, Clock, Users, FileText, Star, LogOut } from 'lucide-react';
 import gcashQr from './gcash-qr.png';
 import gotymeQr from './gotyme-qr.png';
 import { productCatalog, type ProductItem } from './data/products';
@@ -15,6 +15,7 @@ import { supabase } from './supabaseClient.js';
 const ADMIN_PRODUCTS_KEY = 'dmerch_admin_products_v1';
 const ADMIN_GOOGLE_SHORTCUT_KEY = 'dmerch_admin_google_shortcut_v1';
 const CHECKOUT_DRAFT_KEY = 'dmerch_checkout_draft_v1';
+const STAGE_LOCK_KEY = 'dmerch_stage_locked_v1';
 const ALLOWED_ADMIN_EMAILS = new Set(['rad4862@gmail.com', 'digitalmerch4862@gmail.com']);
 
 const isAllowedAdminEmail = (value: string | null | undefined) => {
@@ -236,6 +237,7 @@ export default function App() {
   const [submitResult, setSubmitResult] = useState<VerificationApiResponse | null>(null);
   const [lastSubmittedProducts, setLastSubmittedProducts] = useState<ProductItem[]>([]);
   const [liveAvailmentIndex, setLiveAvailmentIndex] = useState(0);
+  const [isStageLocked, setIsStageLocked] = useState(false);
 const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
   const [expandedSubs, setExpandedSubs] = useState<Record<string, boolean>>({});
   const [showCourses, setShowCourses] = useState(false);
@@ -311,6 +313,14 @@ const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
     return () => {
       window.removeEventListener('storage', handleStorageSync);
     };
+  }, []);
+
+  useEffect(() => {
+    const storedLock = window.localStorage.getItem(STAGE_LOCK_KEY);
+    if (storedLock === '1') {
+      setIsStageLocked(true);
+      setStage(2);
+    }
   }, []);
 
   useEffect(() => {
@@ -394,6 +404,8 @@ const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
           return;
         }
         setAdminShortcutError('Google sign-in complete. Email auto-filled. Continue checkout.');
+        window.localStorage.setItem(STAGE_LOCK_KEY, '1');
+        setIsStageLocked(true);
         setStage(2);
       }
     };
@@ -695,12 +707,44 @@ return sorted;
     if (stage === 3) {
       setPaymentPortalUsed(selectedMethod);
     }
+    if (stage === 1) {
+      window.localStorage.setItem(STAGE_LOCK_KEY, '1');
+      setIsStageLocked(true);
+    }
     setStage((current) => (current < 4 ? ((current + 1) as FlowStage) : current));
   };
 
   const goToPreviousStage = () => {
     setSubmitError('');
+    if (stage === 2 && isStageLocked) {
+      return;
+    }
     setStage((current) => (current > 1 ? ((current - 1) as FlowStage) : current));
+  };
+
+  const handleClientSignOut = async () => {
+    const client = getSupabaseBrowserClient();
+    if (client) {
+      await client.auth.signOut();
+    }
+    window.localStorage.removeItem(STAGE_LOCK_KEY);
+    window.localStorage.removeItem(CHECKOUT_DRAFT_KEY);
+    setIsStageLocked(false);
+    setStage(1);
+    setUsername('');
+    setEmail('');
+    setReferenceNo('');
+    setSelectedProducts([]);
+    setLastSubmittedProducts([]);
+    setProductQuery('');
+    setSelectedProductName('');
+    setSelectedMethod('gcash');
+    setPaymentPortalUsed('gcash');
+    setGcashNumberUsed('');
+    setGotymeAccountNameUsed('');
+    setSubmitError('');
+    setSubmitNotice('');
+    setSubmitResult(null);
   };
 
   useEffect(() => {
@@ -1311,12 +1355,25 @@ return sorted;
                   <span className="text-xs font-mono uppercase tracking-[0.22em] text-cyan-200">
                     Products: {selectedProducts.length} | Total: PHP {totalAmount}
                   </span>
-                  <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
-                    <ArrowLeft size={15} /> Back
-                  </motion.button>
-<motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
-                    Next: Payment Portal <ArrowRight size={15} />
-                  </motion.button>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    {!isStageLocked && (
+                      <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
+                        <ArrowLeft size={15} /> Back
+                      </motion.button>
+                    )}
+                    <motion.button
+                      type="button"
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={handleClientSignOut}
+                      className="cyber-btn cyber-btn-secondary border-red-400/60 text-red-200 hover:text-white"
+                    >
+                      <LogOut size={15} /> Sign Out
+                    </motion.button>
+                    <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
+                      Next: Payment Portal <ArrowRight size={15} />
+                    </motion.button>
+                  </div>
                 </div>
               </CyberCard>
 
@@ -1593,6 +1650,15 @@ return sorted;
                 <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
                   <ArrowLeft size={15} /> Back
                 </motion.button>
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleClientSignOut}
+                  className="cyber-btn cyber-btn-secondary border-red-400/60 text-red-200 hover:text-white"
+                >
+                  <LogOut size={15} /> Sign Out
+                </motion.button>
                 <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
                   Next: Confirmation <ArrowRight size={15} />
                 </motion.button>
@@ -1795,6 +1861,16 @@ return sorted;
                   <div className="flex flex-col sm:flex-row gap-3 justify-between">
                     <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
                       <ArrowLeft size={15} /> Back
+                    </motion.button>
+
+                    <motion.button
+                      type="button"
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={handleClientSignOut}
+                      className="cyber-btn cyber-btn-secondary border-red-400/60 text-red-200 hover:text-white"
+                    >
+                      <LogOut size={15} /> Sign Out
                     </motion.button>
 
                     {submitResult?.ok ? (
