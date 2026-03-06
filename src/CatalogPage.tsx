@@ -3,16 +3,9 @@ import { ArrowLeft, Search, ChevronDown, Sparkles, ShoppingCart, X } from 'lucid
 import { type ProductItem } from './data/products';
 import { getSupabaseBrowserClient } from './lib/supabase-browser';
 
-type CatalogTab = 'all' | 'software' | 'games' | 'courses' | 'others';
+type CatalogTab = string;
 type SortKey = 'az' | 'price-low' | 'price-high' | 'newest';
-
-const TAB_ITEMS: Array<{ id: CatalogTab; label: string; accent: string }> = [
-  { id: 'all', label: 'All', accent: 'text-cyan-200' },
-  { id: 'software', label: 'Software', accent: 'text-fuchsia-200' },
-  { id: 'games', label: 'Games', accent: 'text-amber-200' },
-  { id: 'courses', label: 'Courses', accent: 'text-emerald-200' },
-  { id: 'others', label: 'Others', accent: 'text-sky-200' },
-];
+const ALL_TAB = 'all';
 
 const SORT_ITEMS: Array<{ id: SortKey; label: string }> = [
   { id: 'az', label: 'A-Z' },
@@ -21,22 +14,9 @@ const SORT_ITEMS: Array<{ id: SortKey; label: string }> = [
   { id: 'newest', label: 'Newest' },
 ];
 
-const COURSE_TOKENS = ['course', 'courses', 'bootcamp', 'training', 'lesson', 'tutorial', 'class', 'masterclass'];
-const GAME_TOKENS = ['call of duty', 'nba', 'motogp', 'spider-man', 'sekiro', 'starcraft', 'cities', 'red dead', 'game', 'gta', 'valorant', 'dota', 'cs'];
-
-const getCatalogGroup = (product: ProductItem): CatalogTab => {
-  const name = String(product.name ?? '').toLowerCase();
-  const category = String(product.category ?? '').toLowerCase();
-  if (category.includes('course') || COURSE_TOKENS.some((token) => name.includes(token))) return 'courses';
-  if (category.includes('game') || GAME_TOKENS.some((token) => name.includes(token))) return 'games';
-  if (!name || name.length < 3) return 'others';
-  return category && category !== 'general' ? 'software' : 'software';
-};
-
 const getBadges = (product: ProductItem, isFeatured: boolean) => {
-  const group = getCatalogGroup(product);
   const badges: string[] = [];
-  if (group === 'courses') badges.push('Course');
+  if (product.category) badges.push(product.category);
   if (isFeatured) badges.push('New');
   return badges;
 };
@@ -44,7 +24,7 @@ const getBadges = (product: ProductItem, isFeatured: boolean) => {
 export default function CatalogPage() {
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<CatalogTab>('all');
+  const [activeTab, setActiveTab] = useState<CatalogTab>(ALL_TAB);
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('az');
   const [visibleCount, setVisibleCount] = useState(18);
@@ -96,14 +76,41 @@ export default function CatalogPage() {
   }, []);
 
   const featured = useMemo(() => products.slice(0, 8), [products]);
-  const courseCount = useMemo(() => products.filter((item) => getCatalogGroup(item) === 'courses').length, [products]);
+
+  const categories = useMemo(() => {
+    const unique = new Set<string>();
+    products.forEach((item) => {
+      const category = String(item.category ?? '').trim();
+      if (category) {
+        unique.add(category);
+      }
+    });
+    return Array.from(unique).sort((a, b) => a.localeCompare(b));
+  }, [products]);
+
+  const tabItems = useMemo(() => {
+    if (categories.length <= 1) {
+      return categories.map((label) => ({ id: label, label }));
+    }
+    return [{ id: ALL_TAB, label: 'All' }, ...categories.map((label) => ({ id: label, label }))];
+  }, [categories]);
+
+  useEffect(() => {
+    if (categories.length === 1) {
+      setActiveTab(categories[0]);
+      return;
+    }
+    if (activeTab !== ALL_TAB && !categories.includes(activeTab)) {
+      setActiveTab(ALL_TAB);
+    }
+  }, [activeTab, categories]);
 
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
     let items = products;
 
-    if (activeTab !== 'all') {
-      items = items.filter((item) => getCatalogGroup(item) === activeTab);
+    if (activeTab !== ALL_TAB) {
+      items = items.filter((item) => String(item.category ?? '').trim() === activeTab);
     }
 
     if (query) {
@@ -187,7 +194,7 @@ export default function CatalogPage() {
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
-            {TAB_ITEMS.map((tab) => (
+            {tabItems.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
@@ -200,7 +207,7 @@ export default function CatalogPage() {
                   : 'border-white/10 bg-black/40 text-gray-400 hover:border-cyan-400/40 hover:text-cyan-200'
                   }`}
               >
-                <span className={activeTab === tab.id ? tab.accent : ''}>{tab.label}</span>
+                <span>{tab.label}</span>
               </button>
             ))}
           </div>
@@ -245,7 +252,7 @@ export default function CatalogPage() {
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {visibleProducts.map((item, index) => {
-              const isFeatured = index < 6 && activeTab === 'all' && !search;
+              const isFeatured = index < 6 && activeTab === ALL_TAB && !search;
               const badges = getBadges(item, isFeatured);
 
               return (
@@ -303,15 +310,6 @@ export default function CatalogPage() {
           )}
         </section>
 
-        {courseCount === 0 && (
-          <section className="mt-8 rounded-2xl border border-emerald-500/30 bg-[#031513]/70 p-6 shadow-[0_0_30px_rgba(16,185,129,0.15)]">
-            <p className="text-[10px] font-mono uppercase tracking-[0.35em] text-emerald-200">Courses Incoming</p>
-            <h3 className="mt-2 text-xl font-semibold text-white">Course modules ready to launch</h3>
-            <p className="mt-2 text-sm text-emerald-100/80">
-              Pag ready na yung course drops, auto-ready na yung UI tab mo dito. We can light up this section with featured bundles.
-            </p>
-          </section>
-        )}
       </main>
 
       {selectedProduct && (
