@@ -196,6 +196,10 @@ export default function App() {
   const [deliveryError, setDeliveryError] = useState('');
   const [deliveryLoading, setDeliveryLoading] = useState(false);
   const [downloadingDeliveryProduct, setDownloadingDeliveryProduct] = useState('');
+  const [paymentIntentId, setPaymentIntentId] = useState('');
+  const [paymongoQrUrl, setPaymongoQrUrl] = useState('');
+  const [isCreatingPayment, setIsCreatingPayment] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState<'pending' | 'paid' | 'failed' | 'awaiting_payment'>('pending');
   const [paymongoQrError, setPaymongoQrError] = useState(false);
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
   const [expandedSubs, setExpandedSubs] = useState<Record<string, boolean>>({});
@@ -207,8 +211,8 @@ export default function App() {
   const uploadSfxStepRef = useRef(0);
   const sfxEnabled = true;
 
-  const paymongoQrSrc = PAYMONGO_QR_SRC.trim();
-  const canDownloadPaymongoQr = Boolean(paymongoQrSrc) && !paymongoQrError;
+  const paymongoQrSrc = paymongoQrUrl.trim() || PAYMONGO_QR_SRC.trim();
+  const canDownloadPaymongoQr = Boolean(paymongoQrSrc);
   const paymongoQrFilename = 'paymongo-qrph.png';
   const activeAvailment = FAKE_AVAILMENTS[liveAvailmentIndex % FAKE_AVAILMENTS.length];
 
@@ -582,20 +586,21 @@ export default function App() {
       }
     }
 
-return sorted;
+    return sorted;
   }, [filteredProducts]);
 
   const { softwareProducts, coursesProducts, hasCourses, courseCount } = useMemo(() => {
-    const courses = categorizedProducts['Courses'] || {};
+    const raw = categorizedProducts as Record<string, Record<string, ProductItem[]>>;
+    const courses = raw['Courses'] || {};
     const has = Object.keys(courses).length > 0;
     const count = Object.values(courses).flat().length;
-    const software = { ...categorizedProducts };
+    const software = { ...raw };
     delete software['Courses'];
-    return { 
-      softwareProducts: software, 
-      coursesProducts: courses, 
-      hasCourses: has, 
-      courseCount: count 
+    return {
+      softwareProducts: software,
+      coursesProducts: courses,
+      hasCourses: has,
+      courseCount: count
     };
   }, [categorizedProducts]);
 
@@ -658,7 +663,7 @@ return sorted;
     4: '',
   };
 
-  const goToNextStage = () => {
+  const goToNextStage = async () => {
     if (stage === 4) {
       return;
     }
@@ -669,6 +674,35 @@ return sorted;
     }
 
     setSubmitError('');
+
+    if (stage === 2) {
+      setIsCreatingPayment(true);
+      try {
+        const response = await fetch('/api/paymongo-create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: totalAmount,
+            email: email,
+            username: username,
+            items: selectedProducts,
+          }),
+        });
+        const payload = await response.json();
+        if (!payload.ok) throw new Error(payload.error || 'Failed to initialize payment terminal.');
+
+        setPaymentIntentId(payload.intentId);
+        setPaymongoQrUrl(payload.qrUrl);
+        setStage(3);
+      } catch (err: any) {
+        setSubmitError(err.message);
+        return;
+      } finally {
+        setIsCreatingPayment(false);
+      }
+      return;
+    }
+
     if (stage === 3) {
       setPaymentPortalUsed('paymongo');
     }
@@ -805,6 +839,51 @@ return sorted;
       document.removeEventListener('keydown', handleEscape);
     };
   }, []);
+
+  useEffect(() => {
+    if (stage !== 3 || !paymentIntentId) return;
+
+    let pollInterval: number;
+
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`/api/paymongo-status?intentId=${paymentIntentId}`);
+        const data = await res.json();
+        if (data.ok && data.status === 'paid') {
+          setPaymentStatus('paid');
+          setStage(4);
+        } else if (data.ok && data.status === 'failed') {
+          setPaymentStatus('failed');
+        }
+      } catch (err) {
+        console.error('Polling error:', err);
+      }
+    };
+
+    pollInterval = window.setInterval(checkStatus, 5000);
+    checkStatus();
+
+    const channel = supabase
+      .channel('order-status')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'orders',
+        filter: `payment_intent_id=eq.${paymentIntentId}`
+      }, (payload) => {
+        console.log('Order update received:', payload.new);
+        if (payload.new.status === 'paid') {
+          setPaymentStatus('paid');
+          setStage(4);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      window.clearInterval(pollInterval);
+      supabase.removeChannel(channel);
+    };
+  }, [stage, paymentIntentId]);
 
   useEffect(() => {
     const handlePressFeedback = (event: PointerEvent) => {
@@ -996,6 +1075,7 @@ return sorted;
 
   const handleSubmitVerification = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (paymentStatus === 'paid') return;
 
     if (selectedProducts.length === 0) {
       setSubmitError('Add at least one product before submitting.');
@@ -1197,12 +1277,12 @@ return sorted;
                     </div>
                   </div>
 
-<div className="space-y-2">
-                    {Object.entries(softwareProducts).length > 0 ? (
-                      Object.entries(softwareProducts).map(([category, subs]) => {
+                  <div className="space-y-2">
+                    {Object.entries(softwareProducts as Record<string, Record<string, ProductItem[]>>).length > 0 ? (
+                      Object.entries(softwareProducts as Record<string, Record<string, ProductItem[]>>).map(([category, subs]) => {
                         const CatIcon = getCategoryIcon(category);
                         const isCatOpen = productQuery.trim().length > 0 || expandedCats[category] === true;
-                        const totalInCat = Object.values(subs).reduce((sum, arr) => sum + arr.length, 0);
+                        const totalInCat = Object.values(subs as Record<string, ProductItem[]>).reduce((sum, arr) => sum + (arr as ProductItem[]).length, 0);
 
                         return (
                           <div key={category} className="rounded-lg border border-cyan-500/25 bg-[#060b14]/80 overflow-hidden">
@@ -1226,7 +1306,7 @@ return sorted;
                             {/* Sub-categories (collapsible) */}
                             {isCatOpen && (
                               <div className="border-t border-cyan-500/15">
-                                {Object.entries(subs).map(([sub, products]) => {
+                                {Object.entries(subs as Record<string, ProductItem[]>).map(([sub, products]) => {
                                   const subKey = `${category}::${sub}`;
                                   const isSubOpen = productQuery.trim().length > 0 || expandedSubs[subKey] === true;
 
@@ -1245,7 +1325,7 @@ return sorted;
                                           }
                                           <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">{sub}</span>
                                         </div>
-                                        <span className="text-[9px] font-mono text-gray-500">{products.length}</span>
+                                        <span className="text-[9px] font-mono text-gray-500">{(products as ProductItem[]).length}</span>
                                       </button>
 
                                       {/* Product List (collapsible) */}
@@ -1273,7 +1353,7 @@ return sorted;
                         <PackageSearch className="mx-auto mb-3 text-gray-600" size={32} />
                         <p className="text-xs font-mono uppercase tracking-[0.2em] text-gray-500">No matching products found</p>
                       </div>
-)}
+                    )}
                   </div>
 
                   {hasCourses && (
@@ -1292,8 +1372,8 @@ return sorted;
                           <span className="text-[8px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase tracking-wider">
                             Preview
                           </span>
-                          {showCourses 
-                            ? <ChevronDown size={16} className="text-cyan-400" /> 
+                          {showCourses
+                            ? <ChevronDown size={16} className="text-cyan-400" />
                             : <ChevronRightIcon size={16} className="text-gray-500" />
                           }
                         </div>
@@ -1301,7 +1381,7 @@ return sorted;
 
                       {showCourses && (
                         <div className="border-t border-[#ff00ff]/15 bg-black/20">
-                          {Object.entries(coursesProducts).map(([sub, courses]) => {
+                          {Object.entries(coursesProducts as Record<string, ProductItem[]>).map(([sub, courses]) => {
                             const subKey = `courses::${sub}`;
                             const isSubOpen = expandedSubs[subKey] === true;
 
@@ -1319,14 +1399,14 @@ return sorted;
                                     }
                                     <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-[#ff00ff]">{sub}</span>
                                   </div>
-                                  <span className="text-[9px] font-mono text-gray-500">{courses.length}</span>
+                                  <span className="text-[9px] font-mono text-gray-500">{(courses as ProductItem[]).length}</span>
                                 </button>
 
                                 {isSubOpen && (
                                   <div className="bg-black/20 pb-2">
-                                    {courses.map((course) => (
-                                      <div 
-                                        key={course.name} 
+                                    {(courses as ProductItem[]).map((course) => (
+                                      <div
+                                        key={course.name}
                                         className="mx-2 px-4 py-3 flex items-center justify-between gap-3 rounded-md border border-[#ff00ff]/10 bg-black/30 hover:bg-[#ff00ff]/5 transition-all group cursor-pointer"
                                         onClick={() => setPreviewCourse(course)}
                                       >
@@ -1580,7 +1660,7 @@ return sorted;
                       className="relative w-full max-w-lg rounded-xl border border-[#ff00ff]/50 bg-[#0a0a0a] p-0 overflow-hidden shadow-[0_0_50px_rgba(255,0,255,0.3)]"
                     >
                       <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#ff00ff] via-cyan-500 to-[#ff00ff] animate-pulse" />
-                      
+
                       <div className="p-6">
                         <div className="flex items-start justify-between gap-4 mb-4">
                           <div className="flex items-center gap-3">
@@ -1742,73 +1822,81 @@ return sorted;
           ) : stage === 3 ? (
             <motion.div
               key="stage-3-portal"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.05 }}
               transition={{ duration: 0.3 }}
+              className="w-full flex flex-col items-center"
             >
-              <div className="mb-6 sm:mb-10 space-y-4 sm:space-y-6">
-                <div className="flex flex-col items-center justify-center gap-4">
-                  <div className="w-full max-w-md">
-                    <div className="relative group">
-                      <div className="absolute -inset-2 bg-gradient-to-r from-emerald-400 to-cyan-400 rounded-lg blur opacity-40 group-hover:opacity-60 transition duration-1000" />
-                      <div className="relative bg-[#0a0a0a] rounded-lg p-4 sm:p-6 border border-white/10 flex flex-col items-center shadow-2xl">
-                        <div className="w-full bg-[#00d9ff] py-2 sm:py-3 px-3 sm:px-6 rounded-t-md flex justify-between items-center shadow-lg">
-                          <span className="font-black italic tracking-tighter uppercase text-[11px] sm:text-sm text-black">
-                            PayMongo QRPH Terminal
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={handleDownloadQr}
-                              disabled={!canDownloadPaymongoQr}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-black/60 text-black hover:bg-black/10 disabled:opacity-50"
-                              title="Download QR"
-                              aria-label="Download QR"
-                            >
-                              <Download size={14} />
-                            </button>
-                            <div className="w-3 h-3 rounded-full bg-black animate-pulse" />
-                          </div>
-                        </div>
+              <div className="w-full max-w-2xl mb-6">
+                <CyberCard title="QRPH Payment Terminal" icon={QrCode} color="cyan">
+                  <div className="flex flex-col items-center p-6 bg-[#031018]/90 rounded-xl border border-cyan-500/30 gap-6">
+                    <div className="text-center">
+                      <h3 className="text-xl font-black text-cyan-400 uppercase tracking-widest mb-1 italic">Scan to Pay via QRPH</h3>
+                      <p className="text-xs text-cyan-200/70 font-mono uppercase tracking-[0.2em]">Secure Transaction Protocol v2.4.0</p>
+                    </div>
 
-                        <div className="bg-[#00d9ff] p-3 sm:p-4 w-full aspect-[3/4] sm:aspect-[3/5] flex items-center justify-center overflow-hidden border-x-4 border-b-4 border-cyan-500">
-                          {canDownloadPaymongoQr ? (
-                            <img
-                              src={paymongoQrSrc}
-                              alt="PayMongo QRPH payment QR code"
-                              className="w-full h-full object-contain"
-                              referrerPolicy="no-referrer"
-                              onError={() => setPaymongoQrError(true)}
-                            />
-                          ) : (
-                            <div className="flex flex-col items-center justify-center text-center text-black/80">
-                              <QrCode size={36} />
-                              <p className="mt-2 text-xs font-mono uppercase tracking-[0.2em]">Upload PayMongo QRPH</p>
+                    <div className="relative group p-4 bg-white rounded-2xl shadow-[0_0_50px_rgba(0,243,255,0.25)] border-4 border-cyan-500">
+                      {canDownloadPaymongoQr ? (
+                        <div className="relative">
+                          <img
+                            src={paymongoQrSrc}
+                            alt="PayMongo QRPH payment QR code"
+                            className="w-64 h-64 sm:w-80 sm:h-80 object-contain"
+                            onError={() => setPaymongoQrError(true)}
+                          />
+                          {paymentStatus === 'paid' && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-xl backdrop-blur-sm">
+                              <motion.div
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                className="flex flex-col items-center"
+                              >
+                                <div className="h-16 w-16 rounded-full bg-emerald-500 flex items-center justify-center mb-2 shadow-[0_0_20px_rgba(16,185,129,0.6)]">
+                                  <Check size={32} className="text-white" />
+                                </div>
+                                <span className="text-sm font-black text-emerald-400 uppercase tracking-widest">Payment Received</span>
+                              </motion.div>
                             </div>
                           )}
                         </div>
-
-                        <div className="mt-3 sm:mt-6 text-center w-full py-3 sm:py-4 border-t border-white/5">
-                          <button
-                            type="button"
-                            onClick={handleDownloadQr}
-                            disabled={!canDownloadPaymongoQr}
-                            className="mb-3 inline-flex items-center gap-2 rounded border border-white/20 px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.2em] text-gray-300 hover:text-white hover:border-white/40 transition-colors disabled:opacity-50"
-                          >
-                            <Download size={12} />
-                            Download QR
-                          </button>
-                          <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-200">Scan to pay via QRPH</p>
+                      ) : (
+                        <div className="w-64 h-64 sm:w-80 sm:h-80 flex flex-col items-center justify-center text-black/40">
+                          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600 mb-4" />
+                          <p className="text-sm font-mono uppercase font-bold text-black/60">QR Initializing...</p>
                         </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="flex items-center gap-3 px-4 py-2 rounded-full border border-cyan-500/30 bg-cyan-500/10">
+                        {paymentStatus === 'paid' ? (
+                          <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-emerald-400">Verifying Transaction...</span>
+                        ) : (
+                          <>
+                            <div className="h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
+                            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-300">Awaiting Transaction...</span>
+                          </>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-cyan-200/50 italic text-center">
+                        Redirecting to verification page automatically after payment. <br />
+                        Don't close this tab until transaction is complete.
+                      </p>
+                    </div>
+
+                    <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-cyan-500/20">
+                      <div className="p-3 rounded-lg border border-cyan-500/20 bg-black/40">
+                        <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-cyan-400 mb-1">Total Amount</p>
+                        <p className="text-lg font-bold text-white">PHP {totalAmount}</p>
+                      </div>
+                      <div className="p-3 rounded-lg border border-cyan-500/20 bg-black/40 overflow-hidden">
+                        <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-cyan-400 mb-1">Session ID</p>
+                        <p className="text-sm font-mono text-cyan-200 truncate">{paymentIntentId || 'GEN-PENDING-REF'}</p>
                       </div>
                     </div>
                   </div>
-
-                  <div className="w-full max-w-md rounded-lg border border-emerald-400/30 bg-emerald-500/10 p-3 text-[11px] font-mono uppercase tracking-[0.2em] text-emerald-200 text-center">
-                    Lazada-style QRPH portal • PayMongo Secure
-                  </div>
-                </div>
+                </CyberCard>
               </div>
 
               <div className="flex flex-col sm:flex-row justify-center gap-3">
@@ -1819,13 +1907,11 @@ return sorted;
                   type="button"
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
-                  onClick={handleClientSignOut}
-                  className="cyber-btn cyber-btn-secondary border-red-400/60 text-red-200 hover:text-white"
+                  onClick={handleDownloadQr}
+                  disabled={!canDownloadPaymongoQr}
+                  className="cyber-btn cyber-btn-secondary border-cyan-400/40 text-cyan-100"
                 >
-                  <LogOut size={15} /> Sign Out
-                </motion.button>
-                <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
-                  Next: Confirmation <ArrowRight size={15} />
+                  <Download size={15} /> Save QR
                 </motion.button>
               </div>
             </motion.div>
@@ -1896,74 +1982,99 @@ return sorted;
                 </div>
 
                 <form onSubmit={handleSubmitVerification} className="space-y-6">
-                  <div className="relative z-10 rounded-xl border border-[#ff8a00]/40 bg-[#1a0e05] p-4 shadow-[0_0_35px_rgba(255,128,0,0.2)]">
-                    <div className="pointer-events-none absolute left-2 top-2 h-5 w-5 border-l-2 border-t-2 border-[#ff9f1a]/80" />
-                    <div className="pointer-events-none absolute bottom-2 right-2 h-5 w-5 border-b-2 border-r-2 border-[#ff9f1a]/80" />
-                    <div className="mb-3 flex items-center gap-2 text-[#ffb257]">
-                      <PackageSearch size={15} />
-                      <span className="text-[11px] font-mono uppercase tracking-[0.25em]">Verification Summary</span>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Payment Portal Used</span>
-                        <div className="rounded-md border border-[#ffb257]/40 bg-[#ff8a00]/10 px-3 py-2 text-xs font-mono uppercase tracking-[0.16em] text-[#ffd2a1]">
-                          PayMongo QRPH
-                        </div>
+                  {paymentStatus === 'paid' ? (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="relative z-10 rounded-xl border border-emerald-500/40 bg-[#051a0e] p-8 shadow-[0_0_50px_rgba(16,185,129,0.2)] text-center"
+                    >
+                      <div className="pointer-events-none absolute left-2 top-2 h-5 w-5 border-l-2 border-t-2 border-emerald-400/80" />
+                      <div className="pointer-events-none absolute bottom-2 right-2 h-5 w-5 border-b-2 border-r-2 border-emerald-400/80" />
+
+                      <div className="mx-auto h-20 w-20 rounded-full bg-emerald-500 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(16,185,129,0.4)]">
+                        <Check size={40} className="text-white" />
                       </div>
 
-                      <label className="block">
-                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">
-                          PayMongo Reference / Sender Name
-                        </span>
-                        <input
-                          value={paymongoReference}
-                          onChange={(event) => setPaymongoReference(event.target.value)}
-                          required
-                          className="w-full rounded-md border border-[#ff8a00]/50 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-[#ffb257] focus:shadow-[0_0_18px_rgba(255,138,0,0.24)]"
-                          placeholder="e.g. JUAN DELA CRUZ / QRPH REF"
-                        />
-                      </label>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <label className="block">
-                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Reference No (Last 6 Digits)</span>
-                        <input
-                          value={referenceNo}
-                          onChange={(event) => {
-                            const digitsOnly = event.target.value.replace(/\D/g, '');
-                            setReferenceNo(digitsOnly.slice(-6));
-                          }}
-                          required
-                          inputMode="numeric"
-                          maxLength={6}
-                          className="w-full rounded-md border border-[#ff8a00]/50 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-[#ffb257] focus:shadow-[0_0_18px_rgba(255,138,0,0.24)]"
-                          placeholder="e.g. 123456"
-                        />
-                        <span className="mt-2 block text-[10px] font-mono uppercase tracking-[0.18em] text-[#ffbd75]">Sample: 987654 (last 6 digits only)</span>
-                      </label>
-                      <div>
-                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Total Amount</span>
-                        <div className="rounded-md border border-[#ff8a00]/50 bg-black/30 px-4 py-3 text-sm font-mono uppercase tracking-[0.15em] text-[#ffc680]">
-                          PHP {submitResult?.totalAmount ?? totalAmount}
-                        </div>
-                      </div>
-                    </div>
+                      <h2 className="text-2xl font-black text-emerald-400 uppercase tracking-widest mb-2 italic">Order Verified</h2>
+                      <p className="text-sm text-emerald-100/70 font-mono uppercase tracking-[0.1em] mb-6">
+                        Your payment has been confirmed automatically. <br />
+                        A confirmation email with your access details has been sent to <strong>{email}</strong>.
+                      </p>
 
-                    {isSubmitting ? (
-                      <div className="mt-4 rounded-md border border-[#ff8a00]/60 bg-black/50 p-3">
-                        <p className="mb-2 text-xs font-mono uppercase tracking-[0.25em] text-[#ffb257]">Uploading Verification Packet...</p>
-                        <div className="h-3 w-full overflow-hidden rounded-sm border border-[#ff8a00]/70 bg-[#2b1608]">
-                          <motion.div
-                            initial={{ width: '0%' }}
-                            animate={{ width: `${submitProgress}%` }}
-                            transition={{ duration: 0.25, ease: 'easeOut' }}
-                            className="h-full bg-[repeating-linear-gradient(-45deg,#9dff4f,#9dff4f_10px,#53bf1e_10px,#53bf1e_20px)] shadow-[0_0_18px_rgba(157,255,79,0.6)]"
+                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[10px] font-mono uppercase tracking-[0.2em] text-emerald-400">
+                        <ShieldCheck size={14} /> System ID: {paymentIntentId || 'DM-AUTO-VERIFIED'}
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <div className="relative z-10 rounded-xl border border-[#ff8a00]/40 bg-[#1a0e05] p-4 shadow-[0_0_35px_rgba(255,128,0,0.2)]">
+                      <div className="pointer-events-none absolute left-2 top-2 h-5 w-5 border-l-2 border-t-2 border-[#ff9f1a]/80" />
+                      <div className="pointer-events-none absolute bottom-2 right-2 h-5 w-5 border-b-2 border-r-2 border-[#ff9f1a]/80" />
+                      <div className="mb-3 flex items-center gap-2 text-[#ffb257]">
+                        <PackageSearch size={15} />
+                        <span className="text-[11px] font-mono uppercase tracking-[0.25em]">Verification Summary</span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Payment Portal Used</span>
+                          <div className="rounded-md border border-[#ffb257]/40 bg-[#ff8a00]/10 px-3 py-2 text-xs font-mono uppercase tracking-[0.16em] text-[#ffd2a1]">
+                            PayMongo QRPH
+                          </div>
+                        </div>
+
+                        <label className="block">
+                          <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">
+                            PayMongo Reference / Sender Name
+                          </span>
+                          <input
+                            value={paymongoReference}
+                            onChange={(event) => setPaymongoReference(event.target.value)}
+                            required
+                            className="w-full rounded-md border border-[#ff8a00]/50 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-[#ffb257] focus:shadow-[0_0_18px_rgba(255,138,0,0.24)]"
+                            placeholder="e.g. JUAN DELA CRUZ / QRPH REF"
                           />
-                        </div>
-                        <p className="mt-2 text-right text-xs font-mono uppercase tracking-[0.2em] text-[#ffb257]">{submitProgress}%</p>
+                        </label>
                       </div>
-                    ) : null}
-                  </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label className="block">
+                          <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Reference No (Last 6 Digits)</span>
+                          <input
+                            value={referenceNo}
+                            onChange={(event) => {
+                              const digitsOnly = event.target.value.replace(/\D/g, '');
+                              setReferenceNo(digitsOnly.slice(-6));
+                            }}
+                            required
+                            inputMode="numeric"
+                            maxLength={6}
+                            className="w-full rounded-md border border-[#ff8a00]/50 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-[#ffb257] focus:shadow-[0_0_18px_rgba(255,138,0,0.24)]"
+                            placeholder="e.g. 123456"
+                          />
+                          <span className="mt-2 block text-[10px] font-mono uppercase tracking-[0.18em] text-[#ffbd75]">Sample: 987654 (last 6 digits only)</span>
+                        </label>
+                        <div>
+                          <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Total Amount</span>
+                          <div className="rounded-md border border-[#ff8a00]/50 bg-black/30 px-4 py-3 text-sm font-mono uppercase tracking-[0.15em] text-[#ffc680]">
+                            PHP {submitResult?.totalAmount ?? totalAmount}
+                          </div>
+                        </div>
+                      </div>
+
+                      {isSubmitting ? (
+                        <div className="mt-4 rounded-md border border-[#ff8a00]/60 bg-black/50 p-3">
+                          <p className="mb-2 text-xs font-mono uppercase tracking-[0.25em] text-[#ffb257]">Uploading Verification Packet...</p>
+                          <div className="h-3 w-full overflow-hidden rounded-sm border border-[#ff8a00]/70 bg-[#2b1608]">
+                            <motion.div
+                              initial={{ width: '0%' }}
+                              animate={{ width: `${submitProgress}%` }}
+                              transition={{ duration: 0.25, ease: 'easeOut' }}
+                              className="h-full bg-[repeating-linear-gradient(-45deg,#9dff4f,#9dff4f_10px,#53bf1e_10px,#53bf1e_20px)] shadow-[0_0_18px_rgba(157,255,79,0.6)]"
+                            />
+                          </div>
+                          <p className="mt-2 text-right text-xs font-mono uppercase tracking-[0.2em] text-[#ffb257]">{submitProgress}%</p>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
 
                   {submitError ? (
                     <div className="rounded-md border border-red-500/40 bg-red-500/10 px-4 py-3 text-xs font-mono uppercase tracking-[0.15em] text-red-300">
@@ -2004,7 +2115,7 @@ return sorted;
                     WARNING!!! SUBMITTING FAKE PAYMENT DETAILS WILL LEAD TO PERMANENT ACCOUNT BAN.
                   </div>
 
-                  <div className="flex flex-col sm:flex-row gap-3 justify-between">
+                  <div className="flex flex-col sm:flex-row gap-3 justify-between mt-8">
                     <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
                       <ArrowLeft size={15} /> Back
                     </motion.button>
@@ -2019,22 +2130,24 @@ return sorted;
                       <LogOut size={15} /> Sign Out
                     </motion.button>
 
-                    {submitResult?.ok ? (
-                      <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToHome} className="cyber-btn cyber-btn-secondary">
+                    {(submitResult?.ok || paymentStatus === 'paid') && (
+                      <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => setStage(1)} className="cyber-btn cyber-btn-secondary border-emerald-400/40 text-emerald-100">
                         <Home size={15} /> Home
                       </motion.button>
-                    ) : null}
+                    )}
 
-                    <motion.button
-                      type="submit"
-                      whileHover={isSubmitting || selectedProducts.length === 0 ? undefined : { scale: 1.02 }}
-                      whileTap={isSubmitting || selectedProducts.length === 0 ? undefined : { scale: 0.98 }}
-                      disabled={isSubmitting || selectedProducts.length === 0}
-                      className="cyber-btn cyber-btn-primary"
-                    >
-                      {isSubmitting ? 'Sending Verification...' : 'Submit Verification'}
-                      {!isSubmitting ? <ArrowRight size={15} /> : null}
-                    </motion.button>
+                    {paymentStatus !== 'paid' && (
+                      <motion.button
+                        type="submit"
+                        whileHover={isSubmitting || selectedProducts.length === 0 ? undefined : { scale: 1.02 }}
+                        whileTap={isSubmitting || selectedProducts.length === 0 ? undefined : { scale: 0.98 }}
+                        disabled={isSubmitting || selectedProducts.length === 0}
+                        className="cyber-btn cyber-btn-primary"
+                      >
+                        {isSubmitting ? 'Sending Verification...' : 'Submit Verification'}
+                        {!isSubmitting ? <ArrowRight size={15} /> : null}
+                      </motion.button>
+                    )}
                   </div>
                 </form>
               </CyberCard>
