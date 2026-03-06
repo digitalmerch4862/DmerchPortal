@@ -5,9 +5,7 @@
 
 import { type ComponentType, type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft, Home, ShoppingCart, Mail, Cpu, Gamepad2, PlayCircle, Book, Palette, Layers, BookOpen, ChevronDown, ChevronRight as ChevronRightIcon, GraduationCap, Eye, Clock, Users, FileText, Star, LogOut } from 'lucide-react';
-import gcashQr from './gcash-qr.png';
-import gotymeQr from './gotyme-qr.png';
+import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft, Home, ShoppingCart, Mail, Cpu, Gamepad2, PlayCircle, Book, Palette, Layers, BookOpen, ChevronDown, ChevronRight as ChevronRightIcon, GraduationCap, Eye, Clock, Users, FileText, Star, LogOut, QrCode, ShieldAlert } from 'lucide-react';
 import { productCatalog, type ProductItem } from './data/products';
 import { getSupabaseBrowserClient } from './lib/supabase-browser';
 import { supabase } from './supabaseClient.js';
@@ -17,6 +15,7 @@ const ADMIN_GOOGLE_SHORTCUT_KEY = 'dmerch_admin_google_shortcut_v1';
 const CHECKOUT_DRAFT_KEY = 'dmerch_checkout_draft_v1';
 const STAGE_LOCK_KEY = 'dmerch_stage_locked_v1';
 const ALLOWED_ADMIN_EMAILS = new Set(['rad4862@gmail.com', 'digitalmerch4862@gmail.com']);
+const PAYMONGO_QR_SRC = '';
 
 const isAllowedAdminEmail = (value: string | null | undefined) => {
   const normalized = String(value ?? '').trim().toLowerCase();
@@ -74,10 +73,9 @@ type CheckoutDraft = {
   username: string;
   email: string;
   referenceNo: string;
-  selectedMethod: 'gcash' | 'gotyme';
-  paymentPortalUsed: 'gcash' | 'gotyme';
-  gcashNumberUsed: string;
-  gotymeAccountNameUsed: string;
+  selectedMethod: 'paymongo';
+  paymentPortalUsed: 'paymongo';
+  paymongoReference: string;
   selectedProducts: ProductItem[];
 };
 
@@ -171,63 +169,10 @@ function CyberCard({ children, title, icon: Icon, color = 'cyan' }: { children: 
   );
 }
 
-function MethodCard({ method, id, compact = false, selectedMethod, onSelectMethod }: { method: 'gcash' | 'gotyme'; id: string; compact?: boolean; selectedMethod: 'gcash' | 'gotyme'; onSelectMethod: (method: 'gcash' | 'gotyme') => void }) {
-  const isActive = selectedMethod === method;
-  const isGcash = method === 'gcash';
-
-  return (
-    <motion.button
-      type="button"
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
-      onClick={() => onSelectMethod(method)}
-      className={`relative cursor-pointer transition-all duration-300 border-2 overflow-hidden ${compact ? 'w-36 h-36' : 'w-44 h-64'} ${isActive
-        ? isGcash
-          ? 'border-blue-500 bg-blue-500/20 shadow-[0_0_40px_rgba(0,125,254,0.5)]'
-          : 'border-cyan-500 bg-cyan-500/20 shadow-[0_0_40px_rgba(0,229,255,0.5)]'
-        : 'border-white/10 bg-white/5 grayscale hover:grayscale-0 opacity-40 hover:opacity-100'
-        }`}
-    >
-      <div className={`absolute top-0 left-0 w-full h-full flex flex-col items-center justify-between ${compact ? 'p-4' : 'p-6'}`}>
-        <div className="w-full flex justify-between items-start">
-          <span className="text-[10px] font-mono opacity-50">ID: {id}</span>
-          <div className={`w-2 h-2 rounded-full ${isActive ? (isGcash ? 'bg-blue-400 animate-pulse' : 'bg-cyan-400 animate-pulse') : 'bg-gray-700'}`} />
-        </div>
-
-        <div className="relative flex flex-col items-center justify-center gap-3 w-full">
-          <div className={`absolute w-24 h-12 blur-2xl rounded-full ${isGcash ? 'bg-blue-500/50' : 'bg-cyan-400/50'}`} />
-          <img
-            src={isGcash ? '/gcash-logo.svg' : '/gotyme-logo.svg'}
-            alt={isGcash ? 'GCash official logo' : 'GoTyme official logo'}
-            className={`relative z-10 w-auto object-contain ${compact ? 'h-8' : 'h-10'}`}
-            loading="lazy"
-            referrerPolicy="no-referrer"
-          />
-          {!compact && (
-            <span className="font-black tracking-[0.2em] uppercase text-lg italic">{isGcash ? 'GCash' : 'GoTyme'}</span>
-          )}
-        </div>
-
-        <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: isActive ? '100%' : '30%' }}
-            className={`h-full ${isGcash ? 'bg-blue-500' : 'bg-cyan-400'}`}
-          />
-        </div>
-      </div>
-
-      {isActive && <motion.div className={`absolute inset-0 border-2 animate-pulse pointer-events-none ${isGcash ? 'border-blue-400' : 'border-cyan-400'}`} />}
-    </motion.button>
-  );
-}
-
 export default function App() {
   const [stage, setStage] = useState<FlowStage>(1);
-  const [selectedMethod, setSelectedMethod] = useState<'gcash' | 'gotyme'>('gcash');
-  const [paymentPortalUsed, setPaymentPortalUsed] = useState<'gcash' | 'gotyme'>('gcash');
-  const [gcashNumberUsed, setGcashNumberUsed] = useState('');
-  const [gotymeAccountNameUsed, setGotymeAccountNameUsed] = useState('');
+  const [paymentPortalUsed, setPaymentPortalUsed] = useState<'paymongo'>('paymongo');
+  const [paymongoReference, setPaymongoReference] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [referenceNo, setReferenceNo] = useState('');
@@ -251,7 +196,8 @@ export default function App() {
   const [deliveryError, setDeliveryError] = useState('');
   const [deliveryLoading, setDeliveryLoading] = useState(false);
   const [downloadingDeliveryProduct, setDownloadingDeliveryProduct] = useState('');
-const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
+  const [paymongoQrError, setPaymongoQrError] = useState(false);
+  const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
   const [expandedSubs, setExpandedSubs] = useState<Record<string, boolean>>({});
   const [showCourses, setShowCourses] = useState(false);
   const [previewCourse, setPreviewCourse] = useState<ProductItem | null>(null);
@@ -261,8 +207,9 @@ const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
   const uploadSfxStepRef = useRef(0);
   const sfxEnabled = true;
 
-  const selectedQrSrc = selectedMethod === 'gcash' ? gcashQr : gotymeQr;
-  const selectedQrFilename = selectedMethod === 'gcash' ? 'dmerch-gcash-qr.png' : 'dmerch-gotyme-qr.png';
+  const paymongoQrSrc = PAYMONGO_QR_SRC.trim();
+  const canDownloadPaymongoQr = Boolean(paymongoQrSrc) && !paymongoQrError;
+  const paymongoQrFilename = 'paymongo-qrph.png';
   const activeAvailment = FAKE_AVAILMENTS[liveAvailmentIndex % FAKE_AVAILMENTS.length];
 
   useEffect(() => {
@@ -370,20 +317,13 @@ const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
         setSelectedProducts(products);
       }
 
-      const selectedMethodValue = parsed.selectedMethod === 'gotyme'
-        ? 'gotyme'
-        : 'gcash';
-      const paymentPortalValue = parsed.paymentPortalUsed === 'gotyme'
-        ? 'gotyme'
-        : 'gcash';
-
-      setSelectedMethod(selectedMethodValue);
-      setPaymentPortalUsed(paymentPortalValue);
+      setPaymentPortalUsed('paymongo');
       setUsername(String(parsed.username ?? '').trim());
       setEmail(String(parsed.email ?? '').trim());
       setReferenceNo(String(parsed.referenceNo ?? '').trim());
-      setGcashNumberUsed(String(parsed.gcashNumberUsed ?? '').trim());
-      setGotymeAccountNameUsed(String(parsed.gotymeAccountNameUsed ?? '').trim());
+      const legacyReference = String((parsed as { gcashNumberUsed?: string }).gcashNumberUsed ?? '').trim();
+      const legacyName = String((parsed as { gotymeAccountNameUsed?: string }).gotymeAccountNameUsed ?? '').trim();
+      setPaymongoReference(String((parsed as { paymongoReference?: string }).paymongoReference ?? legacyReference ?? legacyName).trim());
     } catch {
       window.localStorage.removeItem(CHECKOUT_DRAFT_KEY);
     }
@@ -456,10 +396,9 @@ const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
       username: username.trim(),
       email: email.trim(),
       referenceNo: referenceNo.trim(),
-      selectedMethod,
-      paymentPortalUsed,
-      gcashNumberUsed: gcashNumberUsed.trim(),
-      gotymeAccountNameUsed: gotymeAccountNameUsed.trim(),
+      selectedMethod: 'paymongo',
+      paymentPortalUsed: 'paymongo',
+      paymongoReference: paymongoReference.trim(),
       selectedProducts,
     };
     window.localStorage.setItem(CHECKOUT_DRAFT_KEY, JSON.stringify(draft));
@@ -706,7 +645,7 @@ return sorted;
     }
 
     if (fromStage === 3) {
-      return Boolean(selectedMethod);
+      return true;
     }
 
     return true;
@@ -715,7 +654,7 @@ return sorted;
   const stageErrorMessage: Record<FlowStage, string> = {
     1: 'Enter a valid username and email before proceeding to order.',
     2: 'Add at least one product before proceeding to payment portal.',
-    3: 'Select a payment portal before proceeding to confirmation.',
+    3: 'Complete the payment step before proceeding to confirmation.',
     4: '',
   };
 
@@ -731,7 +670,7 @@ return sorted;
 
     setSubmitError('');
     if (stage === 3) {
-      setPaymentPortalUsed(selectedMethod);
+      setPaymentPortalUsed('paymongo');
     }
     if (stage === 1) {
       window.localStorage.setItem(STAGE_LOCK_KEY, '1');
@@ -764,10 +703,8 @@ return sorted;
     setLastSubmittedProducts([]);
     setProductQuery('');
     setSelectedProductName('');
-    setSelectedMethod('gcash');
-    setPaymentPortalUsed('gcash');
-    setGcashNumberUsed('');
-    setGotymeAccountNameUsed('');
+    setPaymentPortalUsed('paymongo');
+    setPaymongoReference('');
     setSubmitError('');
     setSubmitNotice('');
     setSubmitResult(null);
@@ -907,9 +844,12 @@ return sorted;
   }, [playTapSfx]);
 
   const handleDownloadQr = () => {
+    if (!canDownloadPaymongoQr) {
+      return;
+    }
     const link = document.createElement('a');
-    link.href = selectedQrSrc;
-    link.download = selectedQrFilename;
+    link.href = paymongoQrSrc;
+    link.download = paymongoQrFilename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -930,7 +870,7 @@ return sorted;
       `Reference Code: ${submitResult.serialNo}`,
       `Sequence No: ${submitResult.sequenceNo ?? 'N/A'}`,
       `Total Amount: PHP ${submitResult.totalAmount ?? totalAmount}`,
-      `Payment Portal: ${String(paymentPortalUsed).toUpperCase()}`,
+      'Payment Portal: PAYMONGO QRPH',
       `Email Status: ${submitResult.customerEmailStatus ?? submitResult.emailStatus ?? 'N/A'}`,
       `Created At: ${submitResult.createdAt ?? new Date().toISOString()}`,
       '',
@@ -947,7 +887,7 @@ return sorted;
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(objectUrl);
-  }, [orderSummaryItems, paymentPortalUsed, submitResult, totalAmount]);
+  }, [orderSummaryItems, submitResult, totalAmount]);
 
   const goToHome = useCallback(() => {
     window.location.href = '/';
@@ -1062,13 +1002,9 @@ return sorted;
       return;
     }
 
-    const paymentDetailUsed = paymentPortalUsed === 'gcash' ? gcashNumberUsed.trim() : gotymeAccountNameUsed.trim();
+    const paymentDetailUsed = paymongoReference.trim();
     if (!paymentDetailUsed) {
-      if (paymentPortalUsed === 'gcash') {
-        setSubmitError('Enter the GCash number used for payment.');
-      } else {
-        setSubmitError('Enter the GoTyme account name used for payment.');
-      }
+      setSubmitError('Enter the PayMongo QRPH reference or sender name used for payment.');
       return;
     }
 
@@ -1119,9 +1055,7 @@ return sorted;
       setUsername('');
       setEmail('');
       setReferenceNo('');
-      setPaymentPortalUsed(selectedMethod);
-      setGcashNumberUsed('');
-      setGotymeAccountNameUsed('');
+      setPaymongoReference('');
       setProductQuery('');
       setSelectedProductName('');
       setSelectedProducts([]);
@@ -1450,6 +1384,41 @@ return sorted;
                     </div>
                   </div>
 
+                  <div className="mt-4 rounded-lg border border-[#ff8a00]/40 bg-[#1a0e05] p-4 shadow-[0_0_25px_rgba(255,138,0,0.2)]">
+                    <div className="mb-3 flex items-center gap-2 text-[#ffb257]">
+                      <PackageSearch size={14} />
+                      <span className="text-[11px] font-mono uppercase tracking-[0.25em]">Verification Summary</span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <span className="mb-1 block text-[10px] font-mono uppercase tracking-[0.2em] text-[#ffbd75]">Products Selected</span>
+                        <p className="text-sm text-[#ffd2a1]">{selectedProducts.length} item(s)</p>
+                      </div>
+                      <div>
+                        <span className="mb-1 block text-[10px] font-mono uppercase tracking-[0.2em] text-[#ffbd75]">Total Amount</span>
+                        <p className="text-sm text-[#ffd2a1]">PHP {totalAmount}</p>
+                      </div>
+                      <div>
+                        <span className="mb-1 block text-[10px] font-mono uppercase tracking-[0.2em] text-[#ffbd75]">Payment Portal</span>
+                        <p className="text-sm text-[#ffd2a1]">PayMongo QRPH</p>
+                      </div>
+                      <div>
+                        <span className="mb-1 block text-[10px] font-mono uppercase tracking-[0.2em] text-[#ffbd75]">Status</span>
+                        <p className="text-sm text-[#ffd2a1]">Ready for payment verification</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-lg border border-red-400/40 bg-red-500/10 p-4">
+                    <div className="mb-2 flex items-center gap-2 text-red-300">
+                      <ShieldAlert size={14} />
+                      <span className="text-[11px] font-mono uppercase tracking-[0.25em]">Warning</span>
+                    </div>
+                    <p className="text-xs text-red-200">
+                      Review your product list before proceeding. Cancelled items will not be delivered once payment is verified.
+                    </p>
+                  </div>
+
                   <div className="mt-4 rounded-lg border border-cyan-500/30 bg-[#06101a]/80 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-300">Secure Download Access</p>
@@ -1709,86 +1678,65 @@ return sorted;
               transition={{ duration: 0.3 }}
             >
               <div className="mb-6 sm:mb-10 space-y-4 sm:space-y-6">
-                <div className="flex items-center justify-center gap-2 lg:hidden">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedMethod('gcash')}
-                    className={`rounded-md border px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.18em] transition-colors ${selectedMethod === 'gcash' ? 'border-blue-400 bg-blue-500/15 text-blue-100' : 'border-white/20 text-gray-300'}`}
-                  >
-                    GCash
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedMethod('gotyme')}
-                    className={`rounded-md border px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.18em] transition-colors ${selectedMethod === 'gotyme' ? 'border-cyan-300 bg-cyan-400/15 text-cyan-100' : 'border-white/20 text-gray-300'}`}
-                  >
-                    GoTyme
-                  </button>
-                </div>
-
-                <div className="flex flex-col lg:flex-row items-center justify-center gap-4 sm:gap-8 lg:gap-12">
-                  <div className="hidden lg:block">
-                    <MethodCard method="gcash" id="001" selectedMethod={selectedMethod} onSelectMethod={setSelectedMethod} />
-                  </div>
-
-                  <div className="w-full max-w-sm">
-                    <AnimatePresence mode="wait">
-                      <motion.div
-                        key={selectedMethod}
-                        initial={{ opacity: 0, scale: 0.9, rotateY: 90 }}
-                        animate={{ opacity: 1, scale: 1, rotateY: 0 }}
-                        exit={{ opacity: 0, scale: 0.9, rotateY: -90 }}
-                        transition={{ duration: 0.5, type: 'spring', stiffness: 100 }}
-                        className="relative"
-                      >
-                        <div className="relative group">
-                          <div className={`absolute -inset-2 bg-gradient-to-r ${selectedMethod === 'gcash' ? 'from-blue-500 to-cyan-500' : 'from-cyan-400 to-emerald-400'} rounded-lg blur opacity-40 group-hover:opacity-60 transition duration-1000`} />
-                          <div className="relative bg-[#0a0a0a] rounded-lg p-3 sm:p-6 border border-white/10 flex flex-col items-center shadow-2xl">
-                            <div className={`w-full ${selectedMethod === 'gcash' ? 'bg-[#007dfe]' : 'bg-[#00e5ff]'} py-2 sm:py-3 px-3 sm:px-6 rounded-t-md flex justify-between items-center shadow-lg`}>
-                              <span className={`font-black italic tracking-tighter uppercase text-[11px] sm:text-sm ${selectedMethod === 'gcash' ? 'text-white' : 'text-black'}`}>
-                                {selectedMethod === 'gcash' ? 'GCash Terminal' : 'GoTyme Terminal'}
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={handleDownloadQr}
-                                  className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition-colors ${selectedMethod === 'gcash' ? 'border-white/60 text-white hover:bg-white/15' : 'border-black/60 text-black hover:bg-black/15'}`}
-                                  title="Download QR"
-                                  aria-label="Download QR"
-                                >
-                                  <Download size={14} />
-                                </button>
-                                <div className={`w-3 h-3 rounded-full ${selectedMethod === 'gcash' ? 'bg-white' : 'bg-black'} animate-pulse`} />
-                              </div>
-                            </div>
-
-                            <div className={`${selectedMethod === 'gcash' ? 'bg-[#007dfe]' : 'bg-[#00e5ff]'} p-2 sm:p-4 w-full aspect-[3/4] sm:aspect-[3/5] flex items-center justify-center overflow-hidden border-x-4 border-b-4 ${selectedMethod === 'gcash' ? 'border-blue-600' : 'border-cyan-500'}`}>
-                              <img
-                                src={selectedQrSrc}
-                                alt={`${selectedMethod === 'gcash' ? 'GCash' : 'GoTyme'} payment QR code`}
-                                className="w-full h-full object-contain"
-                                referrerPolicy="no-referrer"
-                              />
-                            </div>
-
-                            <div className="mt-3 sm:mt-6 text-center w-full py-3 sm:py-4 border-t border-white/5">
-                              <button
-                                type="button"
-                                onClick={handleDownloadQr}
-                                className="mb-3 inline-flex items-center gap-2 rounded border border-white/20 px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.2em] text-gray-300 hover:text-white hover:border-white/40 transition-colors"
-                              >
-                                <Download size={12} />
-                                Download QR
-                              </button>
-                            </div>
+                <div className="flex flex-col items-center justify-center gap-4">
+                  <div className="w-full max-w-md">
+                    <div className="relative group">
+                      <div className="absolute -inset-2 bg-gradient-to-r from-emerald-400 to-cyan-400 rounded-lg blur opacity-40 group-hover:opacity-60 transition duration-1000" />
+                      <div className="relative bg-[#0a0a0a] rounded-lg p-4 sm:p-6 border border-white/10 flex flex-col items-center shadow-2xl">
+                        <div className="w-full bg-[#00d9ff] py-2 sm:py-3 px-3 sm:px-6 rounded-t-md flex justify-between items-center shadow-lg">
+                          <span className="font-black italic tracking-tighter uppercase text-[11px] sm:text-sm text-black">
+                            PayMongo QRPH Terminal
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleDownloadQr}
+                              disabled={!canDownloadPaymongoQr}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-black/60 text-black hover:bg-black/10 disabled:opacity-50"
+                              title="Download QR"
+                              aria-label="Download QR"
+                            >
+                              <Download size={14} />
+                            </button>
+                            <div className="w-3 h-3 rounded-full bg-black animate-pulse" />
                           </div>
                         </div>
-                      </motion.div>
-                    </AnimatePresence>
+
+                        <div className="bg-[#00d9ff] p-3 sm:p-4 w-full aspect-[3/4] sm:aspect-[3/5] flex items-center justify-center overflow-hidden border-x-4 border-b-4 border-cyan-500">
+                          {canDownloadPaymongoQr ? (
+                            <img
+                              src={paymongoQrSrc}
+                              alt="PayMongo QRPH payment QR code"
+                              className="w-full h-full object-contain"
+                              referrerPolicy="no-referrer"
+                              onError={() => setPaymongoQrError(true)}
+                            />
+                          ) : (
+                            <div className="flex flex-col items-center justify-center text-center text-black/80">
+                              <QrCode size={36} />
+                              <p className="mt-2 text-xs font-mono uppercase tracking-[0.2em]">Upload PayMongo QRPH</p>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="mt-3 sm:mt-6 text-center w-full py-3 sm:py-4 border-t border-white/5">
+                          <button
+                            type="button"
+                            onClick={handleDownloadQr}
+                            disabled={!canDownloadPaymongoQr}
+                            className="mb-3 inline-flex items-center gap-2 rounded border border-white/20 px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.2em] text-gray-300 hover:text-white hover:border-white/40 transition-colors disabled:opacity-50"
+                          >
+                            <Download size={12} />
+                            Download QR
+                          </button>
+                          <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-200">Scan to pay via QRPH</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="hidden lg:block">
-                    <MethodCard method="gotyme" id="002" selectedMethod={selectedMethod} onSelectMethod={setSelectedMethod} />
+                  <div className="w-full max-w-md rounded-lg border border-emerald-400/30 bg-emerald-500/10 p-3 text-[11px] font-mono uppercase tracking-[0.2em] text-emerald-200 text-center">
+                    Lazada-style QRPH portal • PayMongo Secure
                   </div>
                 </div>
               </div>
@@ -1888,40 +1836,21 @@ return sorted;
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div>
                         <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Payment Portal Used</span>
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setPaymentPortalUsed('gcash')}
-                            className={`rounded-md border px-3 py-2 text-xs font-mono uppercase tracking-[0.16em] ${paymentPortalUsed === 'gcash' ? 'border-[#ffb257] bg-[#ff8a00]/20 text-[#ffd2a1]' : 'border-[#ff8a00]/40 text-[#ffbd75]'}`}
-                          >
-                            GCash
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setPaymentPortalUsed('gotyme')}
-                            className={`rounded-md border px-3 py-2 text-xs font-mono uppercase tracking-[0.16em] ${paymentPortalUsed === 'gotyme' ? 'border-[#ffb257] bg-[#ff8a00]/20 text-[#ffd2a1]' : 'border-[#ff8a00]/40 text-[#ffbd75]'}`}
-                          >
-                            GoTyme
-                          </button>
+                        <div className="rounded-md border border-[#ffb257]/40 bg-[#ff8a00]/10 px-3 py-2 text-xs font-mono uppercase tracking-[0.16em] text-[#ffd2a1]">
+                          PayMongo QRPH
                         </div>
                       </div>
 
                       <label className="block">
                         <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">
-                          {paymentPortalUsed === 'gcash' ? 'GCash Number Used' : 'GoTyme Account Name Used'}
+                          PayMongo Reference / Sender Name
                         </span>
                         <input
-                          value={paymentPortalUsed === 'gcash' ? gcashNumberUsed : gotymeAccountNameUsed}
-                          onChange={(event) => {
-                            if (paymentPortalUsed === 'gcash') {
-                              setGcashNumberUsed(event.target.value);
-                              return;
-                            }
-                            setGotymeAccountNameUsed(event.target.value);
-                          }}
+                          value={paymongoReference}
+                          onChange={(event) => setPaymongoReference(event.target.value)}
                           required
                           className="w-full rounded-md border border-[#ff8a00]/50 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-[#ffb257] focus:shadow-[0_0_18px_rgba(255,138,0,0.24)]"
-                          placeholder={paymentPortalUsed === 'gcash' ? 'e.g. 09XXXXXXXXX' : 'e.g. JUAN DELA CRUZ'}
+                          placeholder="e.g. JUAN DELA CRUZ / QRPH REF"
                         />
                       </label>
                     </div>

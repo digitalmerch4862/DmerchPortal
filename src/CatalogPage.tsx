@@ -142,10 +142,9 @@ export default function CatalogPage() {
       username: draft.username ?? '',
       email: draft.email ?? '',
       referenceNo: draft.referenceNo ?? '',
-      selectedMethod: draft.selectedMethod ?? 'gcash',
-      paymentPortalUsed: draft.paymentPortalUsed ?? 'gcash',
-      gcashNumberUsed: draft.gcashNumberUsed ?? '',
-      gotymeAccountNameUsed: draft.gotymeAccountNameUsed ?? '',
+      selectedMethod: 'paymongo',
+      paymentPortalUsed: 'paymongo',
+      paymongoReference: draft.paymongoReference ?? '',
       selectedProducts: nextProducts,
     }));
   };
