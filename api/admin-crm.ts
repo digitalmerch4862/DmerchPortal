@@ -223,10 +223,68 @@ async function handleManageCrm(req: any, res: any, supabase: any) {
   return res.status(200).json({ ok: true, action: 'edit' });
 }
 
+async function handleBulkCrm(req: any, res: any, supabase: any) {
+  const authCheck = await requireAdmin(req, supabase);
+  if (!authCheck.ok) {
+    return res.status(authCheck.status).json({ ok: false, error: authCheck.error });
+  }
+
+  const body = await readBody(req);
+  const rows = Array.isArray(body.rows) ? body.rows : [];
+  if (!rows.length) {
+    return res.status(400).json({ ok: false, error: 'Rows are required.' });
+  }
+
+  const mapped = rows.map((row: any) => {
+    const serialNo = String(row.serialNo ?? '').trim().toUpperCase();
+    const buyerName = String(row.buyerName ?? '').trim();
+    const buyerEmail = String(row.buyerEmail ?? '').trim().toLowerCase();
+    const products = Array.isArray(row.products) ? row.products.map((item: any) => String(item ?? '').trim()).filter(Boolean) : [];
+    const totalAmount = Number(row.totalAmount ?? 0);
+    const statusRaw = String(row.status ?? '').trim().toLowerCase();
+    const submittedAt = String(row.submittedAt ?? '').trim();
+
+    const statusTag = statusRaw === 'approved'
+      ? 'review:approved'
+      : statusRaw === 'rejected'
+        ? 'review:rejected'
+        : 'review:pending';
+
+    const perProductAmount = products.length > 0 ? Number((totalAmount / products.length).toFixed(2)) : 0;
+    const productsJson = products.map((name) => ({ name, amount: perProductAmount }));
+
+    return {
+      serial_no: serialNo,
+      username: buyerName,
+      email: buyerEmail,
+      product_name: products[0] ?? '',
+      amount: totalAmount,
+      total_amount: totalAmount,
+      products_json: productsJson,
+      email_status: statusTag,
+      created_at: submittedAt || new Date().toISOString(),
+    };
+  }).filter((row: any) => row.serial_no && row.email && row.product_name && Number.isFinite(row.total_amount));
+
+  if (!mapped.length) {
+    return res.status(400).json({ ok: false, error: 'No valid rows to import.' });
+  }
+
+  const upsert = await supabase
+    .from('verification_orders')
+    .upsert(mapped, { onConflict: 'serial_no' });
+
+  if (upsert.error) {
+    return res.status(500).json({ ok: false, error: upsert.error.message });
+  }
+
+  return res.status(200).json({ ok: true, inserted: mapped.length });
+}
+
 export default async function handler(req: any, res: any) {
   const path = req.query?.path ?? '';
 
-  if (path === 'manage') {
+  if (path === 'manage' || path === 'bulk') {
     setCors(req, res, 'POST, OPTIONS');
   } else {
     setCors(req, res, 'GET, OPTIONS');
@@ -252,6 +310,13 @@ export default async function handler(req: any, res: any) {
         return res.status(405).json({ ok: false, error: 'Method not allowed.' });
       }
       return handleManageCrm(req, res, supabase);
+    }
+
+    if (path === 'bulk') {
+      if (req.method !== 'POST') {
+        return res.status(405).json({ ok: false, error: 'Method not allowed.' });
+      }
+      return handleBulkCrm(req, res, supabase);
     }
 
     if (req.method !== 'GET') {

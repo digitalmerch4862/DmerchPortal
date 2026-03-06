@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { Archive, ArrowLeft, BarChart3, CheckCircle2, Download, Inbox, PackageSearch, Pencil, ShieldAlert, Trash2, Upload, UsersRound, Plus } from 'lucide-react';
+import { Archive, ArrowLeft, BarChart3, CheckCircle2, Download, Inbox, PackageSearch, Pencil, ShieldAlert, Trash2, Upload, UsersRound, Plus, RefreshCw } from 'lucide-react';
 import { productCatalog } from './data/products';
 import { getSupabaseBrowserClient } from './lib/supabase-browser';
 
@@ -321,6 +321,10 @@ export default function Admin() {
   const [crmEditProducts, setCrmEditProducts] = useState('');
   const [crmEditAmount, setCrmEditAmount] = useState('');
   const [analyticsPeriod, setAnalyticsPeriod] = useState<'week' | 'month' | 'quarter' | 'year'>('week');
+  const [isDragSelecting, setIsDragSelecting] = useState(false);
+  const [dragSelectMode, setDragSelectMode] = useState<'select' | 'deselect'>('select');
+  const [crmBulkData, setCrmBulkData] = useState('');
+  const [crmBulkStatus, setCrmBulkStatus] = useState('');
 
   const fetchSupabaseProducts = useCallback(async () => {
     const supabase = getSupabaseBrowserClient();
@@ -824,6 +828,28 @@ export default function Admin() {
     setSelectedProductIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
   };
 
+  const applyDragSelection = (id: string, mode: 'select' | 'deselect') => {
+    setSelectedProductIds((current) => {
+      if (mode === 'select') {
+        return current.includes(id) ? current : [...current, id];
+      }
+      return current.filter((item) => item !== id);
+    });
+  };
+
+  const startDragSelect = (id: string) => {
+    const isSelected = selectedProductIds.includes(id);
+    const mode: 'select' | 'deselect' = isSelected ? 'deselect' : 'select';
+    setDragSelectMode(mode);
+    setIsDragSelecting(true);
+    applyDragSelection(id, mode);
+  };
+
+  const handleDragEnter = (id: string) => {
+    if (!isDragSelecting) return;
+    applyDragSelection(id, dragSelectMode);
+  };
+
   const selectAllProducts = () => {
     if (areAllProductsSelected) {
       return;
@@ -834,6 +860,12 @@ export default function Admin() {
   const clearSelectedProducts = () => {
     setSelectedProductIds([]);
   };
+
+  useEffect(() => {
+    const handleMouseUp = () => setIsDragSelecting(false);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => window.removeEventListener('mouseup', handleMouseUp);
+  }, []);
 
   const applyMassAmount = async () => {
     const supabase = getSupabaseBrowserClient();
@@ -1095,6 +1127,56 @@ export default function Admin() {
       setCrmEditorOpen(false);
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Failed to archive CRM record');
+    }
+  };
+
+  const handleCrmBulkImport = async () => {
+    const raw = crmBulkData.trim();
+    if (!raw) {
+      setCrmBulkStatus('Paste CRM CSV rows first.');
+      return;
+    }
+
+    const rows = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const parsed = rows.map((line) => {
+      const parts = line.split(',').map((part) => part.trim().replace(/^"|"$/g, ''));
+      const [serialNo, buyerName, buyerEmail, productsRaw, amountRaw, statusRaw, submittedAt] = parts;
+      const products = String(productsRaw ?? '')
+        .split('|')
+        .map((item) => item.trim())
+        .filter(Boolean);
+      return {
+        serialNo: String(serialNo ?? '').trim(),
+        buyerName: String(buyerName ?? '').trim(),
+        buyerEmail: String(buyerEmail ?? '').trim(),
+        products,
+        totalAmount: Number(amountRaw ?? 0),
+        status: String(statusRaw ?? '').trim().toLowerCase(),
+        submittedAt: String(submittedAt ?? '').trim(),
+      };
+    }).filter((row) => row.serialNo && row.buyerEmail && row.products.length > 0 && Number.isFinite(row.totalAmount));
+
+    if (parsed.length === 0) {
+      setCrmBulkStatus('No valid rows found. Use: Serial No, Username, Email, Products, Amount, Status, Date.');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/admin-crm?path=bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ rows: parsed }),
+      });
+      const payload = (await response.json()) as { ok?: boolean; error?: string; inserted?: number };
+      if (!response.ok || !payload.ok) {
+        setCrmBulkStatus(payload.error ?? 'CRM bulk import failed.');
+        return;
+      }
+      setCrmBulkStatus(`Imported ${payload.inserted ?? parsed.length} CRM rows.`);
+      setCrmBulkData('');
+      void refreshCrm();
+    } catch (err) {
+      setCrmBulkStatus(err instanceof Error ? err.message : 'CRM bulk import failed.');
     }
   };
 
@@ -1411,8 +1493,13 @@ export default function Admin() {
                 );
               })}
             </div>
-            <button onClick={() => { void refreshAdminData(); }} className="cyber-btn cyber-btn-secondary whitespace-nowrap">
-              {inboxLoading || crmLoading ? 'Syncing...' : 'Sync Inbox + CRM'}
+            <button
+              onClick={() => { void refreshAdminData(); }}
+              className="cyber-btn cyber-btn-secondary whitespace-nowrap"
+              title="Sync Inbox + CRM"
+              aria-label="Sync Inbox + CRM"
+            >
+              <RefreshCw size={14} />
             </button>
           </div>
         </div>
@@ -1613,9 +1700,6 @@ export default function Admin() {
                   <button onClick={() => { void addProductRow(); }} className="cyber-btn cyber-btn-primary" aria-label="Add product">
                     <Plus size={14} />
                   </button>
-                  <button onClick={() => { void migrateProductsToSupabase(); }} className="cyber-btn cyber-btn-secondary border-amber-500/40 text-amber-200">
-                    <Upload size={14} /> Migrate Local
-                  </button>
                   <button
                     onClick={() => {
                       const header = 'Name,File Link,Category,Sub Category,Amount\n';
@@ -1635,8 +1719,10 @@ export default function Admin() {
                       setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
                     }}
                     className="cyber-btn cyber-btn-secondary"
+                    title="Export CSV"
+                    aria-label="Export CSV"
                   >
-                    <Download size={14} /> Export CSV
+                    <Download size={14} />
                   </button>
                 </div>
               </div>
@@ -1681,7 +1767,11 @@ export default function Admin() {
                         <td className="px-2 py-2 text-center">
                           <button
                             type="button"
-                            onClick={() => toggleSelectProduct(item.id)}
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              startDragSelect(item.id);
+                            }}
+                            onMouseEnter={() => handleDragEnter(item.id)}
                             className={`inline-flex h-5 w-5 items-center justify-center rounded-full border ${selectedProductIds.includes(item.id) ? 'border-cyan-300 bg-cyan-400/20' : 'border-cyan-500/35'}`}
                             aria-label="Select row"
                           >
@@ -1725,7 +1815,9 @@ export default function Admin() {
                 placeholder="Adobe Photoshop 2025, https://drive.google.com/..., Software, Graphics, 99"
               />
               <div className="mt-3 flex flex-wrap justify-end gap-2">
-                <button onClick={exportProductsCsv} className="cyber-btn cyber-btn-secondary">Export CSV</button>
+                <button onClick={exportProductsCsv} className="cyber-btn cyber-btn-secondary" title="Export CSV" aria-label="Export CSV">
+                  <Download size={14} />
+                </button>
                 <button onClick={applyBulkImport} className="cyber-btn cyber-btn-primary">Import Rows</button>
               </div>
             </section>
@@ -1756,6 +1848,24 @@ export default function Admin() {
                 <button onClick={() => { void refreshCrm(); }} className="cyber-btn cyber-btn-secondary">{crmLoading ? 'Refreshing...' : 'Refresh CRM'}</button>
                 <button
                   onClick={() => {
+                    const header = 'Serial No,Username,Email,Products,Amount (PHP),Status,Date\n';
+                    const blob = new Blob([header], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'dmerch-crm-template.csv';
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+                  }}
+                  className="cyber-btn cyber-btn-secondary"
+                  title="Download CRM template"
+                  aria-label="Download CRM template"
+                >
+                  <Download size={13} />
+                </button>
+                <button
+                  onClick={() => {
                     // Build CSV from all crmItems (unfiltered)
                     const header = 'Serial No,Username,Email,Products,Amount (PHP),Status,Date\n';
                     const rowsCsv = filteredCrmItems.map((item) => {
@@ -1775,8 +1885,10 @@ export default function Admin() {
                     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
                   }}
                   className="cyber-btn cyber-btn-secondary"
+                  title="Export CRM CSV"
+                  aria-label="Export CRM CSV"
                 >
-                  <Download size={13} /> Export CSV
+                  <Download size={13} />
                 </button>
                 <button
                   type="button"
@@ -1799,6 +1911,23 @@ export default function Admin() {
             <p className="mb-3 text-[11px] font-mono uppercase tracking-[0.16em] text-cyan-200">
               Last sync: {lastCrmSyncAt ? toReadableDate(lastCrmSyncAt) : 'Never'} | Rows fetched: {crmLastCount}
             </p>
+            <div className="mb-4 rounded-md border border-cyan-500/20 bg-black/25 p-3">
+              <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-300">CRM Mass Upload (CSV)</p>
+              <p className="mt-1 text-xs text-cyan-100/70">Format: Serial No, Username, Email, Products (use |), Amount, Status, Date</p>
+              <textarea
+                value={crmBulkData}
+                onChange={(event) => setCrmBulkData(event.target.value)}
+                className="mt-2 h-24 w-full rounded-md border border-cyan-500/35 bg-black/40 p-3 text-xs"
+                placeholder="DM-2026-0001,Juan Dela Cruz,juan@email.com,Adobe Photoshop | Canva Pro,199,approved,2026-03-07"
+              />
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[10px] text-cyan-200">Uploads map to Supabase verification_orders.</span>
+                <button onClick={handleCrmBulkImport} className="cyber-btn cyber-btn-primary">Upload CRM</button>
+              </div>
+              {crmBulkStatus ? (
+                <p className="mt-2 text-xs text-cyan-200">{crmBulkStatus}</p>
+              ) : null}
+            </div>
             {crmEditorOpen ? (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
                 <div className="w-full max-w-2xl rounded-xl border border-cyan-500/40 bg-[#050b12] p-5 shadow-[0_0_40px_rgba(0,195,255,0.2)]">

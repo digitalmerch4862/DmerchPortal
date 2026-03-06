@@ -1419,35 +1419,38 @@ return sorted;
                     </div>
                   )}
 
-                  <div className="mt-4 space-y-2">
-                    {selectedProducts.length > 0 ? (
-                      selectedProducts.map((item) => (
-                        <div
-                          key={`${item.name}-${item.amount}`}
-                          className="flex items-start justify-between gap-3 rounded-md border border-cyan-500/30 bg-black/40 px-3 py-2"
-                        >
-                          <div>
-                            <p className="text-sm text-cyan-100">{item.name}</p>
-                            <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">PHP {item.amount}</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeSelectedProduct(item.name)}
-                            className="inline-flex h-7 w-7 items-center justify-center rounded border border-red-400/40 text-red-300 hover:bg-red-500/10"
-                            title="Remove product"
+                  <div className="mt-4 rounded-lg border border-cyan-500/30 bg-[#06101a]/80 p-4">
+                    <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-cyan-300">Checkout List</p>
+                    <div className="mt-3 space-y-2">
+                      {selectedProducts.length > 0 ? (
+                        selectedProducts.map((item) => (
+                          <div
+                            key={`${item.name}-${item.amount}`}
+                            className="flex items-start justify-between gap-3 rounded-md border border-cyan-500/30 bg-black/40 px-3 py-2"
                           >
-                            <X size={12} />
-                          </button>
+                            <div>
+                              <p className="text-sm text-cyan-100">{item.name}</p>
+                              <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">PHP {item.amount}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeSelectedProduct(item.name)}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded border border-red-400/40 text-red-300 hover:bg-red-500/10"
+                              title="Remove product"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-md border border-dashed border-cyan-500/30 px-4 py-4 text-center text-xs font-mono uppercase tracking-[0.2em] text-gray-500">
+                          No products added yet
                         </div>
-                      ))
-                    ) : (
-                      <div className="rounded-md border border-dashed border-cyan-500/30 px-4 py-4 text-center text-xs font-mono uppercase tracking-[0.2em] text-gray-500">
-                        No products added yet
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
 
-                  <div className="mt-6 rounded-lg border border-cyan-500/30 bg-[#06101a]/80 p-4">
+                  <div className="mt-4 rounded-lg border border-cyan-500/30 bg-[#06101a]/80 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-300">Secure Download Access</p>
                       <button
