@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { Archive, ArrowLeft, BarChart3, CheckCircle2, Download, Inbox, PackageSearch, Pencil, ShieldAlert, Trash2, Upload, UsersRound } from 'lucide-react';
+import { Archive, ArrowLeft, BarChart3, CheckCircle2, Download, Inbox, PackageSearch, Pencil, ShieldAlert, Trash2, Upload, UsersRound, Plus } from 'lucide-react';
 import { productCatalog } from './data/products';
 import { getSupabaseBrowserClient } from './lib/supabase-browser';
 
@@ -294,6 +294,7 @@ export default function Admin() {
   const [crmItems, setCrmItems] = useState<CrmItem[]>([]);
   const [bulkData, setBulkData] = useState('');
   const [search, setSearch] = useState('');
+  const [searchScope, setSearchScope] = useState<'all' | 'name' | 'category' | 'subcategory' | 'amount'>('all');
   const [crmSearch, setCrmSearch] = useState('');
   const [crmStatusFilter, setCrmStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [expandedCrmUser, setExpandedCrmUser] = useState<string | null>(null);
@@ -470,8 +471,26 @@ export default function Admin() {
     const categoryQuery = massCategory.trim().toLowerCase();
 
     return products.filter((item) => {
-      if (query && !item.name.toLowerCase().includes(query)) {
-        return false;
+      if (query) {
+        const name = String(item.name ?? '').toLowerCase();
+        const category = String(item.category ?? '').toLowerCase();
+        const subCategory = String(item.sub_category ?? '').toLowerCase();
+        const amountValue = String(item.amount ?? '').toLowerCase();
+        let searchTarget = name;
+
+        if (searchScope === 'all') {
+          searchTarget = `${name} ${category} ${subCategory} ${amountValue}`;
+        } else if (searchScope === 'category') {
+          searchTarget = category;
+        } else if (searchScope === 'subcategory') {
+          searchTarget = subCategory;
+        } else if (searchScope === 'amount') {
+          searchTarget = amountValue;
+        }
+
+        if (!searchTarget.includes(query)) {
+          return false;
+        }
       }
 
       if (amountQuery && !String(item.amount ?? '').includes(amountQuery)) {
@@ -1580,7 +1599,20 @@ export default function Admin() {
                     className="rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
                     placeholder="Search file name"
                   />
-                  <button onClick={() => { void addProductRow(); }} className="cyber-btn cyber-btn-primary">Add Product</button>
+                  <select
+                    value={searchScope}
+                    onChange={(event) => setSearchScope(event.target.value as typeof searchScope)}
+                    className="rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
+                  >
+                    <option value="all">All fields</option>
+                    <option value="name">File name</option>
+                    <option value="category">Category</option>
+                    <option value="subcategory">Sub category</option>
+                    <option value="amount">Amount</option>
+                  </select>
+                  <button onClick={() => { void addProductRow(); }} className="cyber-btn cyber-btn-primary" aria-label="Add product">
+                    <Plus size={14} />
+                  </button>
                   <button onClick={() => { void migrateProductsToSupabase(); }} className="cyber-btn cyber-btn-secondary border-amber-500/40 text-amber-200">
                     <Upload size={14} /> Migrate Local
                   </button>
@@ -1609,8 +1641,9 @@ export default function Admin() {
                 </div>
               </div>
               <div className="mb-3 flex flex-wrap gap-2 rounded-md border border-cyan-500/20 bg-black/25 p-2">
-                <button onClick={selectAllProducts} className="cyber-btn cyber-btn-secondary">Select All</button>
-                <button onClick={clearSelectedProducts} className="cyber-btn cyber-btn-secondary">Remove Selected All</button>
+                <button onClick={areAllProductsSelected ? clearSelectedProducts : selectAllProducts} className="cyber-btn cyber-btn-secondary">
+                  {areAllProductsSelected ? 'Clear Selected' : 'Select All'}
+                </button>
                 <span className="inline-flex items-center px-2 text-xs text-cyan-200">Selected: {selectedCount}</span>
                 <input
                   value={massAmount}
