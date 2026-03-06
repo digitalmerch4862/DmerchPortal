@@ -1064,6 +1064,7 @@ return sorted;
                 </AnimatePresence>
               </div>
             </div>
+
           </motion.div>
         </header>
 
@@ -1101,6 +1102,12 @@ return sorted;
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-300">Product Purchased</span>
                     <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-gray-400">Multi-Product Enabled</span>
+                  </div>
+
+                  <div className="mb-4 flex justify-end">
+                    <a href="/catalog" className="cyber-btn cyber-btn-primary text-[10px] cyber-breath">
+                      View Products Catalog
+                    </a>
                   </div>
 
                   <div className="relative mb-6">

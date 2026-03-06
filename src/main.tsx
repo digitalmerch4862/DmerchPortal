@@ -5,6 +5,7 @@ import App from './App.tsx';
 import Admin from './admin.tsx';
 import Delivery from './delivery.tsx';
 import LandingPage from './LandingPage.tsx';
+import CatalogPage from './CatalogPage.tsx';
 import './index.css';
 
 registerSW({
@@ -16,6 +17,8 @@ const RootPage = currentPath.startsWith('/admin')
   ? Admin
   : currentPath.startsWith('/delivery')
   ? Delivery
+  : currentPath.startsWith('/catalog')
+  ? CatalogPage
   : currentPath.startsWith('/landing')
   ? LandingPage
   : App;

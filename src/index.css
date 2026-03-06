@@ -118,6 +118,23 @@
   animation: cyber-btn-press-burst 190ms ease-out;
 }
 
+.cyber-breath {
+  animation: cyber-breath-pulse 2.6s ease-in-out infinite;
+}
+
+@keyframes cyber-breath-pulse {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    box-shadow: 0 0 14px rgba(0, 243, 255, 0.22);
+  }
+
+  50% {
+    transform: translateY(-1px) scale(1.03);
+    box-shadow: 0 0 26px rgba(0, 243, 255, 0.45);
+  }
+}
+
 .reference-download-alert {
   animation: reference-alert-blink 0.9s steps(2, end) infinite;
   box-shadow: 0 0 10px rgba(248, 113, 113, 0.45);
