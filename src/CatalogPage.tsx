@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Search, ChevronDown, Sparkles, ShoppingCart, X } from 'lucide-react';
+import { ArrowLeft, Search, ChevronDown, Sparkles, ShoppingCart } from 'lucide-react';
 import { type ProductItem } from './data/products';
 import { getSupabaseBrowserClient } from './lib/supabase-browser';
 
 type CatalogTab = string;
 type SortKey = 'az' | 'price-low' | 'price-high' | 'newest';
 const ALL_TAB = 'all';
+const CHECKOUT_DRAFT_KEY = 'dmerch_checkout_draft_v1';
 
 const SORT_ITEMS: Array<{ id: SortKey; label: string }> = [
   { id: 'az', label: 'A-Z' },
@@ -28,7 +29,7 @@ export default function CatalogPage() {
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('az');
   const [visibleCount, setVisibleCount] = useState(18);
-  const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(null);
+  const [addedProducts, setAddedProducts] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let mounted = true;
@@ -75,6 +76,24 @@ export default function CatalogPage() {
     };
   }, []);
 
+  useEffect(() => {
+    const rawDraft = window.localStorage.getItem(CHECKOUT_DRAFT_KEY);
+    if (!rawDraft) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(rawDraft) as { selectedProducts?: ProductItem[] };
+      const names = new Set(
+        Array.isArray(parsed.selectedProducts)
+          ? parsed.selectedProducts.map((item) => `${item.name}::${item.amount}`)
+          : []
+      );
+      setAddedProducts(names);
+    } catch {
+      setAddedProducts(new Set());
+    }
+  }, []);
+
   const featured = useMemo(() => products.slice(0, 8), [products]);
 
   const categories = useMemo(() => {
@@ -89,21 +108,46 @@ export default function CatalogPage() {
   }, [products]);
 
   const tabItems = useMemo(() => {
-    if (categories.length <= 1) {
-      return categories.map((label) => ({ id: label, label }));
-    }
     return [{ id: ALL_TAB, label: 'All' }, ...categories.map((label) => ({ id: label, label }))];
   }, [categories]);
 
   useEffect(() => {
-    if (categories.length === 1) {
-      setActiveTab(categories[0]);
-      return;
-    }
     if (activeTab !== ALL_TAB && !categories.includes(activeTab)) {
       setActiveTab(ALL_TAB);
     }
   }, [activeTab, categories]);
+
+  const handleAddToCart = (product: ProductItem) => {
+    const key = `${product.name}::${product.amount}`;
+    setAddedProducts((current) => new Set(current).add(key));
+
+    const rawDraft = window.localStorage.getItem(CHECKOUT_DRAFT_KEY);
+    let draft: any = {};
+    if (rawDraft) {
+      try {
+        draft = JSON.parse(rawDraft) ?? {};
+      } catch {
+        draft = {};
+      }
+    }
+
+    const selectedProducts = Array.isArray(draft.selectedProducts) ? draft.selectedProducts : [];
+    const exists = selectedProducts.some((item: ProductItem) => item.name === product.name && Number(item.amount) === Number(product.amount));
+    const nextProducts = exists
+      ? selectedProducts
+      : [...selectedProducts, { name: product.name, amount: product.amount }];
+
+    window.localStorage.setItem(CHECKOUT_DRAFT_KEY, JSON.stringify({
+      username: draft.username ?? '',
+      email: draft.email ?? '',
+      referenceNo: draft.referenceNo ?? '',
+      selectedMethod: draft.selectedMethod ?? 'gcash',
+      paymentPortalUsed: draft.paymentPortalUsed ?? 'gcash',
+      gcashNumberUsed: draft.gcashNumberUsed ?? '',
+      gotymeAccountNameUsed: draft.gotymeAccountNameUsed ?? '',
+      selectedProducts: nextProducts,
+    }));
+  };
 
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -223,7 +267,7 @@ export default function CatalogPage() {
               <button
                 key={item.name}
                 type="button"
-                onClick={() => setSelectedProduct(item)}
+                onClick={() => handleAddToCart(item)}
                 className="min-w-[220px] rounded-2xl border border-fuchsia-500/30 bg-[#120c1f]/70 p-4 text-left shadow-[0_0_20px_rgba(255,0,255,0.1)] transition hover:border-fuchsia-400/70"
               >
                 <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.2em] text-fuchsia-200">
@@ -231,6 +275,13 @@ export default function CatalogPage() {
                 </div>
                 <p className="mt-2 text-sm font-semibold text-white line-clamp-2">{item.name}</p>
                 <p className="mt-2 text-xs text-cyan-200">PHP {item.amount}</p>
+                <div className="mt-3 text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-200">
+                  {addedProducts.has(`${item.name}::${item.amount}`) ? (
+                    <span className="inline-flex items-center gap-1"><ShoppingCart size={12} /> Added</span>
+                  ) : (
+                    'Add to cart'
+                  )}
+                </div>
               </button>
             ))}
           </div>
@@ -254,6 +305,7 @@ export default function CatalogPage() {
             {visibleProducts.map((item, index) => {
               const isFeatured = index < 6 && activeTab === ALL_TAB && !search;
               const badges = getBadges(item, isFeatured);
+              const isAdded = addedProducts.has(`${item.name}::${item.amount}`);
 
               return (
                 <article
@@ -280,10 +332,14 @@ export default function CatalogPage() {
                     <span className="text-xs font-mono uppercase tracking-[0.2em] text-cyan-200">PHP {item.amount}</span>
                     <button
                       type="button"
-                      onClick={() => setSelectedProduct(item)}
-                      className="text-[10px] font-mono uppercase tracking-[0.25em] text-fuchsia-200 hover:text-white"
+                      onClick={() => handleAddToCart(item)}
+                      className={`text-[10px] font-mono uppercase tracking-[0.25em] ${isAdded ? 'text-cyan-200' : 'text-fuchsia-200 hover:text-white'}`}
                     >
-                      View Details
+                      {isAdded ? (
+                        <span className="inline-flex items-center gap-1"><ShoppingCart size={12} /> Added</span>
+                      ) : (
+                        'Add to cart'
+                      )}
                     </button>
                   </div>
                 </article>
@@ -312,42 +368,7 @@ export default function CatalogPage() {
 
       </main>
 
-      {selectedProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-10">
-          <div className="w-full max-w-md rounded-2xl border border-cyan-500/40 bg-[#0b111f] p-6 shadow-[0_0_40px_rgba(0,243,255,0.2)]">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-cyan-300">Product Preview</p>
-                <h3 className="mt-2 text-lg font-semibold text-white">{selectedProduct.name}</h3>
-                <p className="mt-2 text-sm text-cyan-200">PHP {selectedProduct.amount}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedProduct(null)}
-                className="rounded-full border border-white/10 p-2 text-gray-300 hover:text-white"
-                aria-label="Close"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <p className="mt-4 text-sm text-gray-300">
-              Secure access, verified checkout, and instant unlock once payment clears. Perfect for your next release drop.
-            </p>
-            <div className="mt-5 flex flex-wrap gap-2">
-              <a href="/" className="cyber-btn cyber-btn-primary text-[10px]">
-                <ShoppingCart size={14} /> Go to Checkout
-              </a>
-              <button
-                type="button"
-                onClick={() => setSelectedProduct(null)}
-                className="cyber-btn cyber-btn-secondary text-[10px]"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      
     </div>
   );
 }

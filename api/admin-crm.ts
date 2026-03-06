@@ -78,6 +78,18 @@ const appendStatusTag = (currentStatus: string, tag: string) => {
   return parts.join(' | ');
 };
 
+const replaceReviewStatus = (currentStatus: string, nextTag: string) => {
+  const parts = String(currentStatus ?? '')
+    .split('|')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter((part) => !part.toLowerCase().startsWith('review:'));
+  if (!parts.includes(nextTag)) {
+    parts.push(nextTag);
+  }
+  return parts.join(' | ');
+};
+
 async function handleGetCrm(req: any, res: any, supabase: any) {
   const authCheck = await requireAdmin(req, supabase);
   if (!authCheck.ok) {
@@ -153,6 +165,21 @@ async function handleManageCrm(req: any, res: any, supabase: any) {
     }
 
     return res.status(200).json({ ok: true, action: 'archive' });
+  }
+
+  if (action === 'approve' || action === 'reject') {
+    const tag = action === 'approve' ? 'review:approved' : 'review:rejected';
+    const nextStatus = replaceReviewStatus(String(lookup.data.email_status ?? ''), tag);
+    const statusUpdate = await supabase
+      .from('verification_orders')
+      .update({ email_status: nextStatus })
+      .eq('id', lookup.data.id);
+
+    if (statusUpdate.error) {
+      return res.status(500).json({ ok: false, error: statusUpdate.error.message });
+    }
+
+    return res.status(200).json({ ok: true, action });
   }
 
   if (action !== 'edit') {

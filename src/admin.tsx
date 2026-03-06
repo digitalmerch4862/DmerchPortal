@@ -319,6 +319,7 @@ export default function Admin() {
   const [crmEditEmail, setCrmEditEmail] = useState('');
   const [crmEditProducts, setCrmEditProducts] = useState('');
   const [crmEditAmount, setCrmEditAmount] = useState('');
+  const [analyticsPeriod, setAnalyticsPeriod] = useState<'week' | 'month' | 'quarter' | 'year'>('week');
 
   const fetchSupabaseProducts = useCallback(async () => {
     const supabase = getSupabaseBrowserClient();
@@ -465,11 +466,25 @@ export default function Admin() {
 
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) {
-      return products;
-    }
-    return products.filter((item) => item.name.toLowerCase().includes(query));
-  }, [products, search]);
+    const amountQuery = massAmount.trim();
+    const categoryQuery = massCategory.trim().toLowerCase();
+
+    return products.filter((item) => {
+      if (query && !item.name.toLowerCase().includes(query)) {
+        return false;
+      }
+
+      if (amountQuery && !String(item.amount ?? '').includes(amountQuery)) {
+        return false;
+      }
+
+      if (categoryQuery && !String(item.category ?? '').toLowerCase().includes(categoryQuery)) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [products, search, massAmount, massCategory]);
 
   const selectedCount = selectedProductIds.length;
   const areAllProductsSelected = products.length > 0 && products.every((item) => selectedProductIds.includes(item.id));
@@ -1004,7 +1019,7 @@ export default function Admin() {
   const submitCrmManage = async (
     payload: {
       serialNo: string;
-      action: 'edit' | 'archive';
+      action: 'edit' | 'archive' | 'approve' | 'reject';
       buyerName?: string;
       buyerEmail?: string;
       products?: string[];
@@ -1061,6 +1076,32 @@ export default function Admin() {
       setCrmEditorOpen(false);
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Failed to archive CRM record');
+    }
+  };
+
+  const handleCrmDecision = async (action: 'approve' | 'reject') => {
+    const selected = crmItems.find((item) => item.id === selectedCrmRecordId);
+    if (!selected) {
+      alert('Select one CRM transaction first.');
+      return;
+    }
+
+    const confirmed = window.confirm(`${action === 'approve' ? 'Approve' : 'Cancel link for'} ${selected.referenceCode}?`);
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const ok = await submitCrmManage({ serialNo: selected.referenceCode, action });
+      if (!ok) {
+        return;
+      }
+      setCrmItems((current) => current.map((item) => (
+        item.id === selected.id ? { ...item, status: action === 'approve' ? 'approved' : 'rejected' } : item
+      )));
+      setCrmEditorOpen(false);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to update CRM status');
     }
   };
 
@@ -1129,9 +1170,11 @@ export default function Admin() {
     }
   };
 
+  const approvedCrmItems = useMemo(() => crmItems.filter((item) => item.status === 'approved'), [crmItems]);
+
   const analyticsCards = useMemo(() => {
-    const now = new Date();
-    const approvedItems = crmItems.filter((item) => item.status === 'approved');
+    const now = new Date(nowMs);
+    const approvedItems = approvedCrmItems;
 
     const sumRange = (start: Date, end: Date) => {
       const startMs = start.getTime();
@@ -1208,7 +1251,59 @@ export default function Admin() {
         evaluation,
       };
     });
-  }, [crmItems]);
+  }, [approvedCrmItems, nowMs]);
+
+  const analyticsRange = useMemo(() => {
+    const now = new Date(nowMs);
+    const weekStart = startOfWeek(now);
+    const monthStart = startOfMonth(now);
+    const quarterStart = startOfQuarter(now);
+    const yearStart = startOfYear(now);
+
+    switch (analyticsPeriod) {
+      case 'month':
+        return { label: 'This Month', start: monthStart, end: now };
+      case 'quarter':
+        return { label: 'This Quarter', start: quarterStart, end: now };
+      case 'year':
+        return { label: 'This Year', start: yearStart, end: now };
+      default:
+        return { label: 'This Week', start: weekStart, end: now };
+    }
+  }, [analyticsPeriod, nowMs]);
+
+  const analyticsProducts = useMemo(() => {
+    const startMs = analyticsRange.start.getTime();
+    const endMs = analyticsRange.end.getTime();
+    const map = new Map<string, { name: string; count: number; total: number }>();
+
+    approvedCrmItems.forEach((item) => {
+      const timestamp = new Date(item.submittedAt).getTime();
+      if (Number.isNaN(timestamp) || timestamp < startMs || timestamp >= endMs) {
+        return;
+      }
+      if (!item.products.length) {
+        return;
+      }
+      const perProduct = item.totalAmount / item.products.length;
+      item.products.forEach((productName) => {
+        const key = productName.trim();
+        if (!key) return;
+        const existing = map.get(key);
+        if (existing) {
+          existing.count += 1;
+          existing.total += perProduct;
+        } else {
+          map.set(key, { name: key, count: 1, total: perProduct });
+        }
+      });
+    });
+
+    return Array.from(map.values())
+      .sort((a, b) => b.count - a.count || b.total - a.total || a.name.localeCompare(b.name));
+  }, [analyticsRange, approvedCrmItems]);
+
+  const bestSeller = analyticsProducts[0] ?? null;
 
   const handleLogout = async () => {
     const supabase = getSupabaseBrowserClient();
@@ -1312,8 +1407,14 @@ export default function Admin() {
             <div className="grid gap-4 lg:grid-cols-4 sm:grid-cols-2">
               {analyticsCards.map((card) => {
                 const isPositive = card.delta >= 0;
+                const isActive = analyticsPeriod === card.key;
                 return (
-                  <article key={card.key} className="rounded-lg border border-cyan-500/20 bg-black/35 p-3">
+                  <button
+                    type="button"
+                    key={card.key}
+                    onClick={() => setAnalyticsPeriod(card.key)}
+                    className={`rounded-lg border bg-black/35 p-3 text-left transition ${isActive ? 'border-cyan-400/60 shadow-[0_0_20px_rgba(0,243,255,0.25)]' : 'border-cyan-500/20 hover:border-cyan-400/40'}`}
+                  >
                     <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">{card.title}</p>
                     <p className="mt-2 text-xl font-black text-cyan-100">{toPhp(card.currentSales)}</p>
                     <p className="mt-1 text-xs text-cyan-200">Previous: {toPhp(card.previousSales)}</p>
@@ -1321,9 +1422,60 @@ export default function Admin() {
                       {isPositive ? '+' : '-'}{toPhp(Math.abs(card.delta))} ({card.percentChange === null ? 'N/A' : `${card.percentChange >= 0 ? '+' : ''}${card.percentChange.toFixed(1)}%`})
                     </p>
                     <p className="mt-2 text-[11px] font-mono uppercase tracking-[0.18em] text-cyan-100">Evaluation: {card.evaluation}</p>
-                  </article>
+                  </button>
                 );
               })}
+            </div>
+            <div className="rounded-lg border border-cyan-500/20 bg-black/30 p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">Products Bought — {analyticsRange.label}</p>
+                <div className="flex flex-wrap gap-2">
+                  {(['week', 'month', 'quarter', 'year'] as const).map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setAnalyticsPeriod(key)}
+                      className={`rounded-full border px-3 py-1 text-[10px] font-mono uppercase tracking-[0.2em] ${analyticsPeriod === key ? 'border-cyan-400 bg-cyan-500/20 text-cyan-100' : 'border-cyan-500/20 text-cyan-300 hover:border-cyan-400/40'}`}
+                    >
+                      {key}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {analyticsProducts.length === 0 ? (
+                <p className="text-xs text-cyan-200">No approved products in this period yet.</p>
+              ) : (
+                <div className="grid gap-2">
+                  {analyticsProducts.map((item, index) => {
+                    const isBest = index === 0;
+                    const highlight = isBest && analyticsPeriod === 'week';
+                    return (
+                      <div key={item.name} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-cyan-500/15 bg-black/35 px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-semibold ${highlight ? 'text-emerald-300' : 'text-cyan-100'}`}>{item.name}</span>
+                          {isBest ? (
+                            <span className={`rounded-full border px-2 py-0.5 text-[9px] font-mono uppercase ${highlight ? 'border-emerald-400/40 text-emerald-200' : 'border-cyan-400/30 text-cyan-200'}`}>
+                              Bestseller
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="flex items-center gap-3 text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-200">
+                          <span>{item.count}x</span>
+                          <span>{toPhp(item.total)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {bestSeller ? (
+                <div className="mt-3 flex items-center justify-between rounded-md border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 text-xs">
+                  <span className="text-cyan-200">Bestseller</span>
+                  <span className={`${analyticsPeriod === 'week' ? 'text-emerald-300' : 'text-cyan-100'} font-semibold`}>{bestSeller.name}</span>
+                </div>
+              ) : null}
             </div>
             <div className="rounded-lg border border-cyan-500/20 bg-black/30 p-4">
               <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">Total Approved Sales</p>
@@ -1479,7 +1631,7 @@ export default function Admin() {
               </div>
               <div className="max-h-[420px] overflow-auto rounded-lg border border-cyan-500/20">
                 <table className="w-full min-w-[1100px] border-collapse text-xs">
-                  <thead className="bg-cyan-500/10 text-cyan-200">
+                  <thead className="sticky top-0 z-10 bg-cyan-500/10 text-cyan-200">
                     <tr>
                       <th className="px-2 py-2 text-center"></th>
                       <th className="px-2 py-2 text-left">File Name</th>
@@ -1615,45 +1767,65 @@ export default function Admin() {
               Last sync: {lastCrmSyncAt ? toReadableDate(lastCrmSyncAt) : 'Never'} | Rows fetched: {crmLastCount}
             </p>
             {crmEditorOpen ? (
-              <div className="mb-3 rounded-md border border-cyan-500/35 bg-black/35 p-3">
-                <p className="mb-2 text-[10px] font-mono uppercase tracking-[0.16em] text-cyan-300">Edit Selected CRM Record</p>
-                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                  <input
-                    value={crmEditName}
-                    onChange={(event) => setCrmEditName(event.target.value)}
-                    className="rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
-                    placeholder="Buyer name"
-                  />
-                  <input
-                    value={crmEditEmail}
-                    onChange={(event) => setCrmEditEmail(event.target.value)}
-                    className="rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
-                    placeholder="buyer@email.com"
-                  />
-                  <textarea
-                    value={crmEditProducts}
-                    onChange={(event) => setCrmEditProducts(event.target.value)}
-                    className="md:col-span-2 h-24 rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
-                    placeholder="Products (one per line or separated by |)"
-                  />
-                  <input
-                    type="number"
-                    min="1"
-                    value={crmEditAmount}
-                    onChange={(event) => setCrmEditAmount(event.target.value)}
-                    className="rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
-                    placeholder="Total amount"
-                  />
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button type="button" onClick={() => { void handleSaveCrmEdit(); }} className="cyber-btn cyber-btn-primary">Save CRM Edit</button>
-                  <button
-                    type="button"
-                    onClick={() => setCrmEditorOpen(false)}
-                    className="cyber-btn cyber-btn-secondary"
-                  >
-                    Cancel
-                  </button>
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+                <div className="w-full max-w-2xl rounded-xl border border-cyan-500/40 bg-[#050b12] p-5 shadow-[0_0_40px_rgba(0,195,255,0.2)]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-cyan-300">CRM Pop-up</p>
+                      <h3 className="mt-1 text-lg font-semibold text-white">Edit + Approve / Cancel Link</h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCrmEditorOpen(false)}
+                      className="cyber-btn cyber-btn-secondary"
+                    >
+                      Close
+                    </button>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <input
+                      value={crmEditName}
+                      onChange={(event) => setCrmEditName(event.target.value)}
+                      className="rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
+                      placeholder="Buyer name"
+                    />
+                    <input
+                      value={crmEditEmail}
+                      onChange={(event) => setCrmEditEmail(event.target.value)}
+                      className="rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
+                      placeholder="buyer@email.com"
+                    />
+                    <textarea
+                      value={crmEditProducts}
+                      onChange={(event) => setCrmEditProducts(event.target.value)}
+                      className="md:col-span-2 h-24 rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
+                      placeholder="Products (one per line or separated by |)"
+                    />
+                    <input
+                      type="number"
+                      min="1"
+                      value={crmEditAmount}
+                      onChange={(event) => setCrmEditAmount(event.target.value)}
+                      className="rounded-md border border-cyan-500/40 bg-black/35 px-3 py-2 text-xs"
+                      placeholder="Total amount"
+                    />
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={() => { void handleSaveCrmEdit(); }} className="cyber-btn cyber-btn-primary">Save Edit</button>
+                      <button type="button" onClick={() => { void handleCrmDecision('approve'); }} className="cyber-btn cyber-btn-secondary">Approve</button>
+                      <button type="button" onClick={() => { void handleCrmDecision('reject'); }} className="cyber-btn cyber-btn-secondary border-red-400/60 text-red-200 hover:text-white">Cancel Link</button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { void handleArchiveSelectedCrm(); }}
+                      className="cyber-btn cyber-btn-secondary"
+                    >
+                      Archive
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : null}
@@ -1736,18 +1908,21 @@ export default function Admin() {
                                 <div key={tx.id} className="rounded-md border border-cyan-500/15 bg-cyan-500/5 px-3 py-2">
                                   <div className="flex flex-wrap items-start justify-between gap-1">
                                     <div className="flex items-start gap-2 flex-1">
-                                      <input
-                                        type="radio"
-                                        name="crm-selected-record"
-                                        checked={selectedCrmRecordId === tx.id}
-                                        onChange={() => {
+                                      <button
+                                        type="button"
+                                        onClick={() => {
                                           setSelectedCrmRecordId(tx.id);
                                           setCrmEditorOpen(false);
+                                          setCrmEditName(tx.buyerName);
+                                          setCrmEditEmail(tx.buyerEmail);
+                                          setCrmEditProducts(tx.products.join('\n'));
+                                          setCrmEditAmount(String(tx.totalAmount));
+                                          setCrmEditorOpen(true);
                                         }}
-                                        className="mt-0.5 h-3.5 w-3.5 accent-cyan-400"
-                                        aria-label={`Select ${tx.referenceCode}`}
-                                      />
-                                      <p className="text-xs text-gray-200 flex-1">{tx.products.join(' • ')}</p>
+                                        className="flex-1 text-left text-xs text-gray-200 hover:text-cyan-200"
+                                      >
+                                        {tx.products.join(' • ')}
+                                      </button>
                                     </div>
                                     <div className="flex items-center gap-2 flex-shrink-0">
                                       <span className="text-xs font-mono text-cyan-100">{toPhp(tx.totalAmount)}</span>
