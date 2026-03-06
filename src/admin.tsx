@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { Archive, ArrowLeft, BarChart3, CheckCircle2, Download, Inbox, PackageSearch, Pencil, ShieldAlert, Trash2, Upload, UsersRound } from 'lucide-react';
 import { productCatalog } from './data/products';
@@ -320,6 +320,28 @@ export default function Admin() {
   const [crmEditProducts, setCrmEditProducts] = useState('');
   const [crmEditAmount, setCrmEditAmount] = useState('');
 
+  const fetchSupabaseProducts = useCallback(async () => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .order('name');
+
+    if (!error && data) {
+      setProducts(data.map(p => ({
+        id: p.id,
+        name: p.name,
+        amount: Number(p.price || 0),
+        os: p.os || inferOs(p.name),
+        fileLink: p.file_url || '',
+        category: p.category || 'Software',
+        sub_category: p.sub_category || 'General',
+      })));
+    }
+  }, []);
+
   const readApiPayload = async (response: Response) => {
     try {
       return (await response.json()) as Record<string, unknown>;
@@ -362,25 +384,6 @@ export default function Admin() {
       return;
     }
 
-    const fetchSupabaseProducts = async () => {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .order('name');
-
-      if (!error && data) {
-        setProducts(data.map(p => ({
-          id: p.id,
-          name: p.name,
-          amount: Number(p.price || 0),
-          os: p.os || inferOs(p.name),
-          fileLink: p.file_url || '',
-          category: p.category || 'Software',
-          sub_category: p.sub_category || 'General',
-        })));
-      }
-    };
-
     const applySession = async (session: { access_token?: string; user?: { email?: string | null } } | null | undefined) => {
       const token = session?.access_token ?? '';
       if (!token) {
@@ -419,6 +422,27 @@ export default function Admin() {
       listener.subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!unlocked) {
+      return;
+    }
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      return;
+    }
+
+    const channel = supabase
+      .channel('admin-products')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
+        void fetchSupabaseProducts();
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [fetchSupabaseProducts, unlocked]);
 
   // No longer using LocalStorage for products
   // useEffect(() => {
