@@ -63,6 +63,13 @@ type VerificationApiResponse = {
   error?: string;
 };
 
+type DeliveryProduct = {
+  name: string;
+  amount: number;
+  os?: string;
+  status?: 'approved' | 'rejected';
+};
+
 type CheckoutDraft = {
   username: string;
   email: string;
@@ -238,6 +245,12 @@ export default function App() {
   const [lastSubmittedProducts, setLastSubmittedProducts] = useState<ProductItem[]>([]);
   const [liveAvailmentIndex, setLiveAvailmentIndex] = useState(0);
   const [isStageLocked, setIsStageLocked] = useState(false);
+  const [deliveryProducts, setDeliveryProducts] = useState<DeliveryProduct[]>([]);
+  const [deliveryToken, setDeliveryToken] = useState('');
+  const [deliveryStatus, setDeliveryStatus] = useState('');
+  const [deliveryError, setDeliveryError] = useState('');
+  const [deliveryLoading, setDeliveryLoading] = useState(false);
+  const [downloadingDeliveryProduct, setDownloadingDeliveryProduct] = useState('');
 const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
   const [expandedSubs, setExpandedSubs] = useState<Record<string, boolean>>({});
   const [showCourses, setShowCourses] = useState(false);
@@ -966,6 +979,77 @@ return sorted;
     setIsProductMenuOpen(false);
   };
 
+  const sortedDeliveryProducts = useMemo(() => {
+    return [...deliveryProducts].sort((a, b) => {
+      const aRejected = a.status === 'rejected';
+      const bRejected = b.status === 'rejected';
+      if (aRejected !== bRejected) {
+        return aRejected ? 1 : -1;
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }, [deliveryProducts]);
+
+  const handlePortalDeliveryAuth = async () => {
+    const emailValue = email.trim().toLowerCase();
+    if (!emailValue) {
+      setDeliveryError('Enter your email in Client Details first.');
+      return;
+    }
+
+    setDeliveryLoading(true);
+    setDeliveryError('');
+    setDeliveryStatus('Verifying secure download access...');
+    try {
+      const response = await fetch('/api/delivery?path=auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailValue }),
+      });
+      const payload = (await response.json()) as { ok: boolean; token?: string; products?: DeliveryProduct[]; error?: string };
+      if (!response.ok || !payload.ok || !payload.token) {
+        setDeliveryError(payload.error ?? 'Unable to verify download access.');
+        setDeliveryStatus('');
+        return;
+      }
+      setDeliveryToken(payload.token);
+      setDeliveryProducts(payload.products ?? []);
+      setDeliveryStatus('Access granted. Download your approved items below.');
+    } catch (err) {
+      setDeliveryError(err instanceof Error ? err.message : 'Download access failed.');
+      setDeliveryStatus('');
+    } finally {
+      setDeliveryLoading(false);
+    }
+  };
+
+  const handlePortalDownload = async (productName: string) => {
+    if (!deliveryToken) {
+      setDeliveryError('Verify access first.');
+      return;
+    }
+    setDownloadingDeliveryProduct(productName);
+    setDeliveryError('');
+    try {
+      const response = await fetch('/api/delivery?path=download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: deliveryToken, productName }),
+      });
+      const payload = (await response.json()) as { ok: boolean; downloadTicket?: string; error?: string };
+      if (!payload.ok || !payload.downloadTicket) {
+        setDeliveryError(payload.error ?? 'Download is not available yet.');
+        return;
+      }
+      const downloadUrl = `/api/delivery?path=file&ticket=${encodeURIComponent(payload.downloadTicket)}&cb=${Date.now()}`;
+      window.open(downloadUrl, '_blank');
+    } catch (err) {
+      setDeliveryError(err instanceof Error ? err.message : 'Download failed.');
+    } finally {
+      setDownloadingDeliveryProduct('');
+    }
+  };
+
   const removeSelectedProduct = (productName: string) => {
     setSelectedProducts((prev) => prev.filter((item) => item.name !== productName));
   };
@@ -1361,6 +1445,53 @@ return sorted;
                         No products added yet
                       </div>
                     )}
+                  </div>
+
+                  <div className="mt-6 rounded-lg border border-cyan-500/30 bg-[#06101a]/80 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-300">Secure Download Access</p>
+                      <button
+                        type="button"
+                        onClick={handlePortalDeliveryAuth}
+                        disabled={deliveryLoading}
+                        className="cyber-btn cyber-btn-secondary"
+                      >
+                        <ShieldCheck size={14} /> {deliveryLoading ? 'Verifying...' : 'Verify Access'}
+                      </button>
+                    </div>
+                    <p className="mt-2 text-xs text-cyan-100/70">Uses your email from Client Details to unlock approved downloads.</p>
+                    {deliveryStatus ? (
+                      <p className="mt-2 text-xs text-cyan-200">{deliveryStatus}</p>
+                    ) : null}
+                    {deliveryError ? (
+                      <p className="mt-2 text-xs text-red-300">{deliveryError}</p>
+                    ) : null}
+
+                    {sortedDeliveryProducts.length > 0 ? (
+                      <div className="mt-3 space-y-2">
+                        {sortedDeliveryProducts.map((product) => (
+                          <div key={`${product.name}-${product.amount}`} className="rounded-md border border-cyan-500/20 bg-black/35 px-3 py-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <p className="text-xs font-semibold text-cyan-100">{product.name}</p>
+                                <p className="text-[10px] text-cyan-200">OS: {product.os ?? 'Multi'} | PHP {product.amount}</p>
+                                {product.status === 'rejected' ? (
+                                  <p className="mt-1 text-[9px] font-mono uppercase tracking-[0.2em] text-red-300">Cancelled</p>
+                                ) : null}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handlePortalDownload(product.name)}
+                                disabled={downloadingDeliveryProduct === product.name || product.status === 'rejected'}
+                                className="cyber-btn cyber-btn-primary"
+                              >
+                                <Download size={13} /> {product.status === 'rejected' ? 'Cancelled' : (downloadingDeliveryProduct === product.name ? 'Starting...' : 'Download')}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 

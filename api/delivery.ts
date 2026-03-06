@@ -30,6 +30,8 @@ type DownloadTicketPayload = {
   exp: number;
 };
 
+type DeliveryStatus = 'approved' | 'rejected';
+
 const readBody = async (req: any) => {
   if (typeof req.body === 'string') {
     return JSON.parse(req.body);
@@ -114,8 +116,11 @@ const verifyTicket = (ticket: string, secret: string): DownloadTicketPayload | n
 
 const isApprovedStatus = (status: string) => status.toLowerCase().includes('review:approved');
 
-const aggregateApprovedProducts = (rows: Array<{ products_json: unknown; serial_no: string }>) => {
-  const byKey = new Map<string, { name: string; amount: number; os?: string; fileLink?: string; serialNo: string }>();
+const aggregateProductsByStatus = (
+  rows: Array<{ products_json: unknown; serial_no: string }>,
+  status: DeliveryStatus,
+) => {
+  const byKey = new Map<string, { name: string; amount: number; os?: string; fileLink?: string; serialNo: string; status: DeliveryStatus }>();
 
   for (const row of rows) {
     const products = Array.isArray(row.products_json) ? (row.products_json as OrderProduct[]) : [];
@@ -135,6 +140,7 @@ const aggregateApprovedProducts = (rows: Array<{ products_json: unknown; serial_
           os: product.os,
           fileLink: link,
           serialNo: row.serial_no,
+          status,
         });
         continue;
       }
@@ -209,8 +215,25 @@ async function handleAuth(req: any, res: any, supabase: any, tokenSecret: string
     serialNo = String(parsed.serialNo ?? '').trim().toUpperCase();
   }
 
-  if (!email || !serialNo) {
-    return res.status(400).json({ ok: false, error: 'Email and order serial are required.' });
+  if (!email) {
+    return res.status(400).json({ ok: false, error: 'Email is required.' });
+  }
+
+  if (!serialNo) {
+    const latestApproved = await supabase
+      .from('verification_orders')
+      .select('serial_no')
+      .eq('email', email)
+      .ilike('email_status', '%review:approved%')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (latestApproved.error || !latestApproved.data?.serial_no) {
+      return res.status(403).json({ ok: false, error: 'Order is not approved for delivery yet.' });
+    }
+
+    serialNo = String(latestApproved.data.serial_no ?? '').trim().toUpperCase();
   }
 
   const orderLookup = await supabase
@@ -238,11 +261,23 @@ async function handleAuth(req: any, res: any, supabase: any, tokenSecret: string
     .order('created_at', { ascending: false })
     .limit(300);
 
+  const rejectedOrders = await supabase
+    .from('verification_orders')
+    .select('serial_no, products_json, email_status')
+    .eq('email', email)
+    .ilike('email_status', '%review:rejected%')
+    .order('created_at', { ascending: false })
+    .limit(300);
+
   if (approvedOrders.error) {
     return res.status(500).json({ ok: false, error: approvedOrders.error.message });
   }
+  if (rejectedOrders.error) {
+    return res.status(500).json({ ok: false, error: rejectedOrders.error.message });
+  }
 
   const approvedRows = (approvedOrders.data ?? []).filter((row) => isApprovedStatus(String(row.email_status ?? '')));
+  const rejectedRows = (rejectedOrders.data ?? []).filter((row) => String(row.email_status ?? '').toLowerCase().includes('review:rejected'));
   const emailStatus = String(orderLookup.data.email_status ?? '');
   const hasApproved = approvedRows.length > 0;
   if (!isApprovedStatus(emailStatus) && !hasApproved) {
@@ -252,7 +287,9 @@ async function handleAuth(req: any, res: any, supabase: any, tokenSecret: string
   const serialForToken = isApprovedStatus(emailStatus)
     ? serialNo
     : String(approvedRows[0]?.serial_no ?? serialNo).toUpperCase();
-  const products = aggregateApprovedProducts(approvedRows);
+  const approvedProducts = aggregateProductsByStatus(approvedRows, 'approved');
+  const rejectedProducts = aggregateProductsByStatus(rejectedRows, 'rejected');
+  const products = [...approvedProducts, ...rejectedProducts];
 
   const entitlementLookup = await supabase
     .from('buyer_entitlements')
@@ -272,6 +309,7 @@ async function handleAuth(req: any, res: any, supabase: any, tokenSecret: string
       name: item.name,
       amount: item.amount,
       os: item.os,
+      status: item.status,
     })),
     entitlement: entitlement
       ? {
@@ -329,12 +367,26 @@ async function handleDownload(req: any, res: any, supabase: any, tokenSecret: st
     .order('created_at', { ascending: false })
     .limit(300);
 
+  const rejectedOrders = await supabase
+    .from('verification_orders')
+    .select('serial_no, products_json, email_status')
+    .eq('email', tokenPayload.email)
+    .ilike('email_status', '%review:rejected%')
+    .order('created_at', { ascending: false })
+    .limit(300);
+
   if (approvedOrders.error) {
     return res.status(500).json({ ok: false, error: approvedOrders.error.message });
   }
+  if (rejectedOrders.error) {
+    return res.status(500).json({ ok: false, error: rejectedOrders.error.message });
+  }
 
   const approvedRows = (approvedOrders.data ?? []).filter((row) => isApprovedStatus(String(row.email_status ?? '')));
-  const products = aggregateApprovedProducts(approvedRows);
+  const rejectedRows = (rejectedOrders.data ?? []).filter((row) => String(row.email_status ?? '').toLowerCase().includes('review:rejected'));
+  const approvedProducts = aggregateProductsByStatus(approvedRows, 'approved');
+  const rejectedProducts = aggregateProductsByStatus(rejectedRows, 'rejected');
+  const products = [...approvedProducts, ...rejectedProducts];
 
   const entitlementLookup = await supabase
     .from('buyer_entitlements')
@@ -356,7 +408,7 @@ async function handleDownload(req: any, res: any, supabase: any, tokenSecret: st
     return res.status(403).json({ ok: false, error: 'Download limit reached. Please contact support.', code: 'DOWNLOAD_LIMIT_REACHED' });
   }
 
-  const target = products.find((item) => String(item.name).trim().toLowerCase() === productName.toLowerCase());
+  const target = products.find((item) => item.status === 'approved' && String(item.name).trim().toLowerCase() === productName.toLowerCase());
   if (!target) {
     console.error('[delivery-download] product not found in approved list', { productName, available: products.map(p => p.name) });
     return res.status(404).json({ ok: false, error: 'Selected product is not found in your approved orders.' });
@@ -426,6 +478,7 @@ async function handleDownload(req: any, res: any, supabase: any, tokenSecret: st
       name: item.name,
       amount: item.amount,
       os: item.os,
+      status: item.status,
     })),
     entitlement: {
       isUnlimited: Boolean(entitlement.is_unlimited),

@@ -8,6 +8,7 @@ type DeliveryProduct = {
   amount: number;
   os?: string;
   downloadCount?: number;
+  status?: 'approved' | 'rejected';
 };
 
 type DeliveryAuthResponse = {
@@ -100,6 +101,17 @@ export default function Delivery() {
   }, [token]);
 
   const isAuthenticated = useMemo(() => token.length > 0 && products.length > 0, [products.length, token.length]);
+
+  const sortedProducts = useMemo(() => {
+    return [...products].sort((a, b) => {
+      const aRejected = a.status === 'rejected';
+      const bRejected = b.status === 'rejected';
+      if (aRejected !== bRejected) {
+        return aRejected ? 1 : -1;
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }, [products]);
 
   const handleManualAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -260,15 +272,20 @@ export default function Delivery() {
           <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-5">
             <p className="mb-3 text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">Purchased Products</p>
             <div className="space-y-2">
-              {products.map((product, index) => (
+              {sortedProducts.map((product, index) => (
                 <div key={`${product.name}-${index}`} className="rounded-md border border-cyan-500/25 bg-black/35 px-3 py-3">
                   <p className="text-sm font-semibold text-cyan-50">{product.name}</p>
                   <p className="mt-1 text-xs text-cyan-200">OS: {product.os ?? 'Multi'} | Amount: PHP {product.amount}</p>
+                  {product.status === 'rejected' ? (
+                    <p className="mt-1 text-[10px] font-mono uppercase tracking-[0.2em] text-red-300">Cancelled</p>
+                  ) : null}
                   <div className="mt-3">
-                    <button type="button" className="cyber-btn cyber-btn-primary"
+                    <button
+                      type="button"
+                      className="cyber-btn cyber-btn-primary"
                       onClick={() => { void triggerSecureDownload(product.name); }}
-                      disabled={downloadingProduct === product.name}>
-                      <Download size={14} /> {downloadingProduct === product.name ? 'Starting...' : 'Download'}
+                      disabled={downloadingProduct === product.name || product.status === 'rejected'}>
+                      <Download size={14} /> {product.status === 'rejected' ? 'Cancelled' : (downloadingProduct === product.name ? 'Starting...' : 'Download')}
                     </button>
                     {downloadSuccess[product.name] ? (
                       <p className="mt-2 text-xs text-green-400 font-medium">{downloadSuccess[product.name]}</p>
