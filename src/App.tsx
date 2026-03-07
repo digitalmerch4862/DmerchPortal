@@ -1513,61 +1513,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="mt-4 rounded-xl border border-[#ff8a00]/40 bg-[#1a0e05] p-4 shadow-[0_0_35px_rgba(255,128,0,0.2)]">
-                    <div className="mb-3 flex items-center gap-2 text-[#ffb257]">
-                      <PackageSearch size={15} />
-                      <span className="text-[11px] font-mono uppercase tracking-[0.25em]">Verification Summary</span>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Payment Portal Used</span>
-                        <div className="rounded-md border border-[#ffb257]/40 bg-[#ff8a00]/10 px-3 py-2 text-xs font-mono uppercase tracking-[0.16em] text-[#ffd2a1]">
-                          PayMongo QRPH
-                        </div>
-                      </div>
 
-                      <label className="block">
-                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">
-                          PayMongo Reference / Sender Name
-                        </span>
-                        <input
-                          value={paymongoReference}
-                          onChange={(event) => setPaymongoReference(event.target.value)}
-                          className="w-full rounded-md border border-[#ff8a00]/50 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-[#ffb257] focus:shadow-[0_0_18px_rgba(255,138,0,0.24)]"
-                          placeholder="e.g. JUAN DELA CRUZ / QRPH REF"
-                        />
-                      </label>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <label className="block">
-                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Reference No (Last 6 Digits)</span>
-                        <input
-                          value={referenceNo}
-                          onChange={(event) => {
-                            const digitsOnly = event.target.value.replace(/\D/g, '');
-                            setReferenceNo(digitsOnly.slice(-6));
-                          }}
-                          inputMode="numeric"
-                          maxLength={6}
-                          className="w-full rounded-md border border-[#ff8a00]/50 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-[#ffb257] focus:shadow-[0_0_18px_rgba(255,138,0,0.24)]"
-                          placeholder="e.g. 123456"
-                        />
-                        <span className="mt-2 block text-[10px] font-mono uppercase tracking-[0.18em] text-[#ffbd75]">Sample: 987654 (last 6 digits only)</span>
-                      </label>
-                      <div>
-                        <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Total Amount</span>
-                        <div className="rounded-md border border-[#ff8a00]/50 bg-black/30 px-4 py-3 text-sm font-mono uppercase tracking-[0.15em] text-[#ffc680]">
-                          PHP {totalAmount}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 rounded-lg border border-red-400/40 bg-red-500/10 p-4">
-                    <p className="text-xs font-mono uppercase tracking-[0.22em] text-red-200">
-                      WARNING!!! SUBMITTING FAKE PAYMENT DETAILS WILL LEAD TO PERMANENT ACCOUNT BAN.
-                    </p>
-                  </div>
 
                   <div className="mt-4 rounded-lg border border-cyan-500/30 bg-[#06101a]/80 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2005,76 +1951,7 @@ export default function App() {
                         <ShieldCheck size={14} /> System ID: {paymentIntentId || 'DM-AUTO-VERIFIED'}
                       </div>
                     </motion.div>
-                  ) : (
-                    <div className="relative z-10 rounded-xl border border-[#ff8a00]/40 bg-[#1a0e05] p-4 shadow-[0_0_35px_rgba(255,128,0,0.2)]">
-                      <div className="pointer-events-none absolute left-2 top-2 h-5 w-5 border-l-2 border-t-2 border-[#ff9f1a]/80" />
-                      <div className="pointer-events-none absolute bottom-2 right-2 h-5 w-5 border-b-2 border-r-2 border-[#ff9f1a]/80" />
-                      <div className="mb-3 flex items-center gap-2 text-[#ffb257]">
-                        <PackageSearch size={15} />
-                        <span className="text-[11px] font-mono uppercase tracking-[0.25em]">Verification Summary</span>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                          <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Payment Portal Used</span>
-                          <div className="rounded-md border border-[#ffb257]/40 bg-[#ff8a00]/10 px-3 py-2 text-xs font-mono uppercase tracking-[0.16em] text-[#ffd2a1]">
-                            PayMongo QRPH
-                          </div>
-                        </div>
-
-                        <label className="block">
-                          <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">
-                            PayMongo Reference / Sender Name
-                          </span>
-                          <input
-                            value={paymongoReference}
-                            onChange={(event) => setPaymongoReference(event.target.value)}
-                            required
-                            className="w-full rounded-md border border-[#ff8a00]/50 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-[#ffb257] focus:shadow-[0_0_18px_rgba(255,138,0,0.24)]"
-                            placeholder="e.g. JUAN DELA CRUZ / QRPH REF"
-                          />
-                        </label>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <label className="block">
-                          <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Reference No (Last 6 Digits)</span>
-                          <input
-                            value={referenceNo}
-                            onChange={(event) => {
-                              const digitsOnly = event.target.value.replace(/\D/g, '');
-                              setReferenceNo(digitsOnly.slice(-6));
-                            }}
-                            required
-                            inputMode="numeric"
-                            maxLength={6}
-                            className="w-full rounded-md border border-[#ff8a00]/50 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-[#ffb257] focus:shadow-[0_0_18px_rgba(255,138,0,0.24)]"
-                            placeholder="e.g. 123456"
-                          />
-                          <span className="mt-2 block text-[10px] font-mono uppercase tracking-[0.18em] text-[#ffbd75]">Sample: 987654 (last 6 digits only)</span>
-                        </label>
-                        <div>
-                          <span className="mb-2 block text-[11px] font-mono uppercase tracking-[0.25em] text-[#ffb257]">Total Amount</span>
-                          <div className="rounded-md border border-[#ff8a00]/50 bg-black/30 px-4 py-3 text-sm font-mono uppercase tracking-[0.15em] text-[#ffc680]">
-                            PHP {submitResult?.totalAmount ?? totalAmount}
-                          </div>
-                        </div>
-                      </div>
-
-                      {isSubmitting ? (
-                        <div className="mt-4 rounded-md border border-[#ff8a00]/60 bg-black/50 p-3">
-                          <p className="mb-2 text-xs font-mono uppercase tracking-[0.25em] text-[#ffb257]">Uploading Verification Packet...</p>
-                          <div className="h-3 w-full overflow-hidden rounded-sm border border-[#ff8a00]/70 bg-[#2b1608]">
-                            <motion.div
-                              initial={{ width: '0%' }}
-                              animate={{ width: `${submitProgress}%` }}
-                              transition={{ duration: 0.25, ease: 'easeOut' }}
-                              className="h-full bg-[repeating-linear-gradient(-45deg,#9dff4f,#9dff4f_10px,#53bf1e_10px,#53bf1e_20px)] shadow-[0_0_18px_rgba(157,255,79,0.6)]"
-                            />
-                          </div>
-                          <p className="mt-2 text-right text-xs font-mono uppercase tracking-[0.2em] text-[#ffb257]">{submitProgress}%</p>
-                        </div>
-                      ) : null}
-                    </div>
-                  )}
+                  ) : null}
 
                   {submitError ? (
                     <div className="rounded-md border border-red-500/40 bg-red-500/10 px-4 py-3 text-xs font-mono uppercase tracking-[0.15em] text-red-300">
@@ -2110,10 +1987,6 @@ export default function App() {
                       {submitNotice}
                     </div>
                   ) : null}
-
-                  <div className="rounded-md border border-red-500/55 bg-red-500/15 px-4 py-3 text-sm font-black uppercase tracking-[0.12em] text-red-200 shadow-[0_0_18px_rgba(239,68,68,0.35)]">
-                    WARNING!!! SUBMITTING FAKE PAYMENT DETAILS WILL LEAD TO PERMANENT ACCOUNT BAN.
-                  </div>
 
                   <div className="flex flex-col sm:flex-row gap-3 justify-between mt-8">
                     <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
