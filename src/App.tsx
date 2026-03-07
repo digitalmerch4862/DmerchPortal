@@ -201,6 +201,7 @@ export default function App() {
   const [isCreatingPayment, setIsCreatingPayment] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<'pending' | 'paid' | 'failed' | 'awaiting_payment'>('pending');
   const [paymongoQrError, setPaymongoQrError] = useState(false);
+  const [paymentPaidBanner, setPaymentPaidBanner] = useState(false);
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
   const [expandedSubs, setExpandedSubs] = useState<Record<string, boolean>>({});
   const [showCourses, setShowCourses] = useState(false);
@@ -844,37 +845,17 @@ export default function App() {
     if (stage !== 3 || !paymentIntentId) return;
 
     let pollInterval: number;
-    let hasSubmitted = false;
 
-    const autoSubmitOrder = async () => {
-      if (hasSubmitted) return;
-      hasSubmitted = true;
-
-      try {
-        const response = await fetch('/api/verification-submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username,
-            email,
-            products: selectedProducts,
-            totalAmount,
-            paymentPortalUsed: 'paymongo',
-            paymentDetailUsed: `PAYMENT_ID:${paymentIntentId}`,
-            paymentIntentId,
-          }),
-        });
-
-        const payload = (await response.json()) as VerificationApiResponse;
-        if (payload.ok) {
-          setSubmitResult(payload);
-          if (payload.notice) {
-            setSubmitNotice(payload.notice);
-          }
-        }
-      } catch (err) {
-        console.error('Auto-submit error:', err);
-      }
+    const resetToStage2 = (delayMs = 3000) => {
+      window.clearInterval(pollInterval);
+      setTimeout(() => {
+        setStage(2);
+        setPaymentIntentId('');
+        setPaymongoQrUrl('');
+        setPaymentStatus('pending');
+        setPaymentPaidBanner(false);
+        setSubmitError('');
+      }, delayMs);
     };
 
     const checkStatus = async () => {
@@ -883,11 +864,12 @@ export default function App() {
         const data = await res.json();
         if (data.ok && data.status === 'paid') {
           setPaymentStatus('paid');
-          await autoSubmitOrder();
-          setStage(2);
+          setPaymentPaidBanner(true);
+          resetToStage2(3000);
         } else if (data.ok && data.status === 'failed') {
           setPaymentStatus('failed');
-          setStage(2);
+          setSubmitError('Payment was cancelled or failed. Please try again.');
+          resetToStage2(3000);
         }
       } catch (err) {
         console.error('Polling error:', err);
@@ -904,12 +886,12 @@ export default function App() {
         schema: 'public',
         table: 'orders',
         filter: `payment_intent_id=eq.${paymentIntentId}`
-      }, async (payload) => {
+      }, (payload) => {
         console.log('Order update received:', payload.new);
         if (payload.new.status === 'paid') {
           setPaymentStatus('paid');
-          await autoSubmitOrder();
-          setStage(2);
+          setPaymentPaidBanner(true);
+          resetToStage2(3000);
         }
       })
       .subscribe();
@@ -918,7 +900,7 @@ export default function App() {
       window.clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
-  }, [stage, paymentIntentId, username, email, selectedProducts, totalAmount]);
+  }, [stage, paymentIntentId]);
 
   useEffect(() => {
     const handlePressFeedback = (event: PointerEvent) => {
@@ -1872,7 +1854,9 @@ export default function App() {
                     <div className="flex flex-col items-center gap-2">
                       <div className="flex items-center gap-3 px-4 py-2 rounded-full border border-cyan-500/30 bg-cyan-500/10">
                         {paymentStatus === 'paid' ? (
-                          <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-emerald-400">Verifying Transaction...</span>
+                          <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-emerald-400">✓ Payment Received — Returning to Order...</span>
+                        ) : paymentStatus === 'failed' ? (
+                          <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-red-400">✗ Payment Failed — Returning to Order...</span>
                         ) : (
                           <>
                             <div className="h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
@@ -1881,8 +1865,8 @@ export default function App() {
                         )}
                       </div>
                       <p className="text-[10px] text-cyan-200/50 italic text-center">
-                        Redirecting to verification page automatically after payment. <br />
-                        Don't close this tab until transaction is complete.
+                        Open GCash, Maya, or any QRPH app and scan the QR code above.<br />
+                        This page updates automatically — do not close this tab.
                       </p>
                     </div>
 

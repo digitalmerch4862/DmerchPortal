@@ -1,6 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import { Resend } from 'resend';
-import { buildEmailHtml, sendEmailWithStatus } from './_lib/email-service';
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -63,9 +61,6 @@ export default async function handler(req: any, res: any) {
     const pmSecret = process.env.PAYMONGO_SECRET_KEY;
     const sbUrl = process.env.SUPABASE_URL;
     const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const resendApiKey = process.env.RESEND_API_KEY;
-    const resendFromEmail = process.env.RESEND_FROM_EMAIL;
-    const adminEmail = process.env.ADMIN_EMAIL ?? 'digitalmerch4862@gmail.com';
 
     if (!pmSecret || !sbUrl || !sbKey) return res.status(500).json({ ok: false, error: 'Missing server configuration.' });
 
@@ -109,43 +104,23 @@ export default async function handler(req: any, res: any) {
             // Simple serial generation for brevity, or we could fetch max suffix
             const serialNo = `DMERCH-${datePart}-PM-${intentId.slice(-4).toUpperCase()}`;
 
-            const { data: vOrder, error: vError } = await supabase.from('verification_orders').insert({
+            const { error: vError } = await supabase.from('verification_orders').insert({
                 sequence_no: sequenceNo,
                 serial_no: serialNo,
                 username: order.customer_username,
-                email: order.customer_email || order.customer_username, // Hack for missing email in table
+                email: order.customer_email || order.customer_username,
                 product_name: order.items?.[0]?.name || 'PayMongo Order',
                 amount: order.amount_php,
                 products_json: order.items,
                 total_amount: order.amount_php,
                 reference_no: intentId,
-                payment_portal_used: 'paymongo',
+                payment_portal_used: 'PAYMONGO QRPH',
                 payment_detail_used: `PayMongo Intent ${intentId}`,
-                admin_email: adminEmail,
-                email_status: 'review:approved', // Auto-approved
-            }).select().single();
+                email_status: 'review:submitted', // Queued for admin approval
+            });
 
-            if (!vError && resendApiKey && resendFromEmail) {
-                const resend = new Resend(resendApiKey);
-                const subject = `DMerch Verification ${serialNo}`;
-                const submittedOn = formatSubmittedDate(new Date().toISOString());
-
-                const customerHtml = buildEmailHtml({
-                    username: order.customer_username,
-                    products: order.items,
-                    totalAmount: order.amount_php,
-                    serialNo: serialNo,
-                    referenceNo: intentId,
-                    submittedOn: submittedOn,
-                });
-
-                await sendEmailWithStatus({
-                    resend,
-                    from: resendFromEmail,
-                    to: order.customer_email || order.customer_username,
-                    mailSubject: subject,
-                    html: customerHtml,
-                });
+            if (vError) {
+                console.error('Failed to create verification order:', vError.message);
             }
             updated = true;
         } else if (pmStatus === 'failed' && order.status !== 'failed') {
