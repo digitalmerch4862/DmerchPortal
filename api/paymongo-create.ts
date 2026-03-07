@@ -113,6 +113,7 @@ export default async function handler(req: any, res: any) {
 
         // 4. Log to Supabase orders table
         const supabase = createClient(sbUrl, sbKey);
+        const now = new Date().toISOString();
         const { error: sbError } = await supabase.from('orders').insert({
             payment_intent_id: intentId,
             status: 'awaiting_payment',
@@ -120,9 +121,16 @@ export default async function handler(req: any, res: any) {
             customer_username: username || email,
             customer_email: email,
             items: items || [],
+            updated_at: now,
+            platform_fee_amount: 0,
+            seller_net_amount: amount,
+            payout_status: 'pending',
         });
 
-        if (sbError) console.error('Supabase logging error:', sbError);
+        if (sbError) {
+            console.error('Supabase logging error:', sbError);
+            return res.status(500).json({ ok: false, error: `Failed to log order: ${sbError.message}` });
+        }
 
         res.setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin']);
         return res.status(200).json({
