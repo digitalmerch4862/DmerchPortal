@@ -844,6 +844,38 @@ export default function App() {
     if (stage !== 3 || !paymentIntentId) return;
 
     let pollInterval: number;
+    let hasSubmitted = false;
+
+    const autoSubmitOrder = async () => {
+      if (hasSubmitted) return;
+      hasSubmitted = true;
+
+      try {
+        const response = await fetch('/api/verification-submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username,
+            email,
+            products: selectedProducts,
+            totalAmount,
+            paymentPortalUsed: 'paymongo',
+            paymentDetailUsed: `PAYMENT_ID:${paymentIntentId}`,
+            paymentIntentId,
+          }),
+        });
+
+        const payload = (await response.json()) as VerificationApiResponse;
+        if (payload.ok) {
+          setSubmitResult(payload);
+          if (payload.notice) {
+            setSubmitNotice(payload.notice);
+          }
+        }
+      } catch (err) {
+        console.error('Auto-submit error:', err);
+      }
+    };
 
     const checkStatus = async () => {
       try {
@@ -851,9 +883,11 @@ export default function App() {
         const data = await res.json();
         if (data.ok && data.status === 'paid') {
           setPaymentStatus('paid');
-          setStage(4);
+          await autoSubmitOrder();
+          setStage(2);
         } else if (data.ok && data.status === 'failed') {
           setPaymentStatus('failed');
+          setStage(2);
         }
       } catch (err) {
         console.error('Polling error:', err);
@@ -870,11 +904,12 @@ export default function App() {
         schema: 'public',
         table: 'orders',
         filter: `payment_intent_id=eq.${paymentIntentId}`
-      }, (payload) => {
+      }, async (payload) => {
         console.log('Order update received:', payload.new);
         if (payload.new.status === 'paid') {
           setPaymentStatus('paid');
-          setStage(4);
+          await autoSubmitOrder();
+          setStage(2);
         }
       })
       .subscribe();
@@ -883,7 +918,7 @@ export default function App() {
       window.clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
-  }, [stage, paymentIntentId]);
+  }, [stage, paymentIntentId, username, email, selectedProducts, totalAmount]);
 
   useEffect(() => {
     const handlePressFeedback = (event: PointerEvent) => {
@@ -1511,6 +1546,26 @@ export default function App() {
                     <div className="mt-3 flex flex-col gap-2 rounded-md border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-xs font-mono uppercase tracking-[0.15em] text-cyan-100">Total: PHP {totalAmount}</p>
                     </div>
+
+                    {submitResult?.ok ? (
+                      <div className="mt-4 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-4 py-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Check size={16} className="text-emerald-400" />
+                          <p className="text-sm font-bold text-emerald-300">Order Submitted Successfully!</p>
+                        </div>
+                        <p className="text-xs text-emerald-100/70 mb-2">Your order has been submitted for approval. You will receive an email once approved.</p>
+                        <p className="text-xs font-mono text-emerald-200">Reference: {submitResult.serialNo}</p>
+                      </div>
+                    ) : null}
+
+                    {paymentStatus === 'failed' ? (
+                      <div className="mt-4 rounded-md border border-red-500/40 bg-red-500/10 px-4 py-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <p className="text-sm font-bold text-red-300">Payment Failed</p>
+                        </div>
+                        <p className="text-xs text-red-100/70">Your payment was not successful. Please try again.</p>
+                      </div>
+                    ) : null}
                   </div>
 
 
@@ -1583,7 +1638,7 @@ export default function App() {
                       </motion.button>
                     )}
                     <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
-                      Next: Payment Portal <ArrowRight size={15} />
+                      {submitResult?.ok ? 'View Order Status' : 'Pay Now'} <ArrowRight size={15} />
                     </motion.button>
                   </div>
                 </div>
