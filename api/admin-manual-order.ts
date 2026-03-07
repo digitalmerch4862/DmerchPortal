@@ -225,10 +225,18 @@ export default async function handler(req: any, res: any) {
 
     const resend = new Resend(resendApiKey);
 
+    const sequenceResponse = await supabase.rpc('next_verification_sequence');
+    const sequenceNo = sequenceResponse.data as number | null;
+
+    if (sequenceResponse.error || sequenceNo === null || isNaN(sequenceNo)) {
+      return res.status(500).json({ ok: false, error: 'Could not generate sequence number.' });
+    }
+
     const insertResult = await supabase
       .from('verification_orders')
       .insert({
         serial_no: serialNo,
+        sequence_no: sequenceNo,
         username: buyerName,
         email: buyerEmail,
         product_name: products[0],
