@@ -15,7 +15,7 @@ const ADMIN_GOOGLE_SHORTCUT_KEY = 'dmerch_admin_google_shortcut_v1';
 const CHECKOUT_DRAFT_KEY = 'dmerch_checkout_draft_v1';
 const STAGE_LOCK_KEY = 'dmerch_stage_locked_v1';
 const ALLOWED_ADMIN_EMAILS = new Set(['rad4862@gmail.com', 'digitalmerch4862@gmail.com']);
-const PAYMONGO_QR_SRC = 'https://drive.google.com/uc?export=view&id=1N7Fe6v5__oySqm22Low93VNt_sTYPscu';
+const PAYMONGO_QR_SRC = 'https://drive.google.com/uc?id=1N7Fe6v5__oySqm22Low93VNt_sTYPscu';
 
 const isAllowedAdminEmail = (value: string | null | undefined) => {
   const normalized = String(value ?? '').trim().toLowerCase();
@@ -212,8 +212,8 @@ export default function App() {
   const uploadSfxStepRef = useRef(0);
   const sfxEnabled = true;
 
-  const paymongoQrSrc = (paymongoQrUrl ?? '').trim() || (PAYMONGO_QR_SRC ?? '').trim();
-  const canDownloadPaymongoQr = Boolean(paymongoQrSrc);
+  const paymongoQrSrc = (paymongoQrUrl && paymongoQrUrl.trim() !== '') ? paymongoQrUrl.trim() : PAYMONGO_QR_SRC;
+  const canDownloadPaymongoQr = paymongoQrSrc && paymongoQrSrc.trim() !== '';
   const paymongoQrFilename = 'paymongo-qrph.png';
   const activeAvailment = FAKE_AVAILMENTS[liveAvailmentIndex % FAKE_AVAILMENTS.length];
 
