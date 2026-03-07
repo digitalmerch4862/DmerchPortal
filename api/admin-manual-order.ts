@@ -237,6 +237,7 @@ export default async function handler(req: any, res: any) {
       .insert({
         serial_no: serialNo,
         sequence_no: sequenceNo,
+        reference_no: serialNo,
         username: buyerName,
         email: buyerEmail,
         product_name: products[0],
