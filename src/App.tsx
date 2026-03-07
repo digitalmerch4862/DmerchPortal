@@ -1027,7 +1027,7 @@ export default function App() {
   }, [deliveryProducts]);
 
   const handlePortalDeliveryAuth = async () => {
-    const emailValue = email.trim().toLowerCase();
+    const emailValue = (email ?? '').trim().toLowerCase();
     if (!emailValue) {
       setDeliveryError('Enter your email in Client Details first.');
       return;
@@ -1298,7 +1298,7 @@ export default function App() {
                     {Object.entries(softwareProducts as Record<string, Record<string, ProductItem[]>>).length > 0 ? (
                       Object.entries(softwareProducts as Record<string, Record<string, ProductItem[]>>).map(([category, subs]) => {
                         const CatIcon = getCategoryIcon(category);
-                        const isCatOpen = productQuery.trim().length > 0 || expandedCats[category] === true;
+                        const isCatOpen = (productQuery ?? '').trim().length > 0 || expandedCats[category] === true;
                         const totalInCat = Object.values(subs as Record<string, ProductItem[]>).reduce((sum, arr) => sum + (arr as ProductItem[]).length, 0);
 
                         return (
@@ -1325,7 +1325,7 @@ export default function App() {
                               <div className="border-t border-cyan-500/15">
                                 {Object.entries(subs as Record<string, ProductItem[]>).map(([sub, products]) => {
                                   const subKey = `${category}::${sub}`;
-                                  const isSubOpen = productQuery.trim().length > 0 || expandedSubs[subKey] === true;
+                                  const isSubOpen = (productQuery ?? '').trim().length > 0 || expandedSubs[subKey] === true;
 
                                   return (
                                     <div key={subKey} className="border-b border-cyan-500/10 last:border-b-0">
