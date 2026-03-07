@@ -15,7 +15,7 @@ const ADMIN_GOOGLE_SHORTCUT_KEY = 'dmerch_admin_google_shortcut_v1';
 const CHECKOUT_DRAFT_KEY = 'dmerch_checkout_draft_v1';
 const STAGE_LOCK_KEY = 'dmerch_stage_locked_v1';
 const ALLOWED_ADMIN_EMAILS = new Set(['rad4862@gmail.com', 'digitalmerch4862@gmail.com']);
-const PAYMONGO_STATIC_QR = 'https://lh3.googleusercontent.com/d/1N7Fe6v5__oySqm22Low93VNt_sTYPscu';
+const PAYMONGO_STATIC_QR = '/code_PP9eopP5iQm47wkFa9XzxtEg.jpg';
 
 const isAllowedAdminEmail = (value: string | null | undefined) => {
   const normalized = String(value ?? '').trim().toLowerCase();
@@ -212,7 +212,7 @@ export default function App() {
   const uploadSfxStepRef = useRef(0);
   const sfxEnabled = true;
 
-  const paymongoQrSrc = (paymongoQrUrl && paymongoQrUrl.trim().length > 0) ? paymongoQrUrl.trim() : PAYMONGO_STATIC_QR;
+  const paymongoQrSrc = (paymongoQrUrl && paymongoQrUrl.trim().length > 0 && !paymongoQrError) ? paymongoQrUrl.trim() : PAYMONGO_STATIC_QR;
   const canDownloadPaymongoQr = !!(paymongoQrSrc && paymongoQrSrc.length > 5);
   const paymongoQrFilename = 'paymongo-qrph.png';
   const activeAvailment = FAKE_AVAILMENTS[liveAvailmentIndex % FAKE_AVAILMENTS.length];
@@ -694,6 +694,7 @@ export default function App() {
 
         setPaymentIntentId(payload.intentId);
         setPaymongoQrUrl(payload.qrUrl);
+        setPaymongoQrError(false);
         setStage(3);
       } catch (err: any) {
         setSubmitError(err.message);
@@ -1887,6 +1888,9 @@ export default function App() {
               <div className="flex flex-col sm:flex-row justify-center gap-3">
                 <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
                   <ArrowLeft size={15} /> Back
+                </motion.button>
+                <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
+                  Proceed to Verification <ArrowRight size={15} />
                 </motion.button>
                 <motion.button
                   type="button"
