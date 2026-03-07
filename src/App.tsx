@@ -398,12 +398,12 @@ export default function App() {
   const handleAdminGoogleShortcut = async () => {
     setAdminShortcutError('');
     const draft: CheckoutDraft = {
-      username: username.trim(),
-      email: email.trim(),
-      referenceNo: referenceNo.trim(),
+      username: (username ?? '').trim(),
+      email: (email ?? '').trim(),
+      referenceNo: (referenceNo ?? '').trim(),
       selectedMethod: 'paymongo',
       paymentPortalUsed: 'paymongo',
-      paymongoReference: paymongoReference.trim(),
+      paymongoReference: (paymongoReference ?? '').trim(),
       selectedProducts,
     };
     window.localStorage.setItem(CHECKOUT_DRAFT_KEY, JSON.stringify(draft));
@@ -515,7 +515,7 @@ export default function App() {
   }, []);
 
   const filteredProducts = useMemo(() => {
-    const query = productQuery.trim().toLowerCase();
+    const query = (productQuery ?? '').trim().toLowerCase();
     if (!query) {
       return availableProducts;
     }
@@ -524,7 +524,7 @@ export default function App() {
 
     return availableProducts
       .map((item) => {
-        const name = item.name.toLowerCase();
+        const name = (item.name ?? '').toLowerCase();
         const cat = (item.category || '').toLowerCase();
         const sub = (item.sub_category || '').toLowerCase();
         const searchTarget = `${name} ${cat} ${sub}`;
