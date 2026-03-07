@@ -212,7 +212,7 @@ export default function App() {
   const uploadSfxStepRef = useRef(0);
   const sfxEnabled = true;
 
-  const paymongoQrSrc = paymongoQrUrl.trim() || PAYMONGO_QR_SRC.trim();
+  const paymongoQrSrc = (paymongoQrUrl ?? '').trim() || (PAYMONGO_QR_SRC ?? '').trim();
   const canDownloadPaymongoQr = Boolean(paymongoQrSrc);
   const paymongoQrFilename = 'paymongo-qrph.png';
   const activeAvailment = FAKE_AVAILMENTS[liveAvailmentIndex % FAKE_AVAILMENTS.length];
@@ -351,7 +351,7 @@ export default function App() {
       const normalizedEmail = String(emailValue).trim().toLowerCase();
       setEmail(normalizedEmail);
       setUsername((current) => {
-        if (current.trim()) {
+        if ((current ?? '').trim()) {
           return current;
         }
         const suggestedName = extractGoogleName(session?.user?.user_metadata);
