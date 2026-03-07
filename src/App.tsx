@@ -1099,13 +1099,13 @@ export default function App() {
       return;
     }
 
-    const paymentDetailUsed = paymongoReference.trim();
+    const paymentDetailUsed = (paymongoReference ?? '').trim();
     if (!paymentDetailUsed) {
       setSubmitError('Enter the PayMongo QRPH reference or sender name used for payment.');
       return;
     }
 
-    const normalizedReferenceNo = referenceNo.replace(/\D/g, '').slice(-6);
+    const normalizedReferenceNo = (referenceNo ?? '').replace(/\D/g, '').slice(-6);
     if (normalizedReferenceNo.length !== 6) {
       setSubmitError('Please enter the last 6 digits for reference no (sample: 123456).');
       return;
