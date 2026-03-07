@@ -639,11 +639,11 @@ export default function App() {
   }, [lastSubmittedProducts, selectedProducts]);
 
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const isEmailValid = emailPattern.test(email.trim());
+  const isEmailValid = emailPattern.test((email ?? '').trim());
 
   const canProceedFrom = (fromStage: FlowStage) => {
     if (fromStage === 1) {
-      return username.trim().length > 0 && isEmailValid;
+      return (username ?? '').trim().length > 0 && isEmailValid;
     }
 
     if (fromStage === 2) {
@@ -684,8 +684,8 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             amount: totalAmount,
-            email: email,
-            username: username,
+            email: (email ?? '').trim(),
+            username: (username ?? '').trim(),
             items: selectedProducts,
           }),
         });
