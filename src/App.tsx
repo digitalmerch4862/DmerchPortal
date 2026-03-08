@@ -695,15 +695,24 @@ export default function App() {
           }),
         });
         const payload = await response.json();
-        if (!payload.ok) throw new Error(payload.error || 'Failed to initialize payment terminal.');
 
-        setPaymentIntentId(payload.intentId);
-        setPaymongoQrUrl(payload.qrUrl);
-        setPaymongoQrError(false);
+        // If API fails, we still allow proceeding to Stage 3 for manual payment
+        if (payload.ok) {
+          setPaymentIntentId(payload.intentId);
+          setPaymongoQrUrl(payload.qrUrl);
+          setPaymongoQrError(false);
+          setPaymentTimer(60); // Reset timer for new QR
+        } else {
+          console.warn('[Checkout] PayMongo API error, falling back to manual mode:', payload.error);
+          setPaymongoQrUrl(''); // Trigger fallback to static QR
+          setPaymentIntentId('');
+        }
         setStage(3);
       } catch (err: any) {
-        setSubmitError(err.message);
-        return;
+        console.warn('[Checkout] Network error, falling back to manual mode:', err.message);
+        setPaymongoQrUrl('');
+        setPaymentIntentId('');
+        setStage(3);
       } finally {
         setIsCreatingPayment(false);
       }
@@ -1930,23 +1939,18 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="w-full bg-cyan-500/5 rounded-lg p-4 border border-cyan-500/10">
-                      <div className="flex gap-4 items-center justify-center">
-                        <div className="text-center group">
-                          <div className="w-6 h-6 rounded-full border border-cyan-500/50 flex items-center justify-center text-[10px] text-cyan-400 font-mono mb-1 mx-auto">01</div>
-                          <p className="text-[9px] text-cyan-200/60 uppercase tracking-tighter">Open Wallet</p>
-                        </div>
-                        <div className="h-[1px] w-8 bg-cyan-500/20" />
-                        <div className="text-center">
-                          <div className="w-6 h-6 rounded-full border border-cyan-500/50 flex items-center justify-center text-[10px] text-cyan-400 font-mono mb-1 mx-auto">02</div>
-                          <p className="text-[9px] text-cyan-200/60 uppercase tracking-tighter">Scan QRPh</p>
-                        </div>
-                        <div className="h-[1px] w-8 bg-cyan-500/20" />
-                        <div className="text-center">
-                          <div className="w-6 h-6 rounded-full border border-cyan-500/50 flex items-center justify-center text-[10px] text-cyan-400 font-mono mb-1 mx-auto">03</div>
-                          <p className="text-[9px] text-cyan-200/60 uppercase tracking-tighter">Verified</p>
-                        </div>
-                      </div>
+                    {/* Manual Override / Proceed Button */}
+                    <div className="w-full mt-4">
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => setStage(4)}
+                        className="w-full py-4 rounded-xl bg-gradient-to-r from-cyan-500/20 to-magenta-500/20 border border-cyan-500/40 text-cyan-100 font-black uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(0,243,255,0.1)] hover:border-cyan-300 hover:text-white transition-all flex items-center justify-center gap-3 group"
+                      >
+                        Proceed to Verification Manual <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                      </motion.button>
+                      <p className="text-[10px] text-center text-cyan-200/40 mt-2 uppercase tracking-widest">Use this if automatic payment detection is slow</p>
                     </div>
                   </div>
                 </CyberCard>
@@ -2164,13 +2168,14 @@ export default function App() {
                 </div>
               </div>
             </motion.div>
-          )}
-        </AnimatePresence>
+          )
+          }
+        </AnimatePresence >
 
         {/* Footer Info */}
-        <footer className="mt-12 sm:mt-24 pt-6 sm:pt-8 border-t border-white/5 text-center hidden sm:block">
+        < footer className="mt-12 sm:mt-24 pt-6 sm:pt-8 border-t border-white/5 text-center hidden sm:block" >
           {/* Social Links */}
-          <div className="flex justify-center gap-10 mb-10">
+          < div className="flex justify-center gap-10 mb-10" >
             <motion.a
               whileHover={{ scale: 1.15, color: '#1877F2' }}
               href="https://www.facebook.com/digitalmerch4862/"
@@ -2201,12 +2206,12 @@ export default function App() {
             >
               <Instagram size={34} />
             </motion.a>
-          </div>
+          </div >
           <p className="text-gray-600 text-[10px] font-mono uppercase tracking-widest">
             © 2026 DMERCH PROTOCOL // ALL RIGHTS RESERVED // SYSTEM STATUS: OPTIMAL
           </p>
-        </footer>
-      </main>
-    </div>
+        </footer >
+      </main >
+    </div >
   );
 }
