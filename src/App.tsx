@@ -1637,11 +1637,27 @@ export default function App() {
                         <ArrowLeft size={15} /> Back
                       </motion.button>
                     )}
-                    <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToNextStage} className="cyber-btn cyber-btn-primary">
-                      {submitResult?.ok ? 'View Order Status' : 'Pay Now'} <ArrowRight size={15} />
+                    <motion.button
+                      type="button"
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={goToNextStage}
+                      disabled={isCreatingPayment}
+                      className="cyber-btn cyber-btn-primary"
+                    >
+                      {isCreatingPayment ? 'Processing...' : (submitResult?.ok ? 'View Order Status' : 'Pay Now')} <ArrowRight size={15} />
                     </motion.button>
                   </div>
                 </div>
+
+                {submitError && (
+                  <div className="mt-4 rounded-md border border-red-500/40 bg-red-500/10 px-4 py-3 text-[10px] font-mono uppercase tracking-[0.15em] text-red-300">
+                    <div className="flex items-center gap-2 mb-1">
+                      <AlertCircle size={14} /> <span>System Error Details:</span>
+                    </div>
+                    {submitError}
+                  </div>
+                )}
               </CyberCard>
 
               <AnimatePresence>

@@ -24,19 +24,30 @@ export default async function handler(req: any, res: any) {
     const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!pmSecret || !pmSecretLive || !sbUrl || !sbKey) {
-        return res.status(500).json({ ok: false, error: 'Missing server configuration (PM/SB keys).' });
+        console.error('[PayMongo Create] Configuration Missing:', {
+            hasPm: !!pmSecret,
+            hasPmLive: !!pmSecretLive,
+            hasSbUrl: !!sbUrl,
+            hasSbKey: !!sbKey
+        });
+        return res.status(500).json({ ok: false, error: 'Server configuration missing. Please check ENV variables.' });
     }
 
     try {
         const { amount, email, name, username, items } = req.body;
-        console.log(`[PayMongo Create] Payload:`, { amount, email, username, itemsCount: items?.length });
+        console.log(`[PayMongo Create] Starting request for ${email} - Amount: ${amount}`);
 
         if (!amount || !email) {
-            return res.status(400).json({ ok: false, error: 'Amount and Email are required.' });
+            return res.status(400).json({ ok: false, error: 'Amount and email are required.' });
         }
 
         const isTestUser = email?.toLowerCase() === 'rad4862@gmail.com';
         const activePmSecret = isTestUser ? pmSecret : pmSecretLive;
+
+        // Verify key format roughly
+        if (!activePmSecret.startsWith('sk_')) {
+            throw new Error(`Invalid PayMongo secret key format (Check ${isTestUser ? 'Test' : 'Live'} key)`);
+        }
 
         const authHeader = `Basic ${Buffer.from(`${activePmSecret}:`).toString('base64')}`;
         const pmHeaders = {
@@ -45,6 +56,7 @@ export default async function handler(req: any, res: any) {
         };
 
         // 1. Create Payment Intent
+        console.log('[PayMongo Create] Step 1: Creating Payment Intent...');
         const piRes = await fetch('https://api.paymongo.com/v1/payment_intents', {
             method: 'POST',
             headers: pmHeaders,
@@ -54,24 +66,25 @@ export default async function handler(req: any, res: any) {
                         amount: Math.round(amount * 100),
                         payment_method_allowed: ['qrph'],
                         currency: 'PHP',
-                        description: `Order for ${username || email}`,
+                        description: `Order from DigitalMerch`,
                         statement_descriptor: 'DigitalMerch',
                     }
                 }
             })
         });
 
-        const piData = await piRes.json();
+        const piData = await piRes.json() as any;
         if (!piRes.ok) {
-            const errDetail = piData.errors?.[0]?.detail || 'Failed to create Payment Intent';
-            console.error(`[PayMongo Create] Intent Error:`, JSON.stringify(piData, null, 2));
-            throw new Error(errDetail);
+            console.error('[PayMongo Create] PI Error Status:', piRes.status, piData);
+            const detail = piData.errors?.[0]?.detail || 'Failed to create payment intent';
+            return res.status(400).json({ ok: false, error: `PayMongo PI Error: ${detail}`, raw: piData });
         }
 
         const intentId = piData.data.id;
         const clientKey = piData.data.attributes.client_key;
 
-        // 2. Create Payment Method (QRPH)
+        // 2. Create Payment Method
+        console.log('[PayMongo Create] Step 2: Creating Payment Method...');
         const pmRes = await fetch('https://api.paymongo.com/v1/payment_methods', {
             method: 'POST',
             headers: pmHeaders,
@@ -79,7 +92,7 @@ export default async function handler(req: any, res: any) {
                 data: {
                     attributes: {
                         type: 'qrph',
-                        expiry_seconds: 60, // 1 minute expiry (Lazada style / Ultra-short)
+                        expiry_seconds: 60,
                         billing: {
                             email: email,
                             name: name || username || 'Customer',
@@ -89,16 +102,17 @@ export default async function handler(req: any, res: any) {
             })
         });
 
-        const pmData = await pmRes.json();
+        const pmData = await pmRes.json() as any;
         if (!pmRes.ok) {
-            const errDetail = pmData.errors?.[0]?.detail || 'Failed to create Payment Method';
-            console.error(`[PayMongo Create] Method Error:`, JSON.stringify(pmData, null, 2));
-            throw new Error(errDetail);
+            console.error('[PayMongo Create] PM Error Status:', pmRes.status, pmData);
+            const detail = pmData.errors?.[0]?.detail || 'Failed to create payment method';
+            return res.status(400).json({ ok: false, error: `PayMongo PM Error: ${detail}`, raw: pmData });
         }
 
         const methodId = pmData.data.id;
 
-        // 3. Attach Method to Intent
+        // 3. Attach
+        console.log('[PayMongo Create] Step 3: Attaching to Intent...');
         const attachRes = await fetch(`https://api.paymongo.com/v1/payment_intents/${intentId}/attach`, {
             method: 'POST',
             headers: pmHeaders,
@@ -112,11 +126,11 @@ export default async function handler(req: any, res: any) {
             })
         });
 
-        const attachData = await attachRes.json();
+        const attachData = await attachRes.json() as any;
         if (!attachRes.ok) {
-            const errDetail = attachData.errors?.[0]?.detail || 'Failed to attach Payment Method';
-            console.error(`[PayMongo Create] Attach Error:`, JSON.stringify(attachData, null, 2));
-            throw new Error(errDetail);
+            console.error('[PayMongo Create] Attach Error Status:', attachRes.status, attachData);
+            const detail = attachData.errors?.[0]?.detail || 'Failed to attach payment method';
+            return res.status(400).json({ ok: false, error: `PayMongo Attach Error: ${detail}`, raw: attachData });
         }
 
         const nextAction = attachData.data.attributes.next_action;
@@ -129,9 +143,9 @@ export default async function handler(req: any, res: any) {
             }
         }
 
-        // 4. Log to Supabase orders table
+        // 4. Supabase Log
+        console.log('[PayMongo Create] Step 4: Logging Order in Supabase...');
         const supabase = createClient(sbUrl, sbKey);
-        const now = new Date().toISOString();
         const { error: sbError } = await supabase.from('orders').insert({
             payment_intent_id: intentId,
             status: 'awaiting_payment',
@@ -139,33 +153,32 @@ export default async function handler(req: any, res: any) {
             customer_username: username || email,
             customer_email: email,
             items: items || [],
-            updated_at: now,
+            updated_at: new Date().toISOString(),
             platform_fee_amount: 0,
             seller_net_amount: amount,
             payout_status: 'pending',
         });
 
         if (sbError) {
-            console.error(`[PayMongo Create] Supabase Order Log Error:`, sbError);
-            return res.status(500).json({ ok: false, error: `Failed to log order: ${sbError.message || JSON.stringify(sbError)}` });
+            console.error('[PayMongo Create] Supabase Insert Error:', sbError);
+            // We return 200 with QR URL anyway so user can pay, but with a warning for internal logs?
+            // Actually better to fail if record is crucial.
+            throw new Error(`Database Log Error: ${sbError.message}`);
         }
 
-        res.setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin']);
+        console.log('[PayMongo Create] Success:', { intentId, hasQr: !!qrUrl });
         return res.status(200).json({
             ok: true,
-            intentId,
-            qrUrl,
+            intentId: intentId,
+            qrUrl: qrUrl
         });
 
     } catch (error: any) {
-        console.error('[PayMongo Create Error]:', error);
-        if (res.setHeader) {
-            res.setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin']);
-        }
+        console.error('[PayMongo Create Exception]:', error);
         return res.status(500).json({
             ok: false,
-            error: error.message || 'Internal Server Error',
-            detail: error.stack
+            error: error.message || 'Unknown Server Exception',
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
 }
