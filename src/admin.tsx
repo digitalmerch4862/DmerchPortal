@@ -1701,9 +1701,9 @@ export default function Admin() {
                 <button onClick={() => { void clearInbox(); }} className="cyber-btn cyber-btn-secondary">Clear Inbox</button>
                 <button
                   onClick={() => setIsManualEncodeExpanded(!isManualEncodeExpanded)}
-                  className={`cyber-btn ${isManualEncodeExpanded ? 'cyber-btn-primary' : 'cyber-btn-secondary'}`}
+                  className="cyber-btn cyber-btn-primary"
                 >
-                  <Pencil size={14} /> {isManualEncodeExpanded ? 'Close Manual Encode' : 'Manual Encode'}
+                  <Pencil size={14} /> {isManualEncodeExpanded ? 'CLOSE MANUAL ENCODE' : 'MANUAL ENCODE'}
                 </button>
               </div>
             </div>
