@@ -14,7 +14,7 @@ const ADMIN_PRODUCTS_KEY = 'dmerch_admin_products_v1';
 const ADMIN_GOOGLE_SHORTCUT_KEY = 'dmerch_admin_google_shortcut_v1';
 const CHECKOUT_DRAFT_KEY = 'dmerch_checkout_draft_v1';
 const STAGE_LOCK_KEY = 'dmerch_stage_locked_v1';
-const ALLOWED_ADMIN_EMAILS = new Set(['rad4862@gmail.com', 'digitalmerch4862@gmail.com']);
+const ALLOWED_ADMIN_EMAILS = new Set(['digitalmerch4862@gmail.com']);
 const PAYMONGO_STATIC_QR = '/code_PP9eopP5iQm47wkFa9XzxtEg.jpg';
 
 const isAllowedAdminEmail = (value: string | null | undefined) => {

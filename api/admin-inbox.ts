@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
-const ALLOWED_ADMIN_EMAILS = new Set(['rad4862@gmail.com', 'digitalmerch4862@gmail.com']);
+const ALLOWED_ADMIN_EMAILS = new Set(['digitalmerch4862@gmail.com']);
 
 const resolveCorsOrigin = (req: any) => {
   const appBase = process.env.APP_BASE_URL ?? 'https://dmerchportal.digitalmerchs.store';
