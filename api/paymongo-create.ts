@@ -29,6 +29,7 @@ export default async function handler(req: any, res: any) {
 
     try {
         const { amount, email, name, username, items } = req.body;
+        console.log(`[PayMongo Create] Payload:`, { amount, email, username, itemsCount: items?.length });
 
         if (!amount || !email) {
             return res.status(400).json({ ok: false, error: 'Amount and Email are required.' });
@@ -55,14 +56,17 @@ export default async function handler(req: any, res: any) {
                         currency: 'PHP',
                         description: `Order for ${username || email}`,
                         statement_descriptor: 'DigitalMerch',
-                        expires_at: Math.floor(Date.now() / 1000) + 300,
                     }
                 }
             })
         });
 
         const piData = await piRes.json();
-        if (!piRes.ok) throw new Error(piData.errors?.[0]?.detail || 'Failed to create Payment Intent');
+        if (!piRes.ok) {
+            const errDetail = piData.errors?.[0]?.detail || 'Failed to create Payment Intent';
+            console.error(`[PayMongo Create] Intent Error:`, JSON.stringify(piData, null, 2));
+            throw new Error(errDetail);
+        }
 
         const intentId = piData.data.id;
         const clientKey = piData.data.attributes.client_key;
@@ -75,6 +79,7 @@ export default async function handler(req: any, res: any) {
                 data: {
                     attributes: {
                         type: 'qrph',
+                        expiry_seconds: 60, // 1 minute expiry (Lazada style / Ultra-short)
                         billing: {
                             email: email,
                             name: name || username || 'Customer',
@@ -85,7 +90,11 @@ export default async function handler(req: any, res: any) {
         });
 
         const pmData = await pmRes.json();
-        if (!pmRes.ok) throw new Error(pmData.errors?.[0]?.detail || 'Failed to create Payment Method');
+        if (!pmRes.ok) {
+            const errDetail = pmData.errors?.[0]?.detail || 'Failed to create Payment Method';
+            console.error(`[PayMongo Create] Method Error:`, JSON.stringify(pmData, null, 2));
+            throw new Error(errDetail);
+        }
 
         const methodId = pmData.data.id;
 
@@ -104,7 +113,11 @@ export default async function handler(req: any, res: any) {
         });
 
         const attachData = await attachRes.json();
-        if (!attachRes.ok) throw new Error(attachData.errors?.[0]?.detail || 'Failed to attach Payment Method');
+        if (!attachRes.ok) {
+            const errDetail = attachData.errors?.[0]?.detail || 'Failed to attach Payment Method';
+            console.error(`[PayMongo Create] Attach Error:`, JSON.stringify(attachData, null, 2));
+            throw new Error(errDetail);
+        }
 
         const nextAction = attachData.data.attributes.next_action;
         let qrUrl = null;
@@ -133,8 +146,8 @@ export default async function handler(req: any, res: any) {
         });
 
         if (sbError) {
-            console.error('Supabase logging error:', sbError);
-            return res.status(500).json({ ok: false, error: `Failed to log order: ${sbError.message}` });
+            console.error(`[PayMongo Create] Supabase Order Log Error:`, sbError);
+            return res.status(500).json({ ok: false, error: `Failed to log order: ${sbError.message || JSON.stringify(sbError)}` });
         }
 
         res.setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin']);
@@ -145,7 +158,14 @@ export default async function handler(req: any, res: any) {
         });
 
     } catch (error: any) {
-        console.error('PayMongo Create Error:', error);
-        return res.status(500).json({ ok: false, error: error.message });
+        console.error('[PayMongo Create Error]:', error);
+        if (res.setHeader) {
+            res.setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin']);
+        }
+        return res.status(500).json({
+            ok: false,
+            error: error.message || 'Internal Server Error',
+            detail: error.stack
+        });
     }
 }

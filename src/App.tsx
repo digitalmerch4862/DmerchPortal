@@ -5,7 +5,7 @@
 
 import { type ComponentType, type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft, Home, ShoppingCart, Mail, Cpu, Gamepad2, PlayCircle, Book, Palette, Layers, BookOpen, ChevronDown, ChevronRight as ChevronRightIcon, GraduationCap, Eye, Clock, Users, FileText, Star, LogOut, QrCode, ShieldAlert } from 'lucide-react';
+import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft, Home, ShoppingCart, Mail, Cpu, Gamepad2, PlayCircle, Book, Palette, Layers, BookOpen, ChevronDown, ChevronRight as ChevronRightIcon, GraduationCap, Eye, Clock, Users, FileText, Star, LogOut, QrCode, ShieldAlert, AlertCircle } from 'lucide-react';
 import { productCatalog, type ProductItem } from './data/products';
 import { getSupabaseBrowserClient } from './lib/supabase-browser';
 import { supabase } from './supabaseClient.js';
@@ -206,6 +206,7 @@ export default function App() {
   const [expandedSubs, setExpandedSubs] = useState<Record<string, boolean>>({});
   const [showCourses, setShowCourses] = useState(false);
   const [previewCourse, setPreviewCourse] = useState<ProductItem | null>(null);
+  const [paymentTimer, setPaymentTimer] = useState(60);
   const productPickerRef = useRef<HTMLDivElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const uploadSfxIntervalRef = useRef<number | null>(null);
@@ -228,11 +229,15 @@ export default function App() {
       const page = window.location.pathname;
       const userAgent = window.navigator.userAgent;
 
+      const sessionId = window.sessionStorage.getItem('dmerch_session_id') || crypto.randomUUID();
+      window.sessionStorage.setItem('dmerch_session_id', sessionId);
+
       await supabase.from('analytics_visits').insert({
         page,
         user_agent: userAgent,
         username: user?.user_metadata?.full_name || user?.email || 'Anonymous',
         user_id: user?.id || null,
+        session_id: sessionId,
       });
     };
 
@@ -843,41 +848,53 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (stage !== 3 || !paymentIntentId) return;
+    let timer: number;
+    if (stage === 3 && paymentStatus === 'pending' && paymentTimer > 0) {
+      timer = window.setInterval(() => {
+        setPaymentTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => window.clearInterval(timer);
+  }, [stage, paymentStatus, paymentTimer]);
 
-    let pollInterval: number;
+  const resetToStage2 = useCallback((delayMs = 3000) => {
+    setTimeout(() => {
+      setStage(2);
+      setPaymentIntentId('');
+      setPaymongoQrUrl('');
+      setPaymentStatus('pending');
+      setPaymentPaidBanner(false);
+      setSubmitError('');
+      setPaymentTimer(60);
+    }, delayMs);
+  }, []);
 
-    const resetToStage2 = (delayMs = 3000) => {
-      window.clearInterval(pollInterval);
-      setTimeout(() => {
-        setStage(2);
-        setPaymentIntentId('');
-        setPaymongoQrUrl('');
-        setPaymentStatus('pending');
-        setPaymentPaidBanner(false);
-        setSubmitError('');
-      }, delayMs);
-    };
-
-    const checkStatus = async () => {
-      try {
-        const res = await fetch(`/api/paymongo-status?intentId=${paymentIntentId}`);
-        const data = await res.json();
-        if (data.ok && data.status === 'paid') {
-          setPaymentStatus('paid');
-          setPaymentPaidBanner(true);
-          resetToStage2(3000);
-        } else if (data.ok && data.status === 'failed') {
-          setPaymentStatus('failed');
-          setSubmitError('Payment was cancelled or failed. Please try again.');
-          resetToStage2(3000);
-        }
-      } catch (err) {
-        console.error('Polling error:', err);
+  const checkStatus = useCallback(async () => {
+    if (!paymentIntentId) return;
+    try {
+      const res = await fetch(`/api/paymongo-status?intentId=${paymentIntentId}`);
+      const data = await res.json();
+      if (data.ok && data.status === 'paid') {
+        setPaymentStatus('paid');
+        setPaymentPaidBanner(true);
+        resetToStage2(3000);
+      } else if (data.ok && data.status === 'failed') {
+        setPaymentStatus('failed');
+        setSubmitError('Payment was cancelled or failed. Please try again.');
+        resetToStage2(3000);
       }
-    };
+    } catch (err) {
+      console.error('Polling error:', err);
+    }
+  }, [paymentIntentId, resetToStage2]);
 
-    pollInterval = window.setInterval(checkStatus, 5000);
+  useEffect(() => {
+    if (stage !== 3 || !paymentIntentId) {
+      if (stage !== 3) setPaymentTimer(60);
+      return;
+    }
+
+    const pollInterval = window.setInterval(checkStatus, 5000);
     checkStatus();
 
     const channel = supabase
@@ -901,7 +918,7 @@ export default function App() {
       window.clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
-  }, [stage, paymentIntentId]);
+  }, [stage, paymentIntentId, checkStatus, resetToStage2]);
 
   useEffect(() => {
     const handlePressFeedback = (event: PointerEvent) => {
@@ -1817,7 +1834,17 @@ export default function App() {
                   <div className="flex flex-col items-center p-6 bg-[#031018]/90 rounded-xl border border-cyan-500/30 gap-6">
                     <div className="text-center">
                       <h3 className="text-xl font-black text-cyan-400 uppercase tracking-widest mb-1 italic">Scan to Pay via QRPH</h3>
-                      <p className="text-xs text-cyan-200/70 font-mono uppercase tracking-[0.2em]">Secure Transaction Protocol v2.4.0</p>
+                      <p className="text-xs text-cyan-200/70 font-mono uppercase tracking-[0.2em]">Secure Transaction Protocol v2.5.0</p>
+                    </div>
+
+                    {/* Cyber Countdown Timer */}
+                    <div className="flex flex-col items-center gap-2">
+                      <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-cyan-500/60">Terminal Expiry Countdown</p>
+                      <div className="flex items-center gap-3 px-6 py-4 rounded-xl border border-cyan-500/40 bg-cyan-500/5 shadow-[0_0_20px_rgba(0,243,255,0.1)]">
+                        <div className="text-4xl font-black font-mono text-cyan-300 drop-shadow-[0_0_10px_rgba(0,243,255,0.5)]">
+                          00:00:{paymentTimer.toString().padStart(2, '0')}
+                        </div>
+                      </div>
                     </div>
 
                     <div className="relative group p-4 bg-white rounded-2xl shadow-[0_0_50px_rgba(0,243,255,0.25)] border-4 border-cyan-500">
@@ -1830,7 +1857,7 @@ export default function App() {
                             onError={() => setPaymongoQrError(true)}
                           />
                           {paymentStatus === 'paid' && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-xl backdrop-blur-sm">
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/80 rounded-xl backdrop-blur-md">
                               <motion.div
                                 initial={{ scale: 0 }}
                                 animate={{ scale: 1 }}
@@ -1843,6 +1870,20 @@ export default function App() {
                               </motion.div>
                             </div>
                           )}
+                          {(paymentTimer <= 0 && paymentStatus === 'pending') && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/90 rounded-xl backdrop-blur-sm border-2 border-red-500/50">
+                              <div className="flex flex-col items-center p-4 text-center">
+                                <AlertCircle size={40} className="text-red-500 mb-4 animate-pulse" />
+                                <span className="text-sm font-black text-red-400 uppercase tracking-widest mb-4">QR Terminal Expired</span>
+                                <button
+                                  onClick={() => setStage(2)}
+                                  className="cyber-btn cyber-btn-primary px-6 py-2 bg-red-500/20 border-red-500 text-red-200"
+                                >
+                                  RESTART SESSION
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div className="w-64 h-64 sm:w-80 sm:h-80 flex flex-col items-center justify-center text-black/40">
@@ -1853,32 +1894,42 @@ export default function App() {
                     </div>
 
                     <div className="flex flex-col items-center gap-2">
-                      <div className="flex items-center gap-3 px-4 py-2 rounded-full border border-cyan-500/30 bg-cyan-500/10">
-                        {paymentStatus === 'paid' ? (
-                          <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-emerald-400">✓ Payment Received — Returning to Order...</span>
-                        ) : paymentStatus === 'failed' ? (
-                          <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-red-400">✗ Payment Failed — Returning to Order...</span>
-                        ) : (
-                          <>
-                            <div className="h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
-                            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-300">Awaiting Transaction...</span>
-                          </>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-cyan-200/50 italic text-center">
-                        Open GCash, Maya, or any QRPH app and scan the QR code above.<br />
-                        This page updates automatically — do not close this tab.
-                      </p>
+                      <button
+                        onClick={checkStatus}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg border border-cyan-500/30 bg-cyan-500/5 text-cyan-300 text-[10px] font-mono uppercase tracking-[0.2em] hover:bg-cyan-500/20 transition-all"
+                      >
+                        <Clock size={12} className="animate-spin-slow" />
+                        Refresh Signal
+                      </button>
                     </div>
 
                     <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-cyan-500/20">
                       <div className="p-3 rounded-lg border border-cyan-500/20 bg-black/40">
                         <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-cyan-400 mb-1">Total Amount</p>
-                        <p className="text-lg font-bold text-white">PHP {totalAmount}</p>
+                        <p className="text-lg font-bold text-white leading-none">PHP {totalAmount.toFixed(2)}</p>
                       </div>
                       <div className="p-3 rounded-lg border border-cyan-500/20 bg-black/40 overflow-hidden">
-                        <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-cyan-400 mb-1">Session ID</p>
-                        <p className="text-sm font-mono text-cyan-200 truncate">{paymentIntentId || 'GEN-PENDING-REF'}</p>
+                        <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-cyan-400 mb-1">Order Ref</p>
+                        <p className="text-xs font-mono text-cyan-200 truncate">{paymentIntentId?.split('_')[1]?.toUpperCase() || 'GEN-PENDING'}</p>
+                      </div>
+                    </div>
+
+                    <div className="w-full bg-cyan-500/5 rounded-lg p-4 border border-cyan-500/10">
+                      <div className="flex gap-4 items-center justify-center">
+                        <div className="text-center group">
+                          <div className="w-6 h-6 rounded-full border border-cyan-500/50 flex items-center justify-center text-[10px] text-cyan-400 font-mono mb-1 mx-auto">01</div>
+                          <p className="text-[9px] text-cyan-200/60 uppercase tracking-tighter">Open Wallet</p>
+                        </div>
+                        <div className="h-[1px] w-8 bg-cyan-500/20" />
+                        <div className="text-center">
+                          <div className="w-6 h-6 rounded-full border border-cyan-500/50 flex items-center justify-center text-[10px] text-cyan-400 font-mono mb-1 mx-auto">02</div>
+                          <p className="text-[9px] text-cyan-200/60 uppercase tracking-tighter">Scan QRPh</p>
+                        </div>
+                        <div className="h-[1px] w-8 bg-cyan-500/20" />
+                        <div className="text-center">
+                          <div className="w-6 h-6 rounded-full border border-cyan-500/50 flex items-center justify-center text-[10px] text-cyan-400 font-mono mb-1 mx-auto">03</div>
+                          <p className="text-[9px] text-cyan-200/60 uppercase tracking-tighter">Verified</p>
+                        </div>
                       </div>
                     </div>
                   </div>
