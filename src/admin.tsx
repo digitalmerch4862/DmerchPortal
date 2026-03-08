@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { motion } from 'motion/react';
 import { Archive, ArrowLeft, BarChart3, CheckCircle2, Download, Inbox, PackageSearch, Pencil, ShieldAlert, Trash2, Upload, UsersRound, Plus, RefreshCw } from 'lucide-react';
 import { productCatalog } from './data/products';
@@ -336,6 +336,7 @@ export default function Admin() {
   const [manualError, setManualError] = useState('');
   const [manualSuccess, setManualSuccess] = useState('');
   const [isManualEncodeExpanded, setIsManualEncodeExpanded] = useState(false);
+  const crmFileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchSupabaseProducts = useCallback(async () => {
     const supabase = getSupabaseBrowserClient();
@@ -1306,6 +1307,23 @@ export default function Admin() {
     }
   };
 
+  const handleCrmFileImport = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result;
+      if (typeof text === 'string') {
+        setCrmBulkData(text);
+        alert('File content loaded into CRM Mass Upload area. Click "Upload CRM" to finish.');
+      }
+    };
+    reader.readAsText(file);
+    // Reset input
+    event.target.value = '';
+  };
+
   const handleOpenCrmEditor = () => {
     const selected = crmItems.find((item) => item.id === selectedCrmRecordId);
     if (!selected) {
@@ -2066,6 +2084,14 @@ export default function Admin() {
                 </select>
                 <button onClick={() => { void refreshCrm(); }} className="cyber-btn cyber-btn-secondary">{crmLoading ? 'Refreshing...' : 'Refresh CRM'}</button>
                 <button
+                  type="button"
+                  onClick={() => crmFileInputRef.current?.click()}
+                  className="cyber-btn cyber-btn-primary"
+                  title="Import CRM from CSV file"
+                >
+                  <Upload size={13} /> Import
+                </button>
+                <button
                   onClick={() => {
                     const header = 'Serial No,Username,Email,Products,Amount (PHP),Status,Date\n';
                     const blob = new Blob([header], { type: 'text/csv;charset=utf-8;' });
@@ -2079,9 +2105,8 @@ export default function Admin() {
                   }}
                   className="cyber-btn cyber-btn-secondary"
                   title="Download CRM template"
-                  aria-label="Download CRM template"
                 >
-                  <Download size={13} />
+                  <Download size={13} /> Template
                 </button>
                 <button
                   onClick={() => {
@@ -2105,10 +2130,16 @@ export default function Admin() {
                   }}
                   className="cyber-btn cyber-btn-secondary"
                   title="Export CRM CSV"
-                  aria-label="Export CRM CSV"
                 >
-                  <Download size={13} />
+                  <Download size={13} /> Export
                 </button>
+                <input
+                  type="file"
+                  ref={crmFileInputRef}
+                  onChange={handleCrmFileImport}
+                  accept=".csv,.txt"
+                  className="hidden"
+                />
                 <button
                   type="button"
                   onClick={handleOpenCrmEditor}
