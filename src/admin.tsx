@@ -1925,6 +1925,7 @@ export default function Admin() {
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <p className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300"><PackageSearch size={14} />Products Manager</p>
                 <div className="flex gap-2">
+                  <span className="inline-flex items-center px-2 text-[10px] font-mono uppercase tracking-wider text-cyan-200">Total Products: {products.length}</span>
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
