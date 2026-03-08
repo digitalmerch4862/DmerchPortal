@@ -59,13 +59,27 @@ export default async function handler(req: any, res: any) {
     if (!intentId) return res.status(400).json({ ok: false, error: 'Intent ID is required.' });
 
     const pmSecret = process.env.PAYMONGO_SECRET_KEY;
+    const pmSecretLive = process.env.PAYMONGO_LIVE_SECRET_KEY;
     const sbUrl = process.env.SUPABASE_URL;
     const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (!pmSecret || !sbUrl || !sbKey) return res.status(500).json({ ok: false, error: 'Missing server configuration.' });
+    if (!pmSecret || !pmSecretLive || !sbUrl || !sbKey) return res.status(500).json({ ok: false, error: 'Missing server configuration.' });
+
+    const supabase = createClient(sbUrl, sbKey);
+
+    const { data: order } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('payment_intent_id', intentId)
+        .single();
+
+    if (!order) return res.status(404).json({ ok: false, error: 'Order not found in database.' });
+
+    const isTestUser = order.customer_email?.toLowerCase() === 'rad4862@gmail.com';
+    const activePmSecret = isTestUser ? pmSecret : pmSecretLive;
 
     try {
-        const authHeader = `Basic ${Buffer.from(`${pmSecret}:`).toString('base64')}`;
+        const authHeader = `Basic ${Buffer.from(`${activePmSecret}:`).toString('base64')}`;
         const piRes = await fetch(`https://api.paymongo.com/v1/payment_intents/${intentId}`, {
             headers: { 'Authorization': authHeader }
         });
@@ -74,16 +88,6 @@ export default async function handler(req: any, res: any) {
         if (!piRes.ok) throw new Error('Failed to fetch Payment Intent status');
 
         const pmStatus = piData.data.attributes.status;
-        const supabase = createClient(sbUrl, sbKey);
-
-        // Check current status in DB
-        const { data: order } = await supabase
-            .from('orders')
-            .select('*')
-            .eq('payment_intent_id', intentId)
-            .single();
-
-        if (!order) return res.status(404).json({ ok: false, error: 'Order not found in database.' });
 
         let updated = false;
         let finalStatus = order.status;

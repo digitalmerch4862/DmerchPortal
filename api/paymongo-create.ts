@@ -19,10 +19,11 @@ export default async function handler(req: any, res: any) {
     }
 
     const pmSecret = process.env.PAYMONGO_SECRET_KEY;
+    const pmSecretLive = process.env.PAYMONGO_LIVE_SECRET_KEY;
     const sbUrl = process.env.SUPABASE_URL;
     const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (!pmSecret || !sbUrl || !sbKey) {
+    if (!pmSecret || !pmSecretLive || !sbUrl || !sbKey) {
         return res.status(500).json({ ok: false, error: 'Missing server configuration (PM/SB keys).' });
     }
 
@@ -33,7 +34,10 @@ export default async function handler(req: any, res: any) {
             return res.status(400).json({ ok: false, error: 'Amount and Email are required.' });
         }
 
-        const authHeader = `Basic ${Buffer.from(`${pmSecret}:`).toString('base64')}`;
+        const isTestUser = email?.toLowerCase() === 'rad4862@gmail.com';
+        const activePmSecret = isTestUser ? pmSecret : pmSecretLive;
+
+        const authHeader = `Basic ${Buffer.from(`${activePmSecret}:`).toString('base64')}`;
         const pmHeaders = {
             'Authorization': authHeader,
             'Content-Type': 'application/json',
@@ -51,6 +55,7 @@ export default async function handler(req: any, res: any) {
                         currency: 'PHP',
                         description: `Order for ${username || email}`,
                         statement_descriptor: 'DigitalMerch',
+                        expires_at: Math.floor(Date.now() / 1000) + 300,
                     }
                 }
             })
