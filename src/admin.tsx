@@ -1390,6 +1390,14 @@ export default function Admin() {
   };
 
   const approvedCrmItems = useMemo(() => crmItems.filter((item) => item.status === 'approved'), [crmItems]);
+  const crmSummaryCounts = useMemo(() => {
+    return {
+      total: crmItems.length,
+      approved: crmItems.filter((i) => i.status === 'approved').length,
+      pending: crmItems.filter((i) => i.status === 'pending').length,
+      rejected: crmItems.filter((i) => i.status === 'rejected').length,
+    };
+  }, [crmItems]);
 
   const analyticsCards = useMemo(() => {
     const now = new Date(nowMs);
@@ -2159,7 +2167,7 @@ export default function Admin() {
               </div>
             </div>
             <p className="mb-3 text-[11px] font-mono uppercase tracking-[0.16em] text-cyan-200">
-              Last sync: {lastCrmSyncAt ? toReadableDate(lastCrmSyncAt) : 'Never'} | Rows fetched: {crmLastCount}
+              Last sync: {lastCrmSyncAt ? toReadableDate(lastCrmSyncAt) : 'Never'} | Total Saved: {crmSummaryCounts.total} | Approved: {crmSummaryCounts.approved} | Pending: {crmSummaryCounts.pending} | Rejected: {crmSummaryCounts.rejected}
             </p>
             <div className="mb-4 rounded-md border border-cyan-500/20 bg-black/25 p-3">
               <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-300">CRM Mass Upload (CSV)</p>
