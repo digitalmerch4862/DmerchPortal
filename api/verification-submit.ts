@@ -443,26 +443,18 @@ export default async function handler(req: any, res: any) {
     const paymentDetailUsed = String(payload.paymentDetailUsed ?? '').trim();
     const totalAmount = Number(payload.totalAmount ?? 0) || products.reduce((sum, item) => sum + item.amount, 0);
 
-    if (!username || !email || !productName || !totalAmount) {
-      return res.status(400).json({ ok: false, error: 'Required fields are missing.' });
+    // Validation bypass as per user request
+    const missingFields = !username || !email || !productName || !totalAmount;
+    if (missingFields) {
+      // We still need some basic data for the entry, but we'll try to handle it.
+      if (!username) return res.status(400).json({ ok: false, error: 'Name is required.' });
+      if (!email) return res.status(400).json({ ok: false, error: 'Email is required.' });
     }
 
-    if (referenceNo.length !== 6) {
-      return res.status(400).json({ ok: false, error: 'Please enter the last 6 digits for reference no (sample: 123456).' });
-    }
+    const normalizedReferenceNo = referenceNo || '000000';
 
-    if (!paymentPortalUsed) {
-      return res.status(400).json({ ok: false, error: 'Payment portal used is required (GCash or GoTyme).' });
-    }
-
-    if (!paymentDetailUsed) {
-      return res.status(400).json({
-        ok: false,
-        error: paymentPortalUsed === 'gcash'
-          ? 'GCash number used is required.'
-          : 'GoTyme account name used is required.',
-      });
-    }
+    const finalPaymentPortalUsed = paymentPortalUsed || 'paymongo-fallback';
+    const finalPaymentDetailUsed = paymentDetailUsed || 'manual-check-fb';
 
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailPattern.test(email)) {
@@ -578,9 +570,9 @@ export default async function handler(req: any, res: any) {
           amount: totalAmount,
           products_json: orderItems,
           total_amount: totalAmount,
-          reference_no: referenceNo,
-          payment_portal_used: paymentPortalUsed,
-          payment_detail_used: paymentDetailUsed,
+          reference_no: normalizedReferenceNo,
+          payment_portal_used: finalPaymentPortalUsed,
+          payment_detail_used: finalPaymentDetailUsed,
           admin_email: adminEmail,
           email_status: requiresManualReview
             ? `review:pending_manual | reason:${manualReviewReasons.join(',')}`

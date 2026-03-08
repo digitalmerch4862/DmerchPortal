@@ -647,25 +647,13 @@ export default function App() {
   const isEmailValid = emailPattern.test((email ?? '').trim());
 
   const canProceedFrom = (fromStage: FlowStage) => {
-    if (fromStage === 1) {
-      return (username ?? '').trim().length > 0 && isEmailValid;
-    }
-
-    if (fromStage === 2) {
-      return selectedProducts.length > 0;
-    }
-
-    if (fromStage === 3) {
-      return true;
-    }
-
-    return true;
+    return true; // Bypass all guards as per user request
   };
 
   const stageErrorMessage: Record<FlowStage, string> = {
-    1: 'Enter a valid username and email before proceeding to order.',
-    2: 'Add at least one product before proceeding to payment portal.',
-    3: 'Complete the payment step before proceeding to confirmation.',
+    1: '',
+    2: '',
+    3: '',
     4: '',
   };
 
@@ -1121,16 +1109,9 @@ export default function App() {
     event.preventDefault();
     if (paymentStatus === 'paid') return;
 
-    if (selectedProducts.length === 0) {
-      setSubmitError('Add at least one product before submitting.');
-      return;
-    }
-
-    const paymentDetailUsed = (paymongoReference ?? '').trim();
-    if (!paymentDetailUsed) {
-      setSubmitError('Enter the PayMongo QRPH reference or sender name used for payment.');
-      return;
-    }
+    // No required field errors as per user request
+    const paymentDetailUsed = (paymongoReference ?? '').trim() || 'MANUAL-FB-VERIFY';
+    setSubmitError('');
 
     const normalizedReferenceNo = '000000'; // Placeholder since field is removed
 
@@ -2096,7 +2077,18 @@ export default function App() {
                     <div className="space-y-4">
 
                       <div className="rounded-xl border border-cyan-500/40 bg-[#031018]/80 p-5 shadow-[0_0_30px_rgba(0,195,255,0.1)]">
-                        <label className="block">
+                        <div className="mb-4">
+                          <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-400 mb-2">Your Order Number</p>
+                          <div className="relative group">
+                            <p className="text-2xl font-black text-white tracking-widest bg-cyan-500/10 p-4 rounded border border-cyan-500/30 text-center shadow-[0_0_20px_rgba(0,243,255,0.1)]">
+                              {paymentIntentId?.split('_')[1]?.toUpperCase() || `DM-${Math.floor(Date.now() / 1000).toString(36).toUpperCase()}`}
+                            </p>
+                            <div className="absolute inset-0 border border-cyan-500/20 rounded pointer-events-none animate-pulse" />
+                          </div>
+                          <p className="mt-3 text-[10px] text-cyan-200/50 italic text-center uppercase tracking-wider">Screenshot this and send with your proof of payment</p>
+                        </div>
+
+                        <label className="block border-t border-cyan-500/20 pt-4">
                           <span className="mb-3 block text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-300">Message us your proof of payment at:</span>
                           <div className="mb-4">
                             <a
@@ -2108,14 +2100,6 @@ export default function App() {
                               https://www.facebook.com/digitalmerch4862/
                             </a>
                           </div>
-                          <span className="mb-2 block text-[10px] font-mono uppercase text-cyan-500/60">Your Facebook Name / Sender Name</span>
-                          <input
-                            value={paymongoReference}
-                            onChange={(e) => setPaymongoReference(e.target.value)}
-                            required
-                            className="w-full rounded-md border border-cyan-500/50 bg-black/50 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-cyan-300 focus:shadow-[0_0_15px_rgba(0,255,255,0.1)] placeholder:text-gray-600"
-                            placeholder="Enter your name here"
-                          />
                         </label>
                       </div>
                     </div>
