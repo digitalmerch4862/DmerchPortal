@@ -234,7 +234,7 @@ export default function Delivery() {
 
         <section className="rounded-xl border border-amber-500/35 bg-[#171005]/80 p-4">
           <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-amber-200">Visit Us</p>
-          <p className="mt-2 text-xs text-amber-100/90">
+          <p className="mt-2 text-xs text-amber-100/90 leading-relaxed">
             Visit us at{' '}
             <a
               href="https://dmerchportal.digitalmerchs.store"
@@ -244,7 +244,16 @@ export default function Delivery() {
             >
               dmerchportal.digitalmerchs.store
             </a>{' '}
-            for more products.
+            or on{' '}
+            <a
+              href="https://www.facebook.com/digitalmerch4862/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-amber-300 underline decoration-amber-400/70 underline-offset-2 hover:text-amber-200"
+            >
+              Facebook
+            </a>{' '}
+            for more products and updates.
           </p>
         </section>
 
