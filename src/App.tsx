@@ -2115,15 +2115,25 @@ export default function App() {
 
                       <div className="rounded-xl border border-cyan-500/40 bg-[#031018]/80 p-5 shadow-[0_0_30px_rgba(0,195,255,0.1)]">
                         <label className="block">
-                          <span className="mb-3 block text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-300">Sender Name / GCash Name</span>
+                          <span className="mb-3 block text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-300">Message us your proof of payment at:</span>
+                          <div className="mb-4">
+                            <a
+                              href="https://www.facebook.com/digitalmerch4862/"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-cyan-400 underline hover:text-cyan-300 transition-colors break-all"
+                            >
+                              https://www.facebook.com/digitalmerch4862/
+                            </a>
+                          </div>
+                          <span className="mb-2 block text-[10px] font-mono uppercase text-cyan-500/60">Your Facebook Name / Sender Name</span>
                           <input
                             value={paymongoReference}
                             onChange={(e) => setPaymongoReference(e.target.value)}
                             required
                             className="w-full rounded-md border border-cyan-500/50 bg-black/50 px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-cyan-300 focus:shadow-[0_0_15px_rgba(0,255,255,0.1)] placeholder:text-gray-600"
-                            placeholder="Enter Sender Name (e.g. Juan Dela Cruz)"
+                            placeholder="Enter your name here"
                           />
-                          <p className="mt-2 text-[10px] text-cyan-200/50 italic">Required for manual verification if automatic detection fails.</p>
                         </label>
                       </div>
                     </div>
