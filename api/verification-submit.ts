@@ -43,13 +43,6 @@ const CONTACT_LINKS_HTML = `
     <p style="margin: 0 0 4px; font-size: 12px; color: #6b7280;">
       Email Us: <a href="mailto:digitalmerch4862@gmail.com" style="color:#0ea5e9; text-decoration:none;">digitalmerch4862@gmail.com</a>
     </p>
-    <p style="margin: 10px 0 4px; font-size: 12px; color: #4b5563; font-weight: 600;">Shopee Shop</p>
-    <p style="margin: 0 0 4px; font-size: 12px; color: #6b7280;">
-      Virtu Mart: <a href="https://shopee.ph/shop/1392650544" style="color:#0ea5e9; text-decoration:none;">https://shopee.ph/shop/1392650544</a>
-    </p>
-    <p style="margin: 0 0 4px; font-size: 12px; color: #6b7280;">
-      Soft Mart: <a href="https://shopee.ph/shop/1576711968" style="color:#0ea5e9; text-decoration:none;">https://shopee.ph/shop/1576711968</a>
-    </p>
     <p style="margin: 10px 0 4px; font-size: 12px; color: #4b5563; font-weight: 600;">Lazada Shop</p>
     <p style="margin: 0; font-size: 12px; color: #6b7280;">
       Digitalmerch: <a href="https://www.lazada.com.ph/shop/3ecyybmf" style="color:#0ea5e9; text-decoration:none;">https://www.lazada.com.ph/shop/3ecyybmf</a>
@@ -143,6 +136,7 @@ const buildEmailHtml = ({
                 <table align="center" border="0" cellpadding="0" cellspacing="0" width="600" style="background-color: #ffffff; border-radius: 8px; border: 1px solid #dddddd; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
                     <tr>
                         <td align="center" style="padding: 40px 20px; background-color: #1a1a1a; color: #ffffff;">
+                            <img src="https://dmerch-portal.vercel.app/android-chrome-512x512.png" alt="DMerch Logo" style="width: 80px; height: 80px; margin-bottom: 15px; display: block;" />
                             <h1 style="margin: 0; font-size: 24px; letter-spacing: 1px; text-transform: uppercase;">DMerch ${adminCopy ? '[ADMIN COPY]' : ''}</h1>
                             <p style="margin: 5px 0 0; font-size: 14px; opacity: 0.8;">Verification Submitted Successfully</p>
                         </td>
@@ -241,7 +235,8 @@ const buildFraudRejectedHtml = ({
   <table border="0" cellpadding="0" cellspacing="0" width="100%">
     <tr><td style="padding:20px 0;">
       <table align="center" border="0" cellpadding="0" cellspacing="0" width="600" style="background:#fff;border:1px solid #ddd;border-radius:8px;overflow:hidden;">
-        <tr><td style="background:#1a1a1a;color:#fff;padding:30px 24px;">
+        <tr><td style="background:#1a1a1a;color:#fff;padding:30px 24px;text-align:center;">
+          <img src="https://dmerch-portal.vercel.app/android-chrome-512x512.png" alt="DMerch Logo" style="width: 60px; height: 60px; margin-bottom: 10px; display: inline-block;" />
           <h2 style="margin:0;font-size:20px;">DMerch Verification Notice</h2>
         </td></tr>
         <tr><td style="padding:26px 24px;color:#333;line-height:1.6;font-size:14px;">
