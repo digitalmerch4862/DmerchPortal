@@ -335,6 +335,7 @@ export default function Admin() {
   const [manualSubmitting, setManualSubmitting] = useState(false);
   const [manualError, setManualError] = useState('');
   const [manualSuccess, setManualSuccess] = useState('');
+  const [isManualEncodeExpanded, setIsManualEncodeExpanded] = useState(false);
 
   const fetchSupabaseProducts = useCallback(async () => {
     const supabase = getSupabaseBrowserClient();
@@ -1518,7 +1519,6 @@ export default function Admin() {
   const tabItems: Array<{ key: AdminTab; label: string; icon: typeof BarChart3 }> = [
     { key: 'analytics', label: 'Analytics', icon: BarChart3 },
     { key: 'approvals', label: 'Approvals', icon: Inbox },
-    { key: 'manualEncode', label: 'Manual Encode', icon: Pencil },
     { key: 'products', label: 'Products', icon: PackageSearch },
     { key: 'crm', label: 'CRM', icon: UsersRound },
   ];
@@ -1699,8 +1699,125 @@ export default function Admin() {
                 <button onClick={() => { void refreshInbox(); }} className="cyber-btn cyber-btn-secondary">{inboxLoading ? 'Refreshing...' : 'Refresh Inbox'}</button>
                 <button onClick={resetTodayCounters} className="cyber-btn cyber-btn-secondary">Reset Today Counters</button>
                 <button onClick={() => { void clearInbox(); }} className="cyber-btn cyber-btn-secondary">Clear Inbox</button>
+                <button
+                  onClick={() => setIsManualEncodeExpanded(!isManualEncodeExpanded)}
+                  className={`cyber-btn ${isManualEncodeExpanded ? 'cyber-btn-primary' : 'cyber-btn-secondary'}`}
+                >
+                  <Pencil size={14} /> {isManualEncodeExpanded ? 'Close Manual Encode' : 'Manual Encode'}
+                </button>
               </div>
             </div>
+
+            {isManualEncodeExpanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                className="mb-6 overflow-hidden rounded-lg border border-cyan-500/40 bg-cyan-500/5 p-5 shadow-[0_0_30px_rgba(0,243,255,0.05)]"
+              >
+                <div className="mb-4 flex items-center justify-between">
+                  <p className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300"><Pencil size={14} />Manual Encode Order</p>
+                  <button onClick={() => setIsManualEncodeExpanded(false)} className="text-cyan-400 hover:text-white">✕</button>
+                </div>
+                <p className="mb-4 text-xs text-cyan-200/80">Create a manual order without payment. This will auto-approve and send delivery email.</p>
+
+                {manualError && (
+                  <div className="mb-3 rounded-md border border-red-400/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                    {manualError}
+                  </div>
+                )}
+                {manualSuccess && (
+                  <div className="mb-3 rounded-md border border-emerald-400/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+                    {manualSuccess}
+                  </div>
+                )}
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="mb-1 block text-xs font-mono uppercase tracking-wider text-cyan-300">Buyer Name *</label>
+                      <input
+                        value={manualName}
+                        onChange={(e) => setManualName(e.target.value)}
+                        className="w-full rounded-md border border-cyan-500/40 bg-black/40 px-3 py-2 text-sm text-cyan-100 placeholder-cyan-500/50"
+                        placeholder="Enter buyer name"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-mono uppercase tracking-wider text-cyan-300">Buyer Email *</label>
+                      <input
+                        value={manualEmail}
+                        onChange={(e) => setManualEmail(e.target.value)}
+                        type="email"
+                        className="w-full rounded-md border border-cyan-500/40 bg-black/40 px-3 py-2 text-sm text-cyan-100 placeholder-cyan-500/50"
+                        placeholder="buyer@email.com"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="mb-1 block text-xs font-mono uppercase tracking-wider text-cyan-300">Products *</label>
+                      <div className="relative">
+                        <div className="flex gap-2">
+                          <input
+                            value={manualProductSearch}
+                            onChange={(e) => { setManualProductSearch(e.target.value); setManualDropdownOpen(true); }}
+                            onFocus={() => setManualDropdownOpen(true)}
+                            className="flex-1 rounded-md border border-cyan-500/40 bg-black/40 px-3 py-2 text-sm text-cyan-100 placeholder-cyan-500/50"
+                            placeholder="Search products..."
+                          />
+                        </div>
+                        {manualDropdownOpen && filteredManualProducts.length > 0 && (
+                          <div className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border border-cyan-500/40 bg-[#0a1525] shadow-2xl">
+                            {filteredManualProducts.map((p) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => addManualProduct(p.name)}
+                                className="w-full px-3 py-2 text-left text-sm text-cyan-100 hover:bg-cyan-500/20"
+                              >
+                                {p.name} <span className="text-cyan-400">- {toPhp(p.amount)}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {selectedManualProducts.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {selectedManualProducts.map((prod) => (
+                            <span key={prod} className="inline-flex items-center gap-1 rounded-full border border-cyan-400/40 bg-cyan-500/10 px-2 py-1 text-xs text-cyan-100">
+                              {prod}
+                              <button type="button" onClick={() => removeManualProduct(prod)} className="ml-1 text-cyan-300 hover:text-white">×</button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-mono uppercase tracking-wider text-cyan-300">
+                        Total Amount (Auto: {toPhp(calculatedManualAmount)})
+                      </label>
+                      <input
+                        value={manualAmount}
+                        onChange={(e) => setManualAmount(e.target.value)}
+                        type="number"
+                        className="w-full rounded-md border border-cyan-500/40 bg-black/40 px-3 py-2 text-sm text-cyan-100"
+                        placeholder="Leave empty for auto"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex justify-end">
+                  <button
+                    onClick={() => { void submitManualOrder(); }}
+                    disabled={manualSubmitting}
+                    className="cyber-btn cyber-btn-primary"
+                  >
+                    {manualSubmitting ? 'Processing...' : 'Submit & Auto-Approve'}
+                  </button>
+                </div>
+              </motion.div>
+            )}
             <p className="mb-3 text-[11px] font-mono uppercase tracking-[0.16em] text-cyan-200">
               Last sync: {lastInboxSyncAt ? toReadableDate(lastInboxSyncAt) : 'Never'} | Rows fetched: {inboxLastCount} | Pending Today: {pendingTodayCount} | Approved Today: {approvedTodayCount}
             </p>
@@ -1774,114 +1891,7 @@ export default function Admin() {
           </section>
         ) : null}
 
-        {activeTab === 'manualEncode' ? (
-          <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-4 sm:p-5">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-              <p className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300"><Pencil size={14} />Manual Encode Order</p>
-            </div>
-            <p className="mb-4 text-xs text-cyan-200/80">Create a manual order without payment. This will auto-approve and send delivery email.</p>
-            
-            {manualError && (
-              <div className="mb-3 rounded-md border border-red-400/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
-                {manualError}
-              </div>
-            )}
-            {manualSuccess && (
-              <div className="mb-3 rounded-md border border-emerald-400/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
-                {manualSuccess}
-              </div>
-            )}
 
-            <div className="space-y-4">
-              <div>
-                <label className="mb-1 block text-xs font-mono uppercase tracking-wider text-cyan-300">Buyer Name *</label>
-                <input
-                  value={manualName}
-                  onChange={(e) => setManualName(e.target.value)}
-                  className="w-full rounded-md border border-cyan-500/40 bg-black/40 px-3 py-2 text-sm text-cyan-100 placeholder-cyan-500/50"
-                  placeholder="Enter buyer name"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-mono uppercase tracking-wider text-cyan-300">Buyer Email *</label>
-                <input
-                  value={manualEmail}
-                  onChange={(e) => setManualEmail(e.target.value)}
-                  type="email"
-                  className="w-full rounded-md border border-cyan-500/40 bg-black/40 px-3 py-2 text-sm text-cyan-100 placeholder-cyan-500/50"
-                  placeholder="buyer@email.com"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-mono uppercase tracking-wider text-cyan-300">Products *</label>
-                <div className="relative">
-                  <div className="flex gap-2">
-                    <input
-                      value={manualProductSearch}
-                      onChange={(e) => { setManualProductSearch(e.target.value); setManualDropdownOpen(true); }}
-                      onFocus={() => setManualDropdownOpen(true)}
-                      className="flex-1 rounded-md border border-cyan-500/40 bg-black/40 px-3 py-2 text-sm text-cyan-100 placeholder-cyan-500/50"
-                      placeholder="Search products..."
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setManualDropdownOpen(!manualDropdownOpen)}
-                      className="rounded-md border border-cyan-500/40 bg-black/40 px-3 py-2 text-cyan-300 hover:bg-cyan-500/20"
-                    >
-                      🔍
-                    </button>
-                  </div>
-                  {manualDropdownOpen && filteredManualProducts.length > 0 && (
-                    <div className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border border-cyan-500/40 bg-[#0a1525]">
-                      {filteredManualProducts.map((p) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => addManualProduct(p.name)}
-                          className="w-full px-3 py-2 text-left text-sm text-cyan-100 hover:bg-cyan-500/20"
-                        >
-                          {p.name} <span className="text-cyan-400">- {toPhp(p.amount)}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                {selectedManualProducts.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {selectedManualProducts.map((prod) => (
-                      <span key={prod} className="inline-flex items-center gap-1 rounded-full border border-cyan-400/40 bg-cyan-500/10 px-2 py-1 text-xs text-cyan-100">
-                        {prod}
-                        <button type="button" onClick={() => removeManualProduct(prod)} className="ml-1 text-cyan-300 hover:text-white">×</button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-mono uppercase tracking-wider text-cyan-300">
-                  Total Amount (Auto: {toPhp(calculatedManualAmount)})
-                </label>
-                <input
-                  value={manualAmount}
-                  onChange={(e) => setManualAmount(e.target.value)}
-                  type="number"
-                  className="w-full rounded-md border border-cyan-500/40 bg-black/40 px-3 py-2 text-sm text-cyan-100 placeholder-cyan-500/50"
-                  placeholder="Leave empty for auto-calculated"
-                />
-              </div>
-            </div>
-
-            <div className="mt-5 flex justify-end">
-              <button
-                onClick={() => { void submitManualOrder(); }}
-                disabled={manualSubmitting}
-                className="cyber-btn cyber-btn-primary"
-              >
-                {manualSubmitting ? 'Processing...' : 'Submit & Auto-Approve'}
-              </button>
-            </div>
-          </section>
-        ) : null}
 
         {activeTab === 'products' ? (
           <>
@@ -1920,9 +1930,9 @@ export default function Admin() {
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement('a');
                       a.href = url;
-                      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
                       const d = new Date();
-                      a.download = `DMerch-${d.getFullYear()}-${months[d.getMonth()]}-${String(d.getDate()).padStart(2,'0')}.csv`;
+                      a.download = `DMerch-${d.getFullYear()}-${months[d.getMonth()]}-${String(d.getDate()).padStart(2, '0')}.csv`;
                       document.body.appendChild(a);
                       a.click();
                       setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
