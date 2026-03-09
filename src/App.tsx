@@ -90,14 +90,14 @@ type FakeAvailment = {
 };
 
 const FAKE_AVAILMENTS: FakeAvailment[] = [
-  { buyer: 'R***', location: 'Quezon City', product: 'Adobe Photoshop 2025', timeLabel: 'just now' },
-  { buyer: 'M***', location: 'Cebu City', product: 'CANVA PREMIUM LIFE TIME', timeLabel: '9s ago' },
-  { buyer: 'J***', location: 'Davao City', product: 'Microsoft Office Professional Plus 2024', timeLabel: '21s ago' },
-  { buyer: 'A***', location: 'Pasig', product: 'Adobe Premiere Pro 2025', timeLabel: '34s ago' },
-  { buyer: 'K***', location: 'Baguio', product: 'Autodesk AutoCAD 2024', timeLabel: '48s ago' },
-  { buyer: 'P***', location: 'Iloilo', product: 'Wondershare Filmora 13', timeLabel: '1m ago' },
-  { buyer: 'S***', location: 'Taguig', product: 'GO HIGH LEVEL SUB ACCOUNT MONTHLY', timeLabel: '1m ago' },
-  { buyer: 'D***', location: 'Makati', product: 'Adobe Illustrator 2025', timeLabel: '2m ago' },
+  { buyer: 'R***', location: 'New York City', product: 'Adobe Photoshop 2025', timeLabel: 'just now' },
+  { buyer: 'M***', location: 'London', product: 'CANVA PREMIUM LIFE TIME', timeLabel: '9s ago' },
+  { buyer: 'J***', location: 'Singapore', product: 'Microsoft Office Professional Plus 2024', timeLabel: '21s ago' },
+  { buyer: 'A***', location: 'Sydney', product: 'Adobe Premiere Pro 2025', timeLabel: '34s ago' },
+  { buyer: 'K***', location: 'Dubai', product: 'Autodesk AutoCAD 2024', timeLabel: '48s ago' },
+  { buyer: 'P***', location: 'Berlin', product: 'Wondershare Filmora 13', timeLabel: '1m ago' },
+  { buyer: 'S***', location: 'Tokyo', product: 'GO HIGH LEVEL SUB ACCOUNT MONTHLY', timeLabel: '1m ago' },
+  { buyer: 'D***', location: 'San Francisco', product: 'Adobe Illustrator 2025', timeLabel: '2m ago' },
 ];
 
 type FlowStage = 1 | 2 | 3 | 4;
@@ -1836,13 +1836,13 @@ export default function App() {
                 <CyberCard title="GCASH Payment Terminal" icon={QrCode} color="cyan">
                   <div className="flex flex-col items-center p-6 bg-[#031018]/90 rounded-xl border border-cyan-500/30 gap-6">
                     <div className="text-center">
-                      <h3 className="text-xl font-black text-cyan-400 uppercase tracking-widest mb-1 italic">I-scan para mag-bayad sa GCASH</h3>
+                      <h3 className="text-xl font-black text-cyan-400 uppercase tracking-widest mb-1 italic">Scan to Pay via GCASH</h3>
                       <p className="text-xs text-cyan-200/70 font-mono uppercase tracking-[0.2em]">Secure Transaction Protocol v2.5.0</p>
                     </div>
 
                     {/* Cyber Countdown Timer */}
                     <div className="flex flex-col items-center gap-2">
-                      <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-cyan-500/60">Countdown bago mag-expire ang terminal</p>
+                      <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-cyan-500/60">Terminal Expiry Countdown</p>
                       <div className="flex items-center gap-3 px-6 py-4 rounded-xl border border-cyan-500/40 bg-cyan-500/5 shadow-[0_0_20px_rgba(0,243,255,0.1)]">
                         <div className="text-4xl font-black font-mono text-cyan-300 drop-shadow-[0_0_10px_rgba(0,243,255,0.5)]">
                           00:00:{paymentTimer.toString().padStart(2, '0')}
@@ -1869,7 +1869,7 @@ export default function App() {
                                 <div className="h-16 w-16 rounded-full bg-emerald-500 flex items-center justify-center mb-2 shadow-[0_0_20px_rgba(16,185,129,0.6)]">
                                   <Check size={32} className="text-white" />
                                 </div>
-                                <span className="text-sm font-black text-emerald-400 uppercase tracking-widest">Received na ang iyong bayad</span>
+                                <span className="text-sm font-black text-emerald-400 uppercase tracking-widest">Payment Received</span>
                               </motion.div>
                             </div>
                           )}
@@ -1877,12 +1877,12 @@ export default function App() {
                             <div className="absolute inset-0 flex items-center justify-center bg-black/90 rounded-xl backdrop-blur-sm border-2 border-red-500/50">
                               <div className="flex flex-col items-center p-4 text-center">
                                 <AlertCircle size={40} className="text-red-500 mb-4 animate-pulse" />
-                                <span className="text-sm font-black text-red-400 uppercase tracking-widest mb-4">Expire na ang QR Terminal</span>
+                                <span className="text-sm font-black text-red-400 uppercase tracking-widest mb-4">QR Terminal Expired</span>
                                 <button
                                   onClick={() => setStage(2)}
                                   className="cyber-btn cyber-btn-primary px-6 py-2 bg-red-500/20 border-red-500 text-red-200"
                                 >
-                                  ULITIN ANG SESSION
+                                  RESTART SESSION
                                 </button>
                               </div>
                             </div>
@@ -1902,7 +1902,7 @@ export default function App() {
                         className="flex items-center gap-2 px-4 py-2 rounded-lg border border-cyan-500/30 bg-cyan-500/5 text-cyan-300 text-[10px] font-mono uppercase tracking-[0.2em] hover:bg-cyan-500/20 transition-all"
                       >
                         <Clock size={12} className="animate-spin-slow" />
-                        I-refresh ang Signal
+                        Refresh Signal
                       </button>
                     </div>
 
@@ -1917,19 +1917,6 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Manual Override / Proceed Button */}
-                    <div className="w-full mt-4">
-                      <motion.button
-                        type="button"
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => setStage(4)}
-                        className="w-full py-4 rounded-xl bg-gradient-to-r from-cyan-500/20 to-magenta-500/20 border border-cyan-500/40 text-cyan-100 font-black uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(0,243,255,0.1)] hover:border-cyan-300 hover:text-white transition-all flex items-center justify-center gap-3 group"
-                      >
-                        Manual Verification <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                      </motion.button>
-                      <p className="text-[10px] text-center text-cyan-200/40 mt-2 uppercase tracking-widest">Gamitin ito kung mabagal ma-detect ang iyong bayad</p>
-                    </div>
                   </div>
                 </CyberCard>
               </div>
@@ -2033,10 +2020,10 @@ export default function App() {
                         <Check size={40} className="text-white" />
                       </div>
 
-                      <h2 className="text-2xl font-black text-emerald-400 uppercase tracking-widest mb-2 italic">Verified na ang iyong Order</h2>
+                      <h2 className="text-2xl font-black text-emerald-400 uppercase tracking-widest mb-2 italic">Order Verified</h2>
                       <p className="text-sm text-emerald-100/70 font-mono uppercase tracking-[0.1em] mb-6">
-                        Naka-confirm na ang iyong bayad nang automatic. <br />
-                        Isinend na ang confirmation email sa <strong>{email}</strong>.
+                        Your payment has been confirmed automatically. <br />
+                        A confirmation email with your access details has been sent to <strong>{email}</strong>.
                       </p>
 
                       <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[10px] font-mono uppercase tracking-[0.2em] text-emerald-400">
@@ -2079,24 +2066,24 @@ export default function App() {
 
                       <div className="rounded-xl border border-cyan-500/40 bg-[#031018]/80 p-5 shadow-[0_0_30px_rgba(0,195,255,0.1)]">
                         <div className="mb-4">
-                          <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-400 mb-2">Ang iyong Order Number</p>
+                          <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-400 mb-2">Your Order Number</p>
                           <div className="relative group">
                             <p className="text-2xl font-black text-white tracking-widest bg-cyan-500/10 p-4 rounded border border-cyan-500/30 text-center shadow-[0_0_20px_rgba(0,243,255,0.1)]">
                               {paymentIntentId?.split('_')[1]?.toUpperCase() || `DM-${Math.floor(Date.now() / 1000).toString(36).toUpperCase()}`}
                             </p>
                             <div className="absolute inset-0 border border-cyan-500/20 rounded pointer-events-none animate-pulse" />
                           </div>
-                          <p className="mt-3 text-[10px] text-cyan-200/50 italic text-center uppercase tracking-wider">I-screenshot ito at isend kasama ang iyong proof of payment</p>
+                          <p className="mt-3 text-sm text-cyan-200/70 italic text-center uppercase tracking-wider">Screenshot this and send it with your proof of payment.</p>
                         </div>
 
                         <label className="block border-t border-cyan-500/20 pt-4">
-                          <span className="mb-3 block text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-300">I-message sa amin ang iyong proof of payment dito:</span>
+                          <span className="mb-3 block text-base font-black uppercase tracking-[0.25em] text-cyan-300">Message us your proof of payment at:</span>
                           <div className="mb-4">
                             <a
                               href="https://www.facebook.com/digitalmerch4862/"
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-sm text-cyan-400 underline hover:text-cyan-300 transition-colors break-all"
+                              className="text-xl font-black text-cyan-400 underline hover:text-cyan-300 transition-colors break-all shadow-[0_0_15px_rgba(0,243,255,0.2)]"
                             >
                               https://www.facebook.com/digitalmerch4862/
                             </a>
