@@ -5,7 +5,7 @@
 
 import { type ComponentType, type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft, Home, ShoppingCart, Mail, Cpu, Gamepad2, PlayCircle, Book, Palette, Layers, BookOpen, ChevronDown, ChevronRight as ChevronRightIcon, GraduationCap, Eye, Clock, Users, FileText, Star, LogOut, QrCode, ShieldAlert, AlertCircle } from 'lucide-react';
+import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft, Home, ShoppingCart, Mail, Cpu, Gamepad2, PlayCircle, Book, Palette, Layers, BookOpen, ChevronDown, ChevronRight as ChevronRightIcon, ChevronsRight, ChevronsLeft, GraduationCap, Eye, Clock, Users, FileText, Star, LogOut, QrCode, ShieldAlert, AlertCircle } from 'lucide-react';
 import { productCatalog, type ProductItem } from './data/products';
 import { getSupabaseBrowserClient } from './lib/supabase-browser';
 import { supabase } from './supabaseClient.js';
@@ -1281,10 +1281,26 @@ export default function App() {
                     <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-gray-400">Multi-Product Enabled</span>
                   </div>
 
-                  <div className="mb-4 flex justify-center">
-                    <a href="/catalog" className="cyber-btn cyber-btn-primary text-[10px] cyber-breath">
+                  <div className="mb-4 flex items-center justify-center gap-3">
+                    <motion.div
+                      animate={{ x: [0, 5, 0], opacity: [0.5, 1, 0.5] }}
+                      transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                      className="text-cyan-400 drop-shadow-[0_0_8px_rgba(0,243,255,0.8)]"
+                    >
+                      <ChevronsRight size={20} />
+                    </motion.div>
+
+                    <a href="/catalog" className="cyber-btn cyber-btn-primary text-[10px] items-center justify-center py-2.5 px-6 cyber-breath">
                       View Products Catalog
                     </a>
+
+                    <motion.div
+                      animate={{ x: [0, -5, 0], opacity: [0.5, 1, 0.5] }}
+                      transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                      className="text-cyan-400 drop-shadow-[0_0_8px_rgba(0,243,255,0.8)]"
+                    >
+                      <ChevronsLeft size={20} />
+                    </motion.div>
                   </div>
 
                   <div className="relative mb-6">
