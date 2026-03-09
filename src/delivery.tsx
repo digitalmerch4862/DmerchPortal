@@ -1,7 +1,7 @@
 import React, { FormEvent, useEffect, useMemo, useState, useCallback } from 'react';
 import { Download, ShieldCheck, ExternalLink } from 'lucide-react';
 
-const NEW_DOMAIN = 'https://dmerchportal.digitalmerchs.store';
+const NEW_DOMAIN = 'https://digitalmerchs.store';
 
 type DeliveryProduct = {
   name: string;
@@ -237,12 +237,12 @@ export default function Delivery() {
           <p className="mt-2 text-xs text-amber-100/90 leading-relaxed">
             Visit us at{' '}
             <a
-              href="https://dmerchportal.digitalmerchs.store"
+              href="https://digitalmerchs.store"
               target="_blank"
               rel="noopener noreferrer"
               className="font-semibold text-amber-300 underline decoration-amber-400/70 underline-offset-2 hover:text-amber-200"
             >
-              dmerchportal.digitalmerchs.store
+              digitalmerchs.store
             </a>{' '}
             or on{' '}
             <a
