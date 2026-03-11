@@ -138,18 +138,21 @@ function ProductListItem({ product, onAdd }: { key?: string | number; product: P
   };
 
   return (
-    <div className="flex items-center justify-between gap-2 border-b border-[#ff00ff]/10 px-3 py-2.5 hover:bg-[#ff00ff]/5 transition-colors last:border-b-0">
-      <p className="text-xs sm:text-sm text-gray-200 flex-1 min-w-0 truncate">{product.name}</p>
-      <span className="flex-shrink-0 text-[10px] font-mono uppercase tracking-[0.15em] text-[#ff00ff]">PHP {product.amount}</span>
+    <div className="flex items-center justify-between gap-2 border-b border-[#ff00ff]/10 px-3 py-2.5 hover:bg-[#ff00ff]/5 transition-colors last:border-b-0 group">
+      <div className="flex-1 min-w-0">
+        <p className="text-xs sm:text-sm text-gray-200 truncate group-hover:text-[#ff00ff] transition-colors">{product.name}</p>
+        <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-[#ff00ff]/80">PHP {product.amount}</span>
+      </div>
       <button
         type="button"
         onClick={handleAdd}
-        className={`flex-shrink-0 px-3 py-1.5 rounded border text-[9px] font-bold uppercase tracking-[0.15em] transition-all duration-300 ${added
-          ? 'bg-green-500 border-green-400 text-black shadow-[0_0_10px_rgba(34,197,94,0.4)]'
-          : 'bg-[#ff00ff]/10 border-[#ff00ff]/40 text-[#ff00ff] hover:bg-[#ff00ff] hover:text-black hover:border-[#ff00ff]/60'
+        className={`flex-shrink-0 p-2 rounded-lg border transition-all duration-300 flex items-center justify-center ${added
+          ? 'bg-green-500 border-green-400 text-black shadow-[0_0_10px_rgba(34,197,94,0.4)] scale-110'
+          : 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500 hover:text-black hover:border-green-400 shadow-[0_0_8px_rgba(34,197,94,0.1)]'
           }`}
+        title={added ? "Added!" : "Add to Cart"}
       >
-        {added ? <span className="flex items-center gap-1"><Check size={10} /> Added</span> : '+ Add'}
+        {added ? <Check size={16} /> : <ShoppingCart size={16} />}
       </button>
     </div>
   );
@@ -1449,9 +1452,6 @@ export default function App() {
                           <span className="text-[9px] font-mono text-gray-500">{courseCount} available</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-[8px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase tracking-wider">
-                            Preview
-                          </span>
                           {expandedCats['COURSES']
                             ? <ChevronDown size={16} className="text-cyan-400" />
                             : <ChevronRightIcon size={16} className="text-gray-500" />
@@ -1483,28 +1483,16 @@ export default function App() {
                                 </button>
 
                                 {isSubOpen && (
-                                  <div className="bg-black/20 pb-2">
-                                    {(courses as ProductItem[]).map((course) => (
-                                      <div
-                                        key={course.name}
-                                        className="mx-2 px-4 py-3 flex items-center justify-between gap-3 rounded-md border border-[#ff00ff]/10 bg-black/30 hover:bg-[#ff00ff]/5 transition-all group cursor-pointer"
-                                        onClick={() => setPreviewCourse(course)}
-                                      >
-                                        <div className="flex-1 min-w-0">
-                                          <p className="text-sm text-gray-200 truncate group-hover:text-[#ff00ff] transition-colors">{course.name}</p>
-                                          <p className="text-[11px] font-mono text-amber-300 mt-0.5">PHP {course.amount}</p>
-                                        </div>
-                                        <button
-                                          type="button"
-                                          className="flex-shrink-0 px-3 py-1.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-300 text-[9px] font-bold uppercase tracking-[0.1em] hover:bg-amber-500/20 transition-colors flex items-center gap-1.5"
-                                        >
-                                          <Eye size={12} />
-                                          Preview
-                                        </button>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
+                                    <div className="bg-black/20 pb-1">
+                                      {(courses as ProductItem[]).map((course) => (
+                                        <ProductListItem
+                                          key={course.name}
+                                          product={course}
+                                          onAdd={addProductToCart}
+                                        />
+                                      ))}
+                                    </div>
+                                  )}
                               </div>
                             );
                           })}
