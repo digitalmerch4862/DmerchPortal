@@ -9,7 +9,7 @@ import {
   ShieldCheck, Facebook, Youtube, Instagram, Monitor, Smartphone, GraduationCap, PackageSearch, Package,
   ArrowRight, ArrowLeft, Home, ShoppingCart, Mail, Cpu, Gamepad2, PlayCircle, Book, Palette, Layers, 
   BookOpen, ChevronDown, ChevronRight as ChevronRightIcon, ChevronsRight, ChevronsLeft, Eye, Clock, 
-  Users, FileText, Star, LogOut, QrCode, ShieldAlert, AlertCircle, Download, Search, Check, Plus, X 
+  Users, FileText, Star, LogOut, QrCode, AlertCircle, Download, Search, Check, Plus, X 
 } from 'lucide-react';
 import { productCatalog, type ProductItem } from './data/products';
 import { getSupabaseBrowserClient } from './lib/supabase-browser';
@@ -204,13 +204,25 @@ function FilePreviewModal({
   const [isIframeLoading, setIsIframeLoading] = useState(true);
   const [iframeError, setIframeError] = useState(false);
   const [added, setAdded] = useState(false);
+  const previewVideoRef = useRef<HTMLVideoElement | null>(null);
+  const autoMuteTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
+    if (autoMuteTimeoutRef.current !== null) {
+      window.clearTimeout(autoMuteTimeoutRef.current);
+      autoMuteTimeoutRef.current = null;
+    }
     if (isOpen) {
       setIsIframeLoading(true);
       setIframeError(false);
       setAdded(false);
     }
+    return () => {
+      if (autoMuteTimeoutRef.current !== null) {
+        window.clearTimeout(autoMuteTimeoutRef.current);
+        autoMuteTimeoutRef.current = null;
+      }
+    };
   }, [isOpen, product]);
 
   if (!isOpen || !product) return null;
@@ -225,7 +237,34 @@ function FilePreviewModal({
   };
 
   const embedUrl = getEmbedUrl(product.fileLink || '');
+  const sourceLabel = `${product.name || ''} ${product.fileLink || ''}`.toLowerCase();
+  const isVideoPreview = /\.(mp4|webm|ogg|mov|m4v|avi|mkv)\b/.test(sourceLabel) || sourceLabel.includes('video');
   const isDrivePreview = embedUrl.includes('drive.google.com');
+  const getDriveFileId = (link: string) => {
+    const fromFilePath = link.match(/\/file\/d\/([^/?]+)/i)?.[1];
+    if (fromFilePath) return fromFilePath;
+    const fromOpen = link.match(/[?&]id=([^&]+)/i)?.[1];
+    if (fromOpen) return fromOpen;
+    return '';
+  };
+  const driveFileId = getDriveFileId(product.fileLink || '');
+  const driveVideoUrl = driveFileId ? `https://drive.google.com/uc?export=download&id=${driveFileId}` : '';
+  const previewVideoUrl = isDrivePreview && driveVideoUrl ? driveVideoUrl : (product.fileLink || '');
+
+  const scheduleAutoMute = () => {
+    if (autoMuteTimeoutRef.current !== null) {
+      window.clearTimeout(autoMuteTimeoutRef.current);
+      autoMuteTimeoutRef.current = null;
+    }
+    const video = previewVideoRef.current;
+    if (!video) return;
+    const remainingSeconds = Math.max(0, 60 - (video.currentTime || 0));
+    autoMuteTimeoutRef.current = window.setTimeout(() => {
+      if (previewVideoRef.current) {
+        previewVideoRef.current.muted = true;
+      }
+    }, remainingSeconds * 1000);
+  };
 
   const handleModalAdd = () => {
     onAdd(product);
@@ -300,12 +339,16 @@ function FilePreviewModal({
              {iframeError && <div className="absolute inset-0 z-50 bg-black/80" />}
 
              {/* Privacy Guard Overlays - Prevent Interaction with Download Buttons */}
-             {/* 1. Top Navigation Bar Guard (Google Drive Controls) */}
-             <div className="absolute top-0 right-0 left-0 h-12 z-40 bg-transparent pointer-events-auto" />
-             {/* 2. Top Right Specific Download/Open Guard */}
-             <div className="absolute top-0 right-0 w-52 h-20 z-40 bg-[#0a0a0a] pointer-events-auto" />
-             {/* 3. Center Control Guard */}
-             <div className="absolute top-1/2 left-1/2 z-40 h-20 w-[320px] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-transparent pointer-events-auto" />
+             {!isVideoPreview && (
+               <>
+                 {/* 1. Top Navigation Bar Guard (Google Drive Controls) */}
+                 <div className="absolute top-0 right-0 left-0 h-12 z-40 bg-transparent pointer-events-auto" />
+                 {/* 2. Top Right Specific Download/Open Guard */}
+                 <div className="absolute top-0 right-0 w-52 h-20 z-40 bg-[#0a0a0a] pointer-events-auto" />
+                 {/* 3. Center Control Guard */}
+                 <div className="absolute top-1/2 left-1/2 z-40 h-20 w-[320px] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-transparent pointer-events-auto" />
+               </>
+             )}
              
              {/* Center watermark */}
              <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
@@ -317,16 +360,39 @@ function FilePreviewModal({
                />
              </div>
 
-             <iframe
-               src={embedUrl}
-               className={`w-full h-full border-none ${iframeError ? 'invisible' : ''}`}
-               allow="autoplay"
-               sandbox={isDrivePreview ? 'allow-scripts allow-same-origin allow-forms' : undefined}
-               referrerPolicy="no-referrer"
-               title="File Preview"
-               onLoad={() => setIsIframeLoading(false)}
-               onError={() => setIframeError(true)}
-             />
+             {isVideoPreview ? (
+               <video
+                 ref={previewVideoRef}
+                 src={previewVideoUrl}
+                 className={`w-full h-full ${iframeError ? 'invisible' : ''}`}
+                 controls
+                 autoPlay
+                 playsInline
+                 onLoadedData={() => {
+                   setIsIframeLoading(false);
+                   scheduleAutoMute();
+                 }}
+                 onPlay={scheduleAutoMute}
+                 onTimeUpdate={() => {
+                   const video = previewVideoRef.current;
+                   if (video && video.currentTime >= 60 && !video.muted) {
+                     video.muted = true;
+                   }
+                 }}
+                 onError={() => setIframeError(true)}
+               />
+             ) : (
+               <iframe
+                 src={embedUrl}
+                 className={`w-full h-full border-none ${iframeError ? 'invisible' : ''}`}
+                 allow="autoplay"
+                 sandbox={isDrivePreview ? 'allow-scripts allow-same-origin allow-forms' : undefined}
+                 referrerPolicy="no-referrer"
+                 title="File Preview"
+                 onLoad={() => setIsIframeLoading(false)}
+                 onError={() => setIframeError(true)}
+               />
+             )}
              
              <div className="absolute top-1/2 right-4 transform -translate-y-1/2 z-20 pointer-events-none opacity-5">
                <ShieldCheck size={300} className="text-cyan-500" />
