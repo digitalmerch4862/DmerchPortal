@@ -290,7 +290,7 @@ export default function Delivery() {
                   href={card.href || undefined}
                   target={card.href ? '_blank' : undefined}
                   rel={card.href ? 'noreferrer noopener' : undefined}
-                  className="overflow-hidden rounded-lg border border-cyan-500/25 bg-black/35"
+                  className="group relative overflow-visible rounded-lg border border-cyan-500/25 bg-black/35"
                 >
                   <div className="h-28 w-full">
                     {hasImage ? (
@@ -304,6 +304,11 @@ export default function Delivery() {
                   <p className="border-t border-cyan-500/20 px-2 py-2 text-[10px] font-mono uppercase tracking-[0.14em] text-cyan-100">
                     {card.title || `Promo Slot ${index + 1}`}
                   </p>
+                  {hasImage ? (
+                    <div className="pointer-events-none absolute left-1/2 top-full z-40 mt-2 hidden w-[360px] max-w-[78vw] -translate-x-1/2 rounded-lg border border-cyan-300/70 bg-[#02070d]/95 p-2 shadow-[0_0_30px_rgba(0,243,255,0.25)] group-hover:block">
+                      <img src={imageSrc} alt={`${card.title} zoom`} className="h-auto w-full rounded-md object-contain" />
+                    </div>
+                  ) : null}
                 </a>
               );
             })}
