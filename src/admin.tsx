@@ -2017,7 +2017,7 @@ export default function Admin() {
                 <button disabled={selectedCount === 0} onClick={applyMassCategory} className="cyber-btn cyber-btn-secondary">Mass Edit Category</button>
                 <button disabled={selectedCount === 0} onClick={deleteSelectedProducts} className="cyber-btn cyber-btn-secondary">Mass Delete</button>
               </div>
-              <div className="max-h-[420px] sm:max-h-[75vh] overflow-auto rounded-lg border border-cyan-500/20">
+              <div className="h-[60vh] overflow-y-auto overflow-x-auto rounded-lg border border-cyan-500/20">
                 <table className="w-full min-w-[1100px] border-collapse text-xs">
                   <thead className="sticky top-0 z-10 bg-cyan-500/10 text-cyan-200">
                     <tr>
@@ -2048,8 +2048,13 @@ export default function Admin() {
                             {selectedProductIds.includes(item.id) ? <span className="h-2 w-2 rounded-full bg-cyan-300" /> : null}
                           </button>
                         </td>
-                        <td className="px-2 py-2">
+                        <td className="px-2 py-2 relative group">
                           <input value={item.name} onChange={(event) => updateProduct(item.id, { name: event.target.value })} className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1" />
+                          {item.image_url && item.category?.toLowerCase().includes('ebook') && (
+                            <div className="absolute z-50 hidden group-hover:block bottom-full left-0 mb-2 p-2 bg-black/95 border border-cyan-500/40 rounded-lg shadow-2xl">
+                              <img src={item.image_url} alt="Cover preview" className="max-w-[180px] max-h-[240px] object-contain rounded" />
+                            </div>
+                          )}
                         </td>
                         <td className="px-2 py-2">
                           <input value={item.image_url} onChange={(event) => updateProduct(item.id, { image_url: event.target.value })} className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1" placeholder="Image URL" />
