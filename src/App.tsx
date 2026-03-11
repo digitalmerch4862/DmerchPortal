@@ -225,6 +225,7 @@ function FilePreviewModal({
   };
 
   const embedUrl = getEmbedUrl(product.fileLink || '');
+  const isDrivePreview = embedUrl.includes('drive.google.com');
 
   const handleModalAdd = () => {
     onAdd(product);
@@ -311,8 +312,8 @@ function FilePreviewModal({
              {/* Privacy Guard Overlays - Prevent Interaction with Download Buttons */}
              {/* 1. Top Navigation Bar Guard (Google Drive Controls) */}
              <div className="absolute top-0 right-0 left-0 h-12 z-40 bg-transparent pointer-events-auto" />
-             {/* 2. Top Right Specific Download Guard */}
-             <div className="absolute top-0 right-0 w-48 h-16 z-40 bg-transparent pointer-events-auto" />
+             {/* 2. Top Right Specific Download/Open Guard */}
+             <div className="absolute top-0 right-0 w-52 h-20 z-40 bg-[#0a0a0a] pointer-events-auto" />
              {/* 3. Center Control Guard */}
              <div className="absolute top-1/2 left-1/2 z-40 h-20 w-[320px] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-black/55 pointer-events-auto" />
              
@@ -329,6 +330,8 @@ function FilePreviewModal({
                src={embedUrl}
                className={`w-full h-full border-none ${iframeError ? 'invisible' : ''}`}
                allow="autoplay"
+               sandbox={isDrivePreview ? 'allow-scripts allow-same-origin allow-forms' : undefined}
+               referrerPolicy="no-referrer"
                title="File Preview"
                onLoad={() => setIsIframeLoading(false)}
                onError={() => setIframeError(true)}
