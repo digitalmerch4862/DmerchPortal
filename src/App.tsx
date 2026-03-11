@@ -128,7 +128,7 @@ const getCategoryIcon = (category: string) => {
   return PackageSearch;
 };
 
-function ProductListItem({ product, onAdd }: { key?: string | number; product: ProductItem; onAdd: (product: ProductItem) => void }) {
+function ProductListItem({ product, onAdd, onPreview }: { key?: string | number; product: ProductItem; onAdd: (product: ProductItem) => void; onPreview?: (link: string) => void }) {
   const [added, setAdded] = useState(false);
 
   const handleAdd = () => {
@@ -143,17 +143,29 @@ function ProductListItem({ product, onAdd }: { key?: string | number; product: P
         <p className="text-xs sm:text-sm text-gray-200 truncate group-hover:text-cyan-300 transition-colors">{product.name}</p>
         <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-yellow-400">PHP {product.amount}</span>
       </div>
-      <button
-        type="button"
-        onClick={handleAdd}
-        className={`flex-shrink-0 p-2 rounded-lg border transition-all duration-300 flex items-center justify-center ${added
-          ? 'bg-green-500 border-green-400 text-black shadow-[0_0_10px_rgba(34,197,94,0.4)] scale-110'
-          : 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500 hover:text-black hover:border-green-400 shadow-[0_0_8px_rgba(34,197,94,0.1)]'
-          }`}
-        title={added ? "Added!" : "Add to Cart"}
-      >
-        {added ? <Check size={16} /> : <ShoppingCart size={16} />}
-      </button>
+      <div className="flex items-center gap-2">
+        {product.fileLink && onPreview && (
+          <button
+            type="button"
+            onClick={() => onPreview(product.fileLink!)}
+            className="flex-shrink-0 p-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500 hover:text-black hover:border-cyan-400 transition-all duration-300 flex items-center justify-center group/preview"
+            title="Preview Content"
+          >
+            <Eye size={16} />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={handleAdd}
+          className={`flex-shrink-0 p-2 rounded-lg border transition-all duration-300 flex items-center justify-center ${added
+            ? 'bg-green-500 border-green-400 text-black shadow-[0_0_10px_rgba(34,197,94,0.4)] scale-110'
+            : 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500 hover:text-black hover:border-green-400 shadow-[0_0_8px_rgba(34,197,94,0.1)]'
+            }`}
+          title={added ? "Added!" : "Add to Cart"}
+        >
+          {added ? <Check size={16} /> : <ShoppingCart size={16} />}
+        </button>
+      </div>
     </div>
   );
 }
@@ -175,6 +187,84 @@ function CyberCard({ children, title, icon: Icon, color = 'cyan' }: { children: 
       <div className={`absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 ${borderColor} opacity-50`} />
       <div className={`absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 ${borderColor} opacity-50`} />
     </motion.div>
+  );
+}
+
+function FilePreviewModal({ url, isOpen, onClose }: { url: string; isOpen: boolean; onClose: () => void }) {
+  if (!isOpen) return null;
+
+  // Transform Google Drive links for embedding
+  const getEmbedUrl = (link: string) => {
+    if (link.includes('drive.google.com')) {
+      return link.replace(/\/view(\?.*)?$/, '/preview$1').replace(/\/open(\?.*)?$/, '/preview$1');
+    }
+    return link;
+  };
+
+  const embedUrl = getEmbedUrl(url);
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md p-2 sm:p-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.9, opacity: 0, y: 20 }}
+          className="relative w-full h-full max-w-6xl rounded-2xl border border-cyan-500/30 bg-[#0a0a0a] overflow-hidden flex flex-col shadow-[0_0_60px_rgba(0,243,255,0.2)]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 bg-black/50 border-b border-cyan-500/20">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30">
+                <Eye size={18} className="text-cyan-400" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-400">Secure Preview System</p>
+                <p className="text-[8px] font-mono text-cyan-200/50 uppercase tracking-widest">PROTOCAL: READ_ONLY_ENCRYPTED</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-full border border-gray-700 hover:border-red-400 hover:bg-red-500/10 transition-colors group"
+            >
+              <X size={18} className="text-gray-400 group-hover:text-red-400" />
+            </button>
+          </div>
+
+          {/* Content Area */}
+          <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
+             {/* Overlay to prevent right-click/interaction with the PDF reader controls as much as possible */}
+             <div className="absolute inset-0 z-10 pointer-events-none border-[20px] border-black/5" />
+             
+             <iframe
+               src={embedUrl}
+               className="w-full h-full border-none"
+               allow="autoplay"
+               title="File Preview"
+             />
+             
+             <div className="absolute top-4 right-4 z-20 pointer-events-none opacity-20">
+               <ShieldCheck size={120} className="text-cyan-500" />
+             </div>
+          </div>
+
+          {/* Footer Warning */}
+          <div className="bg-[#05101a] py-3 px-6 border-t border-cyan-500/20 text-center">
+            <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-300">
+               Preview mode active. Download access restricted to approved clients only.
+            </p>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   );
 }
 
@@ -214,6 +304,8 @@ export default function App() {
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
   const [expandedSubs, setExpandedSubs] = useState<Record<string, boolean>>({});
   const [previewCourse, setPreviewCourse] = useState<ProductItem | null>(null);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [previewFileUrl, setPreviewFileUrl] = useState('');
   const [productsLoading, setProductsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [paymentTimer, setPaymentTimer] = useState(60);
@@ -1485,6 +1577,10 @@ export default function App() {
                                               key={product.name}
                                               product={product}
                                               onAdd={addProductToCart}
+                                              onPreview={(link) => {
+                                                setPreviewFileUrl(link);
+                                                setIsPreviewModalOpen(true);
+                                              }}
                                             />
                                           ))}
                                         </div>
@@ -1558,6 +1654,10 @@ export default function App() {
                                           key={course.name}
                                           product={course}
                                           onAdd={addProductToCart}
+                                          onPreview={(link) => {
+                                            setPreviewFileUrl(link);
+                                            setIsPreviewModalOpen(true);
+                                          }}
                                         />
                                       ))}
                                     </div>
@@ -2310,6 +2410,11 @@ export default function App() {
           </p>
         </footer >
       </main >
+      <FilePreviewModal 
+        url={previewFileUrl} 
+        isOpen={isPreviewModalOpen} 
+        onClose={() => setIsPreviewModalOpen(false)} 
+      />
     </div >
   );
 }
