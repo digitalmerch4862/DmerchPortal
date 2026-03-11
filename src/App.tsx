@@ -215,6 +215,7 @@ export default function App() {
   const [expandedSubs, setExpandedSubs] = useState<Record<string, boolean>>({});
   const [previewCourse, setPreviewCourse] = useState<ProductItem | null>(null);
   const [productsLoading, setProductsLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [paymentTimer, setPaymentTimer] = useState(60);
   const productPickerRef = useRef<HTMLDivElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -260,7 +261,7 @@ export default function App() {
       let hasMore = true;
 
       while (hasMore) {
-        const { data, error } = await supabase
+        const { data, error, count } = await supabase
           .from('products')
           .select('*', { count: 'exact' })
           .order('name', { ascending: true })
@@ -272,6 +273,9 @@ export default function App() {
           hasMore = false;
         } else if (data && data.length > 0) {
           allProducts = [...allProducts, ...data];
+          if (count && count > 0) {
+            setLoadingProgress(Math.floor((allProducts.length / count) * 100));
+          }
           if (data.length < PAGE_SIZE) {
             hasMore = false;
           } else {
@@ -1356,15 +1360,69 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-4">
                     {productsLoading ? (
-                      <div className="rounded-lg border border-cyan-500/20 bg-black/40 py-16 text-center">
-                        <div className="relative mx-auto w-12 h-12 mb-4">
-                          <div className="absolute inset-0 border-2 border-cyan-500/20 rounded-full" />
-                          <div className="absolute inset-0 border-t-2 border-cyan-500 rounded-full animate-spin" />
+                      <div className="rounded-lg border border-cyan-500/30 bg-[#05101a] p-8 mt-2 shadow-[0_0_30px_rgba(0,243,255,0.05)]">
+                        <div className="flex flex-col md:flex-row items-center justify-center gap-8">
+                          {/* Circular HUD Section */}
+                          <div className="relative w-28 h-28 flex items-center justify-center">
+                            {/* Outer Rings */}
+                            <motion.div 
+                              animate={{ rotate: 360 }}
+                              transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                              className="absolute inset-0 border-2 border-dashed border-cyan-500/20 rounded-full"
+                            />
+                            <motion.div 
+                              animate={{ rotate: -360 }}
+                              transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                              className="absolute inset-[-4px] border border-cyan-500/10 rounded-full"
+                            />
+                            {/* Inner Circle Indicator */}
+                            <div className="w-20 h-20 rounded-full border-4 border-cyan-900/50 flex flex-col items-center justify-center bg-cyan-950/30 relative">
+                               <div className="absolute inset-0 rounded-full border-t-4 border-cyan-400 animate-spin" />
+                               <span className="text-xl font-black text-white drop-shadow-[0_0_8px_rgba(0,243,255,0.8)] leading-none">{loadingProgress}%</span>
+                               <span className="text-[7px] font-mono text-cyan-400 mt-1 tracking-tighter uppercase">Status</span>
+                            </div>
+                          </div>
+
+                          {/* Progress Bar Section */}
+                          <div className="flex-1 w-full max-w-sm">
+                            <div className="flex items-end justify-between mb-3 border-b border-cyan-500/20 pb-1">
+                               <p className="text-[10px] font-black text-cyan-400 tracking-[0.25em] flex items-center gap-2 uppercase">
+                                 <span className="w-1 h-1 bg-cyan-400 animate-pulse" />
+                                 Downloading Data...
+                               </p>
+                               <p className="text-[9px] font-mono text-gray-500 uppercase tracking-widest">LOADING....</p>
+                            </div>
+                            
+                            {/* Segmented Bar */}
+                            <div className="flex gap-1 h-6">
+                              {[...Array(20)].map((_, i) => {
+                                const isActive = (loadingProgress / 100) * 20 > i;
+                                return (
+                                  <motion.div
+                                    key={i}
+                                    initial={{ opacity: 0.1 }}
+                                    animate={{ 
+                                      opacity: isActive ? 1 : 0.1,
+                                      backgroundColor: isActive ? '#06b6d4' : '#164e63',
+                                      boxShadow: isActive ? '0 0 10px rgba(6, 182, 212, 0.5)' : 'none'
+                                    }}
+                                    className="flex-1 rounded-sm transition-all duration-300"
+                                  />
+                                );
+                              })}
+                            </div>
+                            
+                            <div className="mt-4 flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.8)]" />
+                                <span className="text-[8px] font-mono text-cyan-200/60 uppercase tracking-widest">Database Syncing V2.4.0</span>
+                              </div>
+                              <span className="text-[8px] font-mono text-gray-600">SECURE_PROTOCOL_ACTIVE</span>
+                            </div>
+                          </div>
                         </div>
-                        <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-cyan-400 animate-pulse">Syncing Products Manager...</p>
-                        <p className="text-[9px] font-mono text-gray-500 mt-2 uppercase tracking-[0.1em]">Fetching Database V2.4.0</p>
                       </div>
                     ) : Object.entries(softwareProducts as Record<string, Record<string, ProductItem[]>>).length > 0 ? (
                       Object.entries(softwareProducts as Record<string, Record<string, ProductItem[]>>).map(([category, subs]) => {
