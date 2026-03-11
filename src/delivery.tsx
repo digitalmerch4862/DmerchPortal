@@ -1,5 +1,6 @@
 import React, { FormEvent, useEffect, useMemo, useState, useCallback } from 'react';
 import { Download, ShieldCheck, ExternalLink } from 'lucide-react';
+import { DEFAULT_PROMO_CARDS, resolvePromoImageUrl, sanitizePromoCards, type PromoCard } from './lib/promo-cards';
 
 const NEW_DOMAIN = 'https://digitalmerchs.store';
 
@@ -44,6 +45,7 @@ export default function Delivery() {
   const [downloadSuccess, setDownloadSuccess] = useState<Record<string, string>>({});
   const [downloadErrors, setDownloadErrors] = useState<Record<string, string>>({});
   const [apiUnreachable, setApiUnreachable] = useState(false);
+  const [promoCards, setPromoCards] = useState<PromoCard[]>([...DEFAULT_PROMO_CARDS]);
 
   // On mount: if on wrong domain, auto-redirect preserving the access token
   useEffect(() => {
@@ -99,6 +101,25 @@ export default function Delivery() {
 
     void autoAuth();
   }, [token]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadPromoCards = async () => {
+      try {
+        const response = await fetch('/api/promo-cards');
+        const payload = (await response.json()) as { ok?: boolean; cards?: unknown[] };
+        if (!cancelled && payload?.ok) {
+          setPromoCards(sanitizePromoCards(payload.cards ?? []));
+        }
+      } catch {
+        // Keep defaults if API is unavailable.
+      }
+    };
+    void loadPromoCards();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const isAuthenticated = useMemo(() => token.length > 0 && products.length > 0, [products.length, token.length]);
 
@@ -255,6 +276,38 @@ export default function Delivery() {
             </a>{' '}
             for more products and updates.
           </p>
+        </section>
+
+        <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-4">
+          <p className="mb-3 text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">Promos</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {promoCards.map((card, index) => {
+              const imageSrc = resolvePromoImageUrl(card.imageUrl);
+              const hasImage = imageSrc.length > 0;
+              return (
+                <a
+                  key={`${card.title}-${index}`}
+                  href={card.href || undefined}
+                  target={card.href ? '_blank' : undefined}
+                  rel={card.href ? 'noreferrer noopener' : undefined}
+                  className="overflow-hidden rounded-lg border border-cyan-500/25 bg-black/35"
+                >
+                  <div className="h-28 w-full">
+                    {hasImage ? (
+                      <img src={imageSrc} alt={card.title} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-[10px] font-mono uppercase tracking-[0.14em] text-cyan-300/70">
+                        No promo image
+                      </div>
+                    )}
+                  </div>
+                  <p className="border-t border-cyan-500/20 px-2 py-2 text-[10px] font-mono uppercase tracking-[0.14em] text-cyan-100">
+                    {card.title || `Promo Slot ${index + 1}`}
+                  </p>
+                </a>
+              );
+            })}
+          </div>
         </section>
 
         {!isAuthenticated ? (
