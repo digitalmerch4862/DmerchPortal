@@ -138,15 +138,15 @@ function ProductListItem({ product, onAdd }: { key?: string | number; product: P
   };
 
   return (
-    <div className="flex items-center justify-between gap-2 border-b border-cyan-500/10 px-3 py-2.5 hover:bg-cyan-500/5 transition-colors last:border-b-0">
+    <div className="flex items-center justify-between gap-2 border-b border-[#ff00ff]/10 px-3 py-2.5 hover:bg-[#ff00ff]/5 transition-colors last:border-b-0">
       <p className="text-xs sm:text-sm text-gray-200 flex-1 min-w-0 truncate">{product.name}</p>
-      <span className="flex-shrink-0 text-[10px] font-mono uppercase tracking-[0.15em] text-cyan-300">PHP {product.amount}</span>
+      <span className="flex-shrink-0 text-[10px] font-mono uppercase tracking-[0.15em] text-[#ff00ff]">PHP {product.amount}</span>
       <button
         type="button"
         onClick={handleAdd}
         className={`flex-shrink-0 px-3 py-1.5 rounded border text-[9px] font-bold uppercase tracking-[0.15em] transition-all duration-300 ${added
           ? 'bg-green-500 border-green-400 text-black shadow-[0_0_10px_rgba(34,197,94,0.4)]'
-          : 'bg-cyan-500/10 border-cyan-500/40 text-cyan-300 hover:bg-cyan-500 hover:text-black hover:border-cyan-400'
+          : 'bg-[#ff00ff]/10 border-[#ff00ff]/40 text-[#ff00ff] hover:bg-[#ff00ff] hover:text-black hover:border-[#ff00ff]/60'
           }`}
       >
         {added ? <span className="flex items-center gap-1"><Check size={10} /> Added</span> : '+ Add'}
@@ -210,7 +210,6 @@ export default function App() {
   const [paymentPaidBanner, setPaymentPaidBanner] = useState(false);
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
   const [expandedSubs, setExpandedSubs] = useState<Record<string, boolean>>({});
-  const [showCourses, setShowCourses] = useState(false);
   const [previewCourse, setPreviewCourse] = useState<ProductItem | null>(null);
   const [paymentTimer, setPaymentTimer] = useState(60);
   const productPickerRef = useRef<HTMLDivElement | null>(null);
@@ -1360,12 +1359,15 @@ export default function App() {
                         const totalInCat = Object.values(subs as Record<string, ProductItem[]>).reduce((sum, arr) => sum + (arr as ProductItem[]).length, 0);
 
                         return (
-                          <div key={category} className="rounded-lg border border-cyan-500/25 bg-[#060b14]/80 overflow-hidden">
+                          <div key={category} className="rounded-lg border border-[#ff00ff]/30 bg-[#1a051a]/80 overflow-hidden">
                             {/* Category Header */}
                             <button
                               type="button"
-                              onClick={() => setExpandedCats((prev) => ({ ...prev, [category]: !prev[category] }))}
-                              className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-cyan-500/5 transition-colors"
+                              onClick={() => {
+                                const isOpen = expandedCats[category];
+                                setExpandedCats(isOpen ? {} : { [category]: true });
+                              }}
+                              className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-[#ff00ff]/5 transition-colors"
                             >
                               <div className="flex items-center gap-3">
                                 <CatIcon size={16} className="text-[#ff00ff] drop-shadow-[0_0_6px_rgba(255,0,255,0.5)]" />
@@ -1386,22 +1388,22 @@ export default function App() {
                                   const isSubOpen = (productQuery ?? '').trim().length > 0 || expandedSubs[subKey] === true;
 
                                   return (
-                                    <div key={subKey} className="border-b border-cyan-500/10 last:border-b-0">
+                                    <div key={subKey} className="border-b border-[#ff00ff]/10 last:border-b-0">
                                       {/* Sub-category Header */}
-                                      <button
-                                        type="button"
-                                        onClick={() => setExpandedSubs((prev) => ({ ...prev, [subKey]: !prev[subKey] }))}
-                                        className="w-full flex items-center justify-between gap-2 px-6 py-2.5 hover:bg-cyan-500/5 transition-colors"
-                                      >
-                                        <div className="flex items-center gap-2">
-                                          {isSubOpen
-                                            ? <ChevronDown size={12} className="text-cyan-400" />
-                                            : <ChevronRightIcon size={12} className="text-gray-600" />
-                                          }
-                                          <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">{sub}</span>
-                                        </div>
-                                        <span className="text-[9px] font-mono text-gray-500">{(products as ProductItem[]).length}</span>
-                                      </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setExpandedSubs((prev) => ({ ...prev, [subKey]: !prev[subKey] }))}
+                                          className="w-full flex items-center justify-between gap-2 px-6 py-2.5 hover:bg-[#ff00ff]/5 transition-colors"
+                                        >
+                                          <div className="flex items-center gap-2">
+                                            {isSubOpen
+                                              ? <ChevronDown size={12} className="text-cyan-400" />
+                                              : <ChevronRightIcon size={12} className="text-gray-600" />
+                                            }
+                                            <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-[#ff00ff]">{sub}</span>
+                                          </div>
+                                          <span className="text-[9px] font-mono text-gray-500">{(products as ProductItem[]).length}</span>
+                                        </button>
 
                                       {/* Product List (collapsible) */}
                                       {isSubOpen && (
@@ -1435,7 +1437,10 @@ export default function App() {
                     <div className="mt-4 rounded-lg border border-[#ff00ff]/30 bg-[#1a051a]/80 overflow-hidden">
                       <button
                         type="button"
-                        onClick={() => setShowCourses(!showCourses)}
+                        onClick={() => {
+                          const isOpen = expandedCats['COURSES'];
+                          setExpandedCats(isOpen ? {} : { 'COURSES': true });
+                        }}
                         className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-[#ff00ff]/5 transition-colors"
                       >
                         <div className="flex items-center gap-3">
@@ -1447,14 +1452,14 @@ export default function App() {
                           <span className="text-[8px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase tracking-wider">
                             Preview
                           </span>
-                          {showCourses
+                          {expandedCats['COURSES']
                             ? <ChevronDown size={16} className="text-cyan-400" />
                             : <ChevronRightIcon size={16} className="text-gray-500" />
                           }
                         </div>
                       </button>
 
-                      {showCourses && (
+                      {expandedCats['COURSES'] && (
                         <div className="border-t border-[#ff00ff]/15 bg-black/20">
                           {Object.entries(coursesProducts as Record<string, ProductItem[]>).map(([sub, courses]) => {
                             const subKey = `courses::${sub}`;
