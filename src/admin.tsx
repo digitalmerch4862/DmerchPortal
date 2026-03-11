@@ -12,6 +12,7 @@ type AdminProduct = {
   fileLink: string;
   category: string;
   sub_category: string;
+  image_url: string;
 };
 
 type InboxItem = {
@@ -80,19 +81,23 @@ const parseStoredProducts = (raw: string | null): AdminProduct[] => {
       fileLink: String((item as any)?.fileLink ?? '').trim(),
       category: String((item as any)?.category ?? 'Software').trim(),
       sub_category: String((item as any)?.sub_category ?? 'General').trim(),
+      image_url: String((item as any)?.image_url ?? '').trim(),
     })).filter((item) => item.name.length > 0 && Number.isFinite(item.amount));
   } catch {
     return [];
   }
 };
 
-const toSeedProducts = () => {
+const toSeedProducts = (): AdminProduct[] => {
   return productCatalog.slice(0, 120).map((item, index) => ({
     id: `seed-${index + 1}`,
     name: item.name,
     amount: item.amount,
     os: inferOs(item.name),
     fileLink: '',
+    category: item.category || 'Software',
+    sub_category: item.sub_category || 'General',
+    image_url: '',
   }));
 };
 
@@ -137,6 +142,7 @@ const parseBulkRows = (raw: string): AdminProduct[] => {
       fileLink,
       category,
       sub_category,
+      image_url: '',
     });
   }
 
@@ -345,7 +351,8 @@ export default function Admin() {
     const { data, error } = await supabase
       .from('products')
       .select('*')
-      .order('name');
+      .order('name')
+      .limit(10000);
 
     if (!error && data) {
       setProducts(data.map(p => ({
@@ -356,6 +363,7 @@ export default function Admin() {
         fileLink: p.file_url || '',
         category: p.category || 'Software',
         sub_category: p.sub_category || 'General',
+        image_url: p.image_url || '',
       })));
     }
   }, []);
@@ -694,6 +702,7 @@ export default function Admin() {
     if (patch.fileLink !== undefined) updateMap.file_url = patch.fileLink;
     if (patch.category !== undefined) updateMap.category = patch.category;
     if (patch.sub_category !== undefined) updateMap.sub_category = patch.sub_category;
+    if (patch.image_url !== undefined) updateMap.image_url = patch.image_url;
 
     if (Object.keys(updateMap).length > 0) {
       await supabase.from('products').update(updateMap).eq('id', id);
@@ -739,6 +748,7 @@ export default function Admin() {
           fileLink: data.file_url || '',
           category: data.category || 'Software',
           sub_category: data.sub_category || 'General',
+          image_url: data.image_url || '',
         },
         ...current,
       ]);
@@ -1921,11 +1931,24 @@ export default function Admin() {
 
         {activeTab === 'products' ? (
           <>
+            {(() => {
+              const categoryCounts = products.reduce((acc, p) => {
+                const cat = p.category?.trim() || 'Uncategorized';
+                acc[cat] = (acc[cat] || 0) + 1;
+                return acc;
+              }, {} as Record<string, number>);
+              const sortedCategories = Object.entries(categoryCounts).sort(([, a], [, b]) => b - a);
+              return (
             <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-4 sm:p-5">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <p className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300"><PackageSearch size={14} />Products Manager</p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="inline-flex items-center px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-cyan-200 bg-cyan-500/20 rounded">Total: {products.length}</span>
+                  {sortedCategories.map(([cat, count]) => (
+                    <span key={cat} className="inline-flex items-center px-2 py-1 text-[10px] font-mono text-cyan-100 bg-cyan-500/10 border border-cyan-500/20 rounded">{cat}: {count}</span>
+                  ))}
+                </div>
                 <div className="flex gap-2">
-                  <span className="inline-flex items-center px-2 text-[10px] font-mono uppercase tracking-wider text-cyan-200">Total Products: {products.length}</span>
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
@@ -2000,6 +2023,7 @@ export default function Admin() {
                     <tr>
                       <th className="px-2 py-2 text-center"></th>
                       <th className="px-2 py-2 text-left">File Name</th>
+                      <th className="px-2 py-2 text-left">Image URL</th>
                       <th className="px-2 py-2 text-left">File Link</th>
                       <th className="px-2 py-2 text-left">Category</th>
                       <th className="px-2 py-2 text-left">Sub Category</th>
@@ -2028,6 +2052,9 @@ export default function Admin() {
                           <input value={item.name} onChange={(event) => updateProduct(item.id, { name: event.target.value })} className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1" />
                         </td>
                         <td className="px-2 py-2">
+                          <input value={item.image_url} onChange={(event) => updateProduct(item.id, { image_url: event.target.value })} className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1" placeholder="Image URL" />
+                        </td>
+                        <td className="px-2 py-2">
                           <input value={item.fileLink} onChange={(event) => updateProduct(item.id, { fileLink: event.target.value })} className="w-full rounded border border-cyan-500/30 bg-black/35 px-2 py-1" placeholder="https://drive.google.com/..." />
                         </td>
                         <td className="px-2 py-2">
@@ -2050,6 +2077,7 @@ export default function Admin() {
                 </table>
               </div>
             </section>
+              );})()}
 
             <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-4 sm:p-5">
               <p className="mb-2 inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300"><Upload size={14} />Bulk Upload (CSV/TSV Paste)</p>
