@@ -353,8 +353,6 @@ function FilePreviewModal({
                  <div className="absolute top-0 right-0 left-0 h-12 z-40 bg-transparent pointer-events-auto" />
                  {/* 2. Top Right Specific Download/Open Guard */}
                  <div className="absolute top-0 right-0 w-52 h-20 z-40 bg-[#0a0a0a] pointer-events-auto" />
-                 {/* 3. Center Control Guard */}
-                 <div className="absolute top-1/2 left-1/2 z-40 h-44 w-[540px] max-w-[88vw] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-black/65 pointer-events-auto" />
                </>
              )}
              
