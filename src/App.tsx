@@ -138,10 +138,10 @@ function ProductListItem({ product, onAdd }: { key?: string | number; product: P
   };
 
   return (
-    <div className="flex items-center justify-between gap-2 border-b border-[#ff00ff]/10 px-3 py-2.5 hover:bg-[#ff00ff]/5 transition-colors last:border-b-0 group">
+    <div className="flex items-center justify-between gap-2 border-b border-[#ff00ff]/10 px-3 py-2.5 hover:bg-cyan-500/10 transition-colors last:border-b-0 group">
       <div className="flex-1 min-w-0">
-        <p className="text-xs sm:text-sm text-gray-200 truncate group-hover:text-[#ff00ff] transition-colors">{product.name}</p>
-        <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-[#ff00ff]/80">PHP {product.amount}</span>
+        <p className="text-xs sm:text-sm text-gray-200 truncate group-hover:text-cyan-300 transition-colors">{product.name}</p>
+        <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-yellow-400">PHP {product.amount}</span>
       </div>
       <button
         type="button"
@@ -1777,7 +1777,7 @@ export default function App() {
                           <div className="flex items-center justify-between pt-2 border-t border-gray-800">
                             <div>
                               <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-gray-500">Price</p>
-                              <p className="text-2xl font-black text-[#ff00ff] drop-shadow-[0_0_10px_rgba(255,0,255,0.5)]">PHP {previewCourse.amount}</p>
+                              <p className="text-2xl font-black text-yellow-400 drop-shadow-[0_0_10px_rgba(252,238,10,0.5)]">PHP {previewCourse.amount}</p>
                             </div>
                             <button
                               type="button"
