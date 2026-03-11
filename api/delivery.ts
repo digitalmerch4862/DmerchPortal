@@ -189,11 +189,47 @@ const toDirectDownloadLink = (url: string) => {
 const sanitizeFileName = (name: string) => {
   const normalized = name.replace(/[^a-zA-Z0-9._ -]/g, '').trim();
   if (!normalized) {
-    return 'digitalmerch-download.bin';
+    return 'digitalmerch-download';
   }
+  return normalized;
+};
 
-  const hasExtension = /\.[a-zA-Z0-9]{2,6}$/.test(normalized);
-  return hasExtension ? normalized : `${normalized}.bin`;
+const extractFilenameFromContentDisposition = (raw: string) => {
+  const value = String(raw ?? '').trim();
+  if (!value) return '';
+  const utf8Match = value.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]).replace(/["']/g, '').trim();
+    } catch {
+      return utf8Match[1].replace(/["']/g, '').trim();
+    }
+  }
+  const plainMatch = value.match(/filename="?([^";]+)"?/i);
+  return plainMatch?.[1]?.trim() || '';
+};
+
+const extensionFromContentType = (raw: string) => {
+  const ct = String(raw ?? '').toLowerCase().split(';')[0].trim();
+  const map: Record<string, string> = {
+    'application/pdf': '.pdf',
+    'application/zip': '.zip',
+    'application/x-zip-compressed': '.zip',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+    'application/msword': '.doc',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+    'application/vnd.ms-excel': '.xls',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+    'application/vnd.ms-powerpoint': '.ppt',
+    'text/plain': '.txt',
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+    'image/webp': '.webp',
+    'video/mp4': '.mp4',
+    'audio/mpeg': '.mp3',
+    'application/epub+zip': '.epub',
+  };
+  return map[ct] ?? '';
 };
 
 const isMissingTicketTableError = (error: { code?: string; message?: string; details?: string; hint?: string } | null | undefined) => {
@@ -629,7 +665,11 @@ async function handleFile(req: any, res: any, supabase: any, tokenSecret: string
 
   const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
   const contentLength = upstream.headers.get('content-length');
-  const fileName = sanitizeFileName(String(row.file_name ?? row.product_name ?? 'digitalmerch-download.bin'));
+  const upstreamDisposition = upstream.headers.get('content-disposition') || '';
+  const dispositionName = extractFilenameFromContentDisposition(upstreamDisposition);
+  const baseName = sanitizeFileName(String(dispositionName || row.file_name || row.product_name || 'digitalmerch-download'));
+  const hasExtension = /\.[a-z0-9]{2,8}$/i.test(baseName);
+  const fileName = hasExtension ? baseName : `${baseName}${extensionFromContentType(contentType) || '.bin'}`;
 
   res.setHeader('Content-Type', contentType);
   if (contentLength) {
