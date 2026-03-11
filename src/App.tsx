@@ -297,17 +297,7 @@ function FilePreviewModal({
                </div>
              )}
 
-             {iframeError && (
-               <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/90 text-center p-8">
-                  <div className="p-4 rounded-full bg-red-500/10 border border-red-500/30 mb-4">
-                    <ShieldAlert size={40} className="text-red-500" />
-                  </div>
-                  <h3 className="text-xl font-black text-white uppercase tracking-widest italic mb-2">No preview available</h3>
-                  <p className="text-xs text-gray-500 font-mono uppercase tracking-[0.1em] max-w-xs">
-                    This content is encrypted or restricted. Purchase to unlock full access.
-                  </p>
-               </div>
-             )}
+             {iframeError && <div className="absolute inset-0 z-50 bg-black/80" />}
 
              {/* Privacy Guard Overlays - Prevent Interaction with Download Buttons */}
              {/* 1. Top Navigation Bar Guard (Google Drive Controls) */}
@@ -315,7 +305,7 @@ function FilePreviewModal({
              {/* 2. Top Right Specific Download/Open Guard */}
              <div className="absolute top-0 right-0 w-52 h-20 z-40 bg-[#0a0a0a] pointer-events-auto" />
              {/* 3. Center Control Guard */}
-             <div className="absolute top-1/2 left-1/2 z-40 h-20 w-[320px] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-black/55 pointer-events-auto" />
+             <div className="absolute top-1/2 left-1/2 z-40 h-20 w-[320px] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-transparent pointer-events-auto" />
              
              {/* Center watermark */}
              <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
@@ -323,7 +313,7 @@ function FilePreviewModal({
                  src="/android-chrome-512x512.png"
                  alt="DMERCH watermark"
                  className="h-36 w-36 sm:h-44 sm:w-44 object-contain opacity-20"
-                 style={{ transform: 'scale(2)' }}
+                 style={{ transform: 'scale(4)' }}
                />
              </div>
 
