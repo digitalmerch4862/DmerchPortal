@@ -214,6 +214,7 @@ export default function App() {
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
   const [expandedSubs, setExpandedSubs] = useState<Record<string, boolean>>({});
   const [previewCourse, setPreviewCourse] = useState<ProductItem | null>(null);
+  const [productsLoading, setProductsLoading] = useState(true);
   const [paymentTimer, setPaymentTimer] = useState(60);
   const productPickerRef = useRef<HTMLDivElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -290,6 +291,7 @@ export default function App() {
           fileLink: p.file_url || undefined,
         })));
       }
+      setProductsLoading(false);
     };
 
     void logVisit();
@@ -1355,7 +1357,16 @@ export default function App() {
                   </div>
 
                   <div className="space-y-2">
-                    {Object.entries(softwareProducts as Record<string, Record<string, ProductItem[]>>).length > 0 ? (
+                    {productsLoading ? (
+                      <div className="rounded-lg border border-cyan-500/20 bg-black/40 py-16 text-center">
+                        <div className="relative mx-auto w-12 h-12 mb-4">
+                          <div className="absolute inset-0 border-2 border-cyan-500/20 rounded-full" />
+                          <div className="absolute inset-0 border-t-2 border-cyan-500 rounded-full animate-spin" />
+                        </div>
+                        <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-cyan-400 animate-pulse">Syncing Products Manager...</p>
+                        <p className="text-[9px] font-mono text-gray-500 mt-2 uppercase tracking-[0.1em]">Fetching Database V2.4.0</p>
+                      </div>
+                    ) : Object.entries(softwareProducts as Record<string, Record<string, ProductItem[]>>).length > 0 ? (
                       Object.entries(softwareProducts as Record<string, Record<string, ProductItem[]>>).map(([category, subs]) => {
                         const CatIcon = getCategoryIcon(category);
                         const isCatOpen = (productQuery ?? '').trim().length > 0 || expandedCats[category] === true;
@@ -1757,21 +1768,9 @@ export default function App() {
                             </ul>
                           </div>
 
-                          {previewCourse.fileLink && (
-                            <a
-                              href={previewCourse.fileLink}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center justify-center gap-2 w-full py-3 rounded-lg border border-cyan-500/40 bg-cyan-500/10 text-cyan-300 text-sm font-semibold hover:bg-cyan-500/20 transition-colors"
-                            >
-                              <Eye size={16} />
-                              Preview Course Content
-                            </a>
-                          )}
-
-                          <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
-                            <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-amber-300 text-center">
-                              This is a preview only. Purchase to unlock full access.
+                          <div className="p-3 rounded-lg bg-[#ff00ff]/5 border border-[#ff00ff]/20">
+                            <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-[#ff00ff]/80 text-center">
+                              Secure access available upon successful purchase.
                             </p>
                           </div>
 
