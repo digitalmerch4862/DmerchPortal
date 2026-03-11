@@ -319,11 +319,12 @@ function FilePreviewModal({
              
              {/* Center watermark */}
              <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
-               <div className="rounded-xl border border-cyan-400/25 bg-black/20 px-8 py-4 backdrop-blur-[1px]">
-                 <p className="text-base sm:text-xl font-black uppercase tracking-[0.35em] text-cyan-300/30 text-center">
-                   Dmerch Preview
-                 </p>
-               </div>
+               <img
+                 src="/android-chrome-512x512.png"
+                 alt="DMERCH watermark"
+                 className="h-36 w-36 sm:h-44 sm:w-44 object-contain opacity-20"
+                 style={{ transform: 'scale(2)' }}
+               />
              </div>
 
              <iframe
