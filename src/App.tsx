@@ -314,20 +314,13 @@ function FilePreviewModal({
              {/* 2. Top Right Specific Download Guard */}
              <div className="absolute top-0 right-0 w-48 h-16 z-40 bg-transparent pointer-events-auto" />
              
-             {/* 3. Page Limit Guard (Fades out visibility past ~20 pages) */}
-             <div className="absolute bottom-0 left-0 right-0 h-1/4 z-30 pointer-events-none bg-gradient-to-t from-black via-black/80 to-transparent flex items-end justify-center pb-12">
-                <div className="text-center bg-black/60 backdrop-blur-md p-6 border border-cyan-500/20 rounded-xl pointer-events-auto">
-                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-400 mb-2">Notice: Limited Preview Mode</p>
-                   <p className="text-[9px] font-mono text-gray-400 mb-4 uppercase tracking-[0.1em]">20 Page Preview limit active</p>
-                   <motion.button
-                     whileHover={{ scale: 1.05 }}
-                     whileTap={{ scale: 0.95 }}
-                     onClick={handleModalAdd}
-                     className="px-8 py-2.5 bg-cyan-600/90 hover:bg-cyan-500 text-white font-black uppercase tracking-widest text-[10px] rounded border border-cyan-400 shadow-[0_0_20px_rgba(0,243,255,0.3)] transition-all"
-                   >
-                     Unlock All Content Now
-                   </motion.button>
-                </div>
+             {/* Center watermark */}
+             <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
+               <div className="rounded-xl border border-cyan-400/25 bg-black/20 px-8 py-4 backdrop-blur-[1px]">
+                 <p className="text-base sm:text-xl font-black uppercase tracking-[0.35em] text-cyan-300/30 text-center">
+                   Dmerch Preview
+                 </p>
+               </div>
              </div>
 
              <iframe
