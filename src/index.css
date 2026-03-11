@@ -421,3 +421,33 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+.cyber-catalog-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cyber-catalog-card:hover {
+  box-shadow: 0 0 25px rgba(0, 243, 255, 0.15);
+  transform: translateY(-4px);
+}
+
+.cyber-image-glow {
+  position: relative;
+}
+
+.cyber-image-glow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(0, 243, 255, 0.2);
+  pointer-events: none;
+  transition: border-color 0.3s ease;
+}
+
+.cyber-catalog-card:hover .cyber-image-glow::after {
+  border-color: rgba(0, 243, 255, 0.5);
+}
+
+.cyber-text-glow {
+  text-shadow: 0 0 10px rgba(0, 243, 255, 0.3);
+}

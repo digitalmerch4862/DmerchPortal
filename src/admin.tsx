@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { motion } from 'motion/react';
-import { Archive, ArrowLeft, BarChart3, CheckCircle2, Download, Inbox, PackageSearch, Pencil, ShieldAlert, Trash2, Upload, UsersRound, Plus, RefreshCw } from 'lucide-react';
+import { Archive, ArrowLeft, BarChart3, CheckCircle2, Download, Inbox, PackageSearch, Pencil, ShieldAlert, Trash2, Upload, UsersRound, Plus, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { productCatalog } from './data/products';
 import { getSupabaseBrowserClient } from './lib/supabase-browser';
 
@@ -338,6 +338,8 @@ export default function Admin() {
   const [manualProductSearch, setManualProductSearch] = useState('');
   const [selectedManualProducts, setSelectedManualProducts] = useState<string[]>([]);
   const [manualDropdownOpen, setManualDropdownOpen] = useState(false);
+  const [productsPage, setProductsPage] = useState(1);
+  const [productsPerPage, setProductsPerPage] = useState(50);
   const [manualSubmitting, setManualSubmitting] = useState(false);
   const [manualError, setManualError] = useState('');
   const [manualSuccess, setManualSuccess] = useState('');
@@ -348,14 +350,36 @@ export default function Admin() {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) return;
 
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .order('name')
-      .limit(10000);
+    let allProducts: any[] = [];
+    let pageNum = 0;
+    const PAGE_SIZE = 1000;
+    let hasMore = true;
 
-    if (!error && data) {
-      setProducts(data.map(p => ({
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('name', { ascending: true })
+        .order('id', { ascending: true })
+        .range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
+
+      if (error) {
+        console.error('[Admin] Error fetching products:', error);
+        hasMore = false;
+      } else if (data && data.length > 0) {
+        allProducts = [...allProducts, ...data];
+        if (data.length < PAGE_SIZE) {
+          hasMore = false;
+        } else {
+          pageNum++;
+        }
+      } else {
+        hasMore = false;
+      }
+    }
+
+    if (allProducts.length > 0) {
+      setProducts(allProducts.map(p => ({
         id: p.id,
         name: p.name,
         amount: Number(p.price || 0),
@@ -489,6 +513,10 @@ export default function Admin() {
     };
   }, []);
 
+  useEffect(() => {
+    setProductsPage(1);
+  }, [search]);
+
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
     const amountQuery = massAmount.trim();
@@ -530,7 +558,12 @@ export default function Admin() {
   }, [products, search, massAmount, massCategory]);
 
   const selectedCount = selectedProductIds.length;
-  const areAllProductsSelected = products.length > 0 && products.every((item) => selectedProductIds.includes(item.id));
+  const selectedIdsSet = useMemo(() => new Set(selectedProductIds), [selectedProductIds]);
+
+  const areAllProductsSelected = useMemo(() => {
+    if (products.length === 0 || selectedProductIds.length < products.length) return false;
+    return products.every((item) => selectedIdsSet.has(item.id));
+  }, [products, selectedIdsSet]);
 
   const refreshInbox = async (tokenOverride?: string) => {
     const token = tokenOverride ?? accessToken;
@@ -713,9 +746,18 @@ export default function Admin() {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) return;
 
+    if (!window.confirm('Delete this product?')) {
+      return;
+    }
+
+    const { error } = await supabase.from('products').delete().eq('id', id);
+    if (error) {
+      alert(`Error deleting product: ${error.message}`);
+      return;
+    }
+
     setProducts((current) => current.filter((item) => item.id !== id));
     setSelectedProductIds((current) => current.filter((itemId) => itemId !== id));
-    await supabase.from('products').delete().eq('id', id);
   };
 
   const addProductRow = async () => {
@@ -873,10 +915,15 @@ export default function Admin() {
   };
 
   const selectAllProducts = () => {
-    if (areAllProductsSelected) {
-      return;
-    }
-    setSelectedProductIds(products.map((item) => item.id));
+    // Select all FILTERED products for better UX
+    const allIds = filteredProducts.map((item) => item.id);
+    setSelectedProductIds(allIds);
+  };
+
+  const selectAllOnPage = () => {
+    const startIndex = (productsPage - 1) * productsPerPage;
+    const pageIds = filteredProducts.slice(startIndex, startIndex + productsPerPage).map(p => p.id);
+    setSelectedProductIds(prev => Array.from(new Set([...prev, ...pageIds])));
   };
 
   const clearSelectedProducts = () => {
@@ -897,8 +944,14 @@ export default function Admin() {
     if (Number.isNaN(parsed)) {
       return;
     }
+    
+    const { error } = await supabase.from('products').update({ price: parsed }).in('id', selectedProductIds);
+    if (error) {
+      alert(`Error updating products: ${error.message}`);
+      return;
+    }
+
     setProducts((current) => current.map((item) => (selectedProductIds.includes(item.id) ? { ...item, amount: parsed } : item)));
-    await supabase.from('products').update({ price: parsed }).in('id', selectedProductIds);
     setMassAmount('');
   };
 
@@ -910,8 +963,14 @@ export default function Admin() {
     if (!nextCategory) {
       return;
     }
+    
+    const { error } = await supabase.from('products').update({ category: nextCategory }).in('id', selectedProductIds);
+    if (error) {
+      alert(`Error updating products: ${error.message}`);
+      return;
+    }
+
     setProducts((current) => current.map((item) => (selectedProductIds.includes(item.id) ? { ...item, category: nextCategory } : item)));
-    await supabase.from('products').update({ category: nextCategory }).in('id', selectedProductIds);
     setMassCategory('');
   };
 
@@ -964,8 +1023,15 @@ export default function Admin() {
     if (!confirmed) {
       return;
     }
-    setProducts((current) => current.filter((item) => !selectedProductIds.includes(item.id)));
-    await supabase.from('products').delete().in('id', selectedProductIds);
+    
+    const { error } = await supabase.from('products').delete().in('id', selectedProductIds);
+    if (error) {
+      alert(`Error deleting products: ${error.message}`);
+      return;
+    }
+
+    const selectedSet = new Set(selectedProductIds);
+    setProducts((current) => current.filter((item) => !selectedSet.has(item.id)));
     setSelectedProductIds([]);
   };
 
@@ -1937,7 +2003,7 @@ export default function Admin() {
                 acc[cat] = (acc[cat] || 0) + 1;
                 return acc;
               }, {} as Record<string, number>);
-              const sortedCategories = Object.entries(categoryCounts).sort(([, a], [, b]) => b - a);
+              const sortedCategories = Object.entries(categoryCounts).sort((a, b) => (b[1] as number) - (a[1] as number));
               return (
             <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-4 sm:p-5">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -1996,10 +2062,13 @@ export default function Admin() {
                 </div>
               </div>
               <div className="mb-3 flex flex-wrap gap-2 rounded-md border border-cyan-500/20 bg-black/25 p-2">
-                <button onClick={areAllProductsSelected ? clearSelectedProducts : selectAllProducts} className="cyber-btn cyber-btn-secondary">
-                  {areAllProductsSelected ? 'Clear Selected' : 'Select All'}
-                </button>
-                <span className="inline-flex items-center px-2 text-xs text-cyan-200">Selected: {selectedCount}</span>
+                 <button onClick={areAllProductsSelected ? clearSelectedProducts : selectAllProducts} className="cyber-btn cyber-btn-secondary">
+                   {areAllProductsSelected ? 'Clear' : 'Select All Result'}
+                 </button>
+                 <button onClick={selectAllOnPage} className="cyber-btn cyber-btn-secondary">
+                   Select This Page
+                 </button>
+                 <span className="inline-flex items-center px-2 text-xs text-cyan-200">Selected: {selectedCount}</span>
                 <input
                   value={massAmount}
                   onChange={(event) => setMassAmount(event.target.value)}
@@ -2032,7 +2101,7 @@ export default function Admin() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredProducts.map((item) => (
+                    {filteredProducts.slice((productsPage - 1) * productsPerPage, productsPage * productsPerPage).map((item) => (
                       <tr key={item.id} className="border-t border-cyan-500/15">
                         <td className="px-2 py-2 text-center">
                           <button
@@ -2042,10 +2111,10 @@ export default function Admin() {
                               startDragSelect(item.id);
                             }}
                             onMouseEnter={() => handleDragEnter(item.id)}
-                            className={`inline-flex h-5 w-5 items-center justify-center rounded-full border ${selectedProductIds.includes(item.id) ? 'border-cyan-300 bg-cyan-400/20' : 'border-cyan-500/35'}`}
+                            className={`inline-flex h-5 w-5 items-center justify-center rounded-full border ${selectedIdsSet.has(item.id) ? 'border-cyan-300 bg-cyan-400/20' : 'border-cyan-500/35'}`}
                             aria-label="Select row"
                           >
-                            {selectedProductIds.includes(item.id) ? <span className="h-2 w-2 rounded-full bg-cyan-300" /> : null}
+                            {selectedIdsSet.has(item.id) ? <span className="h-2 w-2 rounded-full bg-cyan-300" /> : null}
                           </button>
                         </td>
                         <td className="px-2 py-2 relative group">
@@ -2080,6 +2149,73 @@ export default function Admin() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Pagination Controls */}
+              <div className="mt-4 flex flex-col items-center justify-between gap-4 border-t border-cyan-500/20 pt-4 sm:flex-row">
+                <div className="flex items-center gap-3 text-xs text-cyan-300/80">
+                  <span className="font-mono uppercase tracking-widest">Show</span>
+                  <select
+                    value={productsPerPage}
+                    onChange={(e) => {
+                      setProductsPerPage(Number(e.target.value));
+                      setProductsPage(1);
+                    }}
+                    className="rounded border border-cyan-500/40 bg-black/40 px-2 py-1 text-cyan-100"
+                  >
+                    {[20, 50, 100, 250, 500].map(size => (
+                      <option key={size} value={size}>{size}</option>
+                    ))}
+                  </select>
+                  <span className="font-mono uppercase tracking-widest">per page</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    disabled={productsPage === 1}
+                    onClick={() => setProductsPage(prev => Math.max(1, prev - 1))}
+                    className="cyber-btn cyber-btn-secondary p-2 disabled:opacity-30"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  
+                  <div className="flex items-center gap-1">
+                    {(() => {
+                      const totalPages = Math.ceil(filteredProducts.length / productsPerPage);
+                      const pages = [];
+                      const maxVisible = 5;
+                      
+                      let start = Math.max(1, productsPage - Math.floor(maxVisible / 2));
+                      let end = Math.min(totalPages, start + maxVisible - 1);
+                      if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1);
+
+                      for (let i = start; i <= end; i++) {
+                        pages.push(
+                          <button
+                            key={i}
+                            onClick={() => setProductsPage(i)}
+                            className={`min-w-[32px] rounded h-8 text-[10px] font-mono transition-all ${productsPage === i ? 'bg-cyan-500 border border-cyan-400 text-black shadow-[0_0_10px_rgba(0,243,255,0.4)]' : 'border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10'}`}
+                          >
+                            {i}
+                          </button>
+                        );
+                      }
+                      return pages;
+                    })()}
+                  </div>
+
+                  <button
+                    disabled={productsPage >= Math.ceil(filteredProducts.length / productsPerPage)}
+                    onClick={() => setProductsPage(prev => prev + 1)}
+                    className="cyber-btn cyber-btn-secondary p-2 disabled:opacity-30"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+
+                <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-cyan-400/60">
+                  Page {productsPage} of {Math.ceil(filteredProducts.length / productsPerPage) || 1} ({filteredProducts.length} total)
+                </div>
               </div>
             </section>
               );})()}

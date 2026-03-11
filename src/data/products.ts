@@ -4,6 +4,7 @@ export type ProductItem = {
   category?: string;
   sub_category?: string;
   fileLink?: string;
+  image_url?: string;
 };
 
 const PRODUCT_ROWS = `

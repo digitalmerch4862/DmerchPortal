@@ -79,7 +79,8 @@ async function handleGetInbox(req: any, res: any, supabase: any) {
   const productsLookup = await supabase
     .from('products')
     .select('name, file_url')
-    .order('name');
+    .order('name')
+    .limit(10000);
 
   const productUrlMap = new Map<string, string>();
   if (!productsLookup.error && productsLookup.data) {

@@ -5,7 +5,12 @@
 
 import { type ComponentType, type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, Facebook, Youtube, Instagram, Download, Search, Check, Plus, X, PackageSearch, ArrowRight, ArrowLeft, Home, ShoppingCart, Mail, Cpu, Gamepad2, PlayCircle, Book, Palette, Layers, BookOpen, ChevronDown, ChevronRight as ChevronRightIcon, ChevronsRight, ChevronsLeft, GraduationCap, Eye, Clock, Users, FileText, Star, LogOut, QrCode, ShieldAlert, AlertCircle } from 'lucide-react';
+import { 
+  ShieldCheck, Facebook, Youtube, Instagram, Monitor, Smartphone, GraduationCap, PackageSearch, Package,
+  ArrowRight, ArrowLeft, Home, ShoppingCart, Mail, Cpu, Gamepad2, PlayCircle, Book, Palette, Layers, 
+  BookOpen, ChevronDown, ChevronRight as ChevronRightIcon, ChevronsRight, ChevronsLeft, Eye, Clock, 
+  Users, FileText, Star, LogOut, QrCode, ShieldAlert, AlertCircle, Download, Search, Check, Plus, X 
+} from 'lucide-react';
 import { productCatalog, type ProductItem } from './data/products';
 import { getSupabaseBrowserClient } from './lib/supabase-browser';
 import { supabase } from './supabaseClient.js';
@@ -246,16 +251,39 @@ export default function App() {
       const supabase = getSupabaseBrowserClient();
       if (!supabase) return;
 
-      const { data, error } = await supabase
-        .from('products')
-        .select('name, price, category, sub_category, file_url')
-        .order('name');
+      let allProducts: any[] = [];
+      let pageNum = 0;
+      const PAGE_SIZE = 1000;
+      let hasMore = true;
 
-      if (!error && data) {
-        setAvailableProducts(data.map(p => ({
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*', { count: 'exact' })
+          .order('name', { ascending: true })
+          .order('id', { ascending: true })
+          .range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
+
+        if (error) {
+          console.error('[App] Error fetching products:', error);
+          hasMore = false;
+        } else if (data && data.length > 0) {
+          allProducts = [...allProducts, ...data];
+          if (data.length < PAGE_SIZE) {
+            hasMore = false;
+          } else {
+            pageNum++;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      if (allProducts.length > 0) {
+        setAvailableProducts(allProducts.map(p => ({
           name: String(p.name ?? '').trim(),
           amount: Number(p.price || 0),
-          category: p.category || undefined,
+          category: (p.category || 'Software').toUpperCase(),
           sub_category: p.sub_category || undefined,
           fileLink: p.file_url || undefined,
         })));
@@ -275,24 +303,7 @@ export default function App() {
         .subscribe()
       : null;
 
-    // Still listen for storage sync for compatibility
-    const handleStorageSync = (event: StorageEvent) => {
-      if (event.key !== ADMIN_PRODUCTS_KEY) return;
-      // If we got a local update, we might still want to respect it
-      try {
-        const parsed = JSON.parse(event.newValue || '[]');
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setAvailableProducts(parsed.map((item: any) => ({
-            name: String(item?.name ?? '').trim(),
-            amount: Number(item?.amount ?? 0),
-          })).filter(i => i.name));
-        }
-      } catch { /* ignore */ }
-    };
-
-    window.addEventListener('storage', handleStorageSync);
     return () => {
-      window.removeEventListener('storage', handleStorageSync);
       if (realtimeChannel && supabase) {
         void supabase.removeChannel(realtimeChannel);
       }
@@ -400,6 +411,24 @@ export default function App() {
       listener.subscription.unsubscribe();
     };
   }, []);
+  
+  // Persistence Sync: Save cart draft to localStorage whenever it changes
+  useEffect(() => {
+    const draft: CheckoutDraft = {
+      username: (username ?? '').trim(),
+      email: (email ?? '').trim(),
+      referenceNo: (referenceNo ?? '').trim(),
+      selectedMethod: 'paymongo',
+      paymentPortalUsed: 'paymongo',
+      paymongoReference: (paymongoReference ?? '').trim(),
+      selectedProducts,
+    };
+    
+    // Only save if there's actually something to save to avoid clearing on initial loads
+    if (selectedProducts.length > 0 || username.trim() || email.trim()) {
+      window.localStorage.setItem(CHECKOUT_DRAFT_KEY, JSON.stringify(draft));
+    }
+  }, [selectedProducts, username, email, referenceNo, paymongoReference]);
 
   const handleAdminGoogleShortcut = async () => {
     setAdminShortcutError('');
@@ -559,8 +588,8 @@ export default function App() {
     const raw: Record<string, Record<string, ProductItem[]>> = {};
 
     filteredProducts.forEach((product) => {
-      const cat = product.category || 'Software';
-      const sub = product.sub_category || 'General';
+      const cat = product.category || 'SOFTWARE';
+      const sub = product.sub_category || 'GENERAL';
 
       if (!raw[cat]) {
         raw[cat] = {};
@@ -598,11 +627,15 @@ export default function App() {
 
   const { softwareProducts, coursesProducts, hasCourses, courseCount } = useMemo(() => {
     const raw = categorizedProducts as Record<string, Record<string, ProductItem[]>>;
-    const courses = raw['Courses'] || {};
+    // Match COURSE or COURSES or Courses
+    const coursesKey = Object.keys(raw).find(k => k.toUpperCase() === 'COURSE' || k.toUpperCase() === 'COURSES');
+    const courses = (coursesKey ? raw[coursesKey] : {}) || {};
     const has = Object.keys(courses).length > 0;
     const count = Object.values(courses).flat().length;
     const software = { ...raw };
-    delete software['Courses'];
+    if (coursesKey) {
+      delete software[coursesKey];
+    }
     return {
       softwareProducts: software,
       coursesProducts: courses,
@@ -671,6 +704,12 @@ export default function App() {
     setSubmitError('');
 
     if (stage === 2) {
+      if (totalAmount === 0) {
+        setPaymentPortalUsed('free_product');
+        setStage(4);
+        return;
+      }
+
       setIsCreatingPayment(true);
       try {
         const response = await fetch('/api/paymongo-create', {
@@ -1108,10 +1147,8 @@ export default function App() {
 
   const handleSubmitVerification = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (paymentStatus === 'paid') return;
-
-    // No required field errors as per user request
-    const paymentDetailUsed = (paymongoReference ?? '').trim() || 'MANUAL-FB-VERIFY';
+    const isFree = totalAmount === 0;
+    const paymentDetailUsed = isFree ? 'FREE-AUTO-APPROVED' : ((paymongoReference ?? '').trim() || 'MANUAL-FB-VERIFY');
     setSubmitError('');
 
     const normalizedReferenceNo = '000000'; // Placeholder since field is removed
@@ -1634,7 +1671,6 @@ export default function App() {
                   <span className="flex-1 text-center text-xs font-mono uppercase tracking-[0.22em] text-cyan-200">
                     Products: {selectedProducts.length} | Total: PHP {totalAmount}
                   </span>
-                  <div className="flex flex-wrap items-center justify-center gap-2">
                     {!isStageLocked && (
                       <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={goToPreviousStage} className="cyber-btn cyber-btn-secondary">
                         <ArrowLeft size={15} /> Back
@@ -1650,7 +1686,6 @@ export default function App() {
                     >
                       {isCreatingPayment ? 'Processing...' : (submitResult?.ok ? 'View Order Status' : 'Pay Now')} <ArrowRight size={15} />
                     </motion.button>
-                  </div>
                 </div>
 
                 {submitError && (
@@ -2077,9 +2112,8 @@ export default function App() {
                     </div>
                   ) : null}
 
-                  {paymentStatus !== 'paid' && !submitResult?.ok && (
+                  {paymentStatus !== 'paid' && !submitResult?.ok && totalAmount > 0 && (
                     <div className="space-y-4">
-
                       <div className="rounded-xl border border-cyan-500/40 bg-[#031018]/80 p-5 shadow-[0_0_30px_rgba(0,195,255,0.1)]">
                         <div className="mb-4">
                           <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-400 mb-2">Your Order Number</p>
@@ -2105,6 +2139,23 @@ export default function App() {
                             </a>
                           </div>
                         </label>
+                      </div>
+                    </div>
+                  )}
+
+                  {totalAmount === 0 && !submitResult?.ok && (
+                    <div className="rounded-xl border border-emerald-500/40 bg-[#051a0e] p-6 text-center shadow-[0_0_30px_rgba(16,185,129,0.15)] relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500/0 via-emerald-500/50 to-emerald-500/0" />
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="p-3 rounded-full bg-emerald-500/20 border border-emerald-500/40">
+                          <Package size={24} className="text-emerald-400" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-black text-emerald-300 uppercase tracking-widest italic">Free Digital Product</h3>
+                          <p className="text-xs text-emerald-100/70 font-mono uppercase tracking-[0.1em] mt-1 leading-relaxed">
+                            This product is free of charge. Your access will be automatically approved upon submission. No payment needed.
+                          </p>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -2144,7 +2195,7 @@ export default function App() {
                         disabled={isSubmitting || selectedProducts.length === 0}
                         className="cyber-btn cyber-btn-primary"
                       >
-                        {isSubmitting ? 'Sending Verification...' : 'Submit Verification'}
+                        {isSubmitting ? 'Finalizing Access...' : (totalAmount === 0 ? 'Claim Free Product' : 'Submit Verification')}
                         {!isSubmitting ? <ArrowRight size={15} /> : null}
                       </motion.button>
                     )}

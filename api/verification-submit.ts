@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
+import crypto from 'crypto';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -256,6 +257,45 @@ const buildFraudRejectedHtml = ({
 </html>`;
 };
 
+const buildApprovedEmailHtml = ({
+  username,
+  serialNo,
+  accessUrl,
+}: {
+  username: string;
+  serialNo: string;
+  accessUrl: string;
+}) => `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
+<body style="margin:0;padding:0;background:#f4f4f4;font-family:Segoe UI,Tahoma,Verdana,sans-serif;">
+  <table border="0" cellpadding="0" cellspacing="0" width="100%">
+    <tr><td style="padding:20px 0;">
+      <table align="center" border="0" cellpadding="0" cellspacing="0" width="600" style="background:#fff;border:1px solid #ddd;border-radius:8px;overflow:hidden;">
+        <tr><td style="background:#111827;color:#fff;padding:30px 24px;text-align:center;">
+          <img src="https://dmerch-portal.vercel.app/android-chrome-512x512.png" alt="DMerch Logo" style="width: 80px; height: 80px; margin-bottom: 15px; display: inline-block;" />
+          <h2 style="margin:0;font-size:22px;">Your DMerch Purchase is Ready</h2>
+        </td></tr>
+        <tr><td style="padding:26px 24px;color:#333;line-height:1.6;font-size:14px;">
+          <p>Hello <strong>${escapeHtml(username)}</strong>,</p>
+          <p>Your verification request has been automatically approved since the product is free. Use the button below to securely access your downloads.</p>
+          <p><strong>Order Serial:</strong> ${escapeHtml(serialNo)}</p>
+          <p><a href="${accessUrl}" style="display:inline-block;padding:12px 18px;background:#0284c7;color:#fff;text-decoration:none;border-radius:6px;">Access Your Downloads</a></p>
+          <p style="font-size:12px;color:#666;">Use the same email and order serial if prompted for verification.</p>
+          ${CONTACT_LINKS_HTML}
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+const createToken = (payload: object, secret: string) => {
+  const encoded = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+  const signature = crypto.createHmac('sha256', secret).update(encoded).digest('base64url');
+  return `${encoded}.${signature}`;
+};
+
 const sendEmailWithStatus = async ({
   resend,
   from,
@@ -426,7 +466,7 @@ export default async function handler(req: any, res: any) {
         amount: Number(item?.amount ?? 0),
         fileLink: String(item?.fileLink ?? '').trim(),
       }))
-      .filter((item) => item.name && !Number.isNaN(item.amount) && item.amount > 0);
+      .filter((item) => item.name && !Number.isNaN(item.amount));
     const productName = products[0]?.name ?? String(payload.productName ?? '').trim();
     const referenceNo = String(payload.referenceNo ?? '').replace(/\D/g, '').slice(-6);
     const paymentPortalUsedRaw = String(payload.paymentPortalUsed ?? '').trim().toLowerCase();
@@ -439,7 +479,7 @@ export default async function handler(req: any, res: any) {
     const totalAmount = Number(payload.totalAmount ?? 0) || products.reduce((sum, item) => sum + item.amount, 0);
 
     // Validation bypass as per user request
-    const missingFields = !username || !email || !productName || !totalAmount;
+    const missingFields = !username || !email || !productName;
     if (missingFields) {
       // We still need some basic data for the entry, but we'll try to handle it.
       if (!username) return res.status(400).json({ ok: false, error: 'Name is required.' });
@@ -623,19 +663,61 @@ export default async function handler(req: any, res: any) {
         };
       });
 
+    const isAutoApproved = totalAmount === 0;
+
+    // Fetch products locally for case-insensitive matching and to handle high volumes
+    let finalOrderItems = orderItems;
+    if (isAutoApproved) {
+      // Fetch products that might match. We fetch all for simplicity given the small scale (<5k items)
+      // and to ensure we don't miss items due to case sensitivity or complex names in the 'in' filter.
+      const dbProducts = await supabase
+        .from('products')
+        .select('name, file_url')
+        .limit(10000);
+      
+      if (!dbProducts.error && dbProducts.data) {
+        finalOrderItems = orderItems.map(item => {
+          const targetName = item.name.trim().toLowerCase();
+          const dbMatch = dbProducts.data.find(p => {
+            const dn = String(p.name || '').trim().toLowerCase();
+            return dn === targetName;
+          });
+          
+          return {
+            ...item,
+            fileLink: item.fileLink || dbMatch?.file_url || '',
+          };
+        });
+      }
+    }
+
     const subject = `DMerch Verification ${serialNo}`;
-    const customerHtml = buildEmailHtml({
-      username,
-      products: orderItems,
-      totalAmount,
-      serialNo,
-      referenceNo,
-      submittedOn,
-      previousPurchases,
-    });
+    let customerHtml: string;
+    let customerSubject = subject;
+
+    const tokenSecret = process.env.DELIVERY_TOKEN_SECRET ?? supabaseServiceRoleKey;
+    const appBaseUrl = process.env.APP_BASE_URL ?? 'https://digitalmerchs.store';
+
+    if (isAutoApproved) {
+      const token = createToken({ email, serialNo }, tokenSecret);
+      const accessUrl = `${appBaseUrl}/delivery?access=${encodeURIComponent(token)}`;
+      customerHtml = buildApprovedEmailHtml({ username, serialNo, accessUrl });
+      customerSubject = `DMerch Delivery Access (${serialNo})`;
+    } else {
+      customerHtml = buildEmailHtml({
+        username,
+        products: finalOrderItems,
+        totalAmount,
+        serialNo,
+        referenceNo,
+        submittedOn,
+        previousPurchases,
+      });
+    }
+
     const adminHtml = buildEmailHtml({
       username,
-      products: orderItems,
+      products: finalOrderItems,
       totalAmount,
       serialNo,
       referenceNo,
@@ -649,22 +731,28 @@ export default async function handler(req: any, res: any) {
         resend,
         from: resendFromEmail,
         to: email,
-        mailSubject: subject,
+        mailSubject: customerSubject,
         html: customerHtml,
       }),
       sendEmailWithStatus({
         resend,
         from: resendFromEmail,
         to: adminEmail,
-        mailSubject: `[ADMIN] ${subject}`,
+        mailSubject: `[ADMIN] ${isAutoApproved ? 'AUTO-APPROVED: ' : ''}${subject}`,
         html: adminHtml,
       }),
     ]);
 
     const statusParts = [];
-    statusParts.push(requiresManualReview ? 'review:pending_manual' : 'review:pending');
-    if (requiresManualReview) {
-      statusParts.push(`reason:${manualReviewReasons.join(',')}`);
+    if (isAutoApproved) {
+      statusParts.push('review:approved');
+      statusParts.push('inbox:archived');
+      statusParts.push('auto_approved:free_product');
+    } else {
+      statusParts.push(requiresManualReview ? 'review:pending_manual' : 'review:pending');
+      if (requiresManualReview) {
+        statusParts.push(`reason:${manualReviewReasons.join(',')}`);
+      }
     }
     statusParts.push(`customer:${customerEmailStatus}`);
     statusParts.push(`admin:${adminEmailStatus}`);
@@ -673,8 +761,51 @@ export default async function handler(req: any, res: any) {
 
     await supabase
       .from('verification_orders')
-      .update({ email_status: emailStatus })
+      .update({ 
+        email_status: emailStatus,
+        products_json: finalOrderItems // Update with resolved links if any
+      })
       .eq('id', insertedOrderId);
+
+    // Update buyer entitlements for auto-approval
+    if (isAutoApproved) {
+      const approvedLookup = await supabase
+        .from('verification_orders')
+        .select('products_json, email_status')
+        .eq('email', email)
+        .ilike('email_status', '%review:approved%')
+        .limit(500);
+
+      if (!approvedLookup.error) {
+        const approvedRowsMap = (approvedLookup.data ?? []).filter((row) => String(row.email_status ?? '').toLowerCase().includes('review:approved'));
+        
+        // Distinct count
+        const distinctNames = new Set<string>();
+        for (const row of approvedRowsMap) {
+          const prods = Array.isArray(row.products_json) ? row.products_json : [];
+          for (const item of prods as any[]) {
+            const n = String(item?.name ?? '').trim().toLowerCase();
+            if (n) distinctNames.add(n);
+          }
+        }
+        
+        const approvedProductCount = distinctNames.size;
+        const isUnlimited = approvedProductCount >= 3;
+
+        await supabase
+          .from('buyer_entitlements')
+          .upsert(
+            {
+              email: email,
+              approved_product_count: approvedProductCount,
+              download_limit: 10,
+              download_used: 0,
+              is_unlimited: isUnlimited,
+            },
+            { onConflict: 'email' }
+          );
+      }
+    }
 
     res.setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin']);
     return res.status(200).json({
@@ -687,9 +818,11 @@ export default async function handler(req: any, res: any) {
       adminEmailStatus,
       customerEmailDelivered,
       totalAmount,
-      notice: requiresManualReview
-        ? 'Submitted for manual verification. Your purchase is queued for admin review.'
-        : undefined,
+      notice: isAutoApproved
+        ? 'Your free products have been automatically approved! Check your email for the download links.'
+        : requiresManualReview
+          ? 'Submitted for manual verification. Your purchase is queued for admin review.'
+          : undefined,
     });
   } catch (error) {
     return res.status(500).json({

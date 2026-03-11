@@ -191,26 +191,39 @@ export default function LandingPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {categorySummaries.map((category) => {
               const previewSamples = category.products.slice(0, 3);
+              const name = category.name.toLowerCase();
+              let banner = 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=600&auto=format&fit=crop';
+              if (name.includes('creative')) banner = '/assets/placeholders/software.png';
+              if (name.includes('cad')) banner = 'https://images.unsplash.com/photo-1581092580497-e0d23cbdf1dc?q=80&w=600&auto=format&fit=crop';
+              if (name.includes('productivity')) banner = '/assets/placeholders/software.png';
+              if (name.includes('security')) banner = 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=600&auto=format&fit=crop';
+              if (name.includes('gaming')) banner = 'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=600&auto=format&fit=crop';
+              if (name.includes('mobile')) banner = 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?q=80&w=600&auto=format&fit=crop';
+
               return (
                 <button
                   key={category.name}
                   type="button"
                   onClick={() => handleOpenCategory(category)}
-                  className="group flex flex-col rounded-2xl border border-white/10 bg-[#05060f]/80 p-4 text-left transition hover:border-fuchsia-400/60"
+                  className="group flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#05060f]/80 text-left transition hover:border-fuchsia-400/60"
                 >
-                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] uppercase tracking-[0.3em] text-cyan-200">{category.name}</p>
-                    <span className="rounded-full border border-cyan-400/30 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-200">
-                      {category.count}
-                    </span>
+                  <div className="h-24 w-full overflow-hidden">
+                    <img src={banner} alt={category.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
                   </div>
-                  <div className="mt-2 text-xs text-gray-300">
-                    {previewSamples.map((sample) => (
-                      <p key={sample} className="truncate">{sample}</p>
-                    ))}
+                  <div className="p-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] uppercase tracking-[0.3em] text-cyan-200">{category.name}</p>
+                      <span className="rounded-full border border-cyan-400/30 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-200">
+                        {category.count}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-xs text-gray-300">
+                      {previewSamples.map((sample) => (
+                        <p key={sample} className="truncate">{sample}</p>
+                      ))}
+                    </div>
+                    <p className="mt-3 text-[10px] uppercase tracking-[0.4em] text-cyan-300/80">View collection</p>
                   </div>
-                  <p className="mt-3 text-[10px] uppercase tracking-[0.4em] text-cyan-300/80">View all</p>
-                  <div className="mt-2 h-1 rounded-full bg-transparent transition group-hover:bg-cyan-400/60" />
                 </button>
               );
             })}
@@ -274,21 +287,31 @@ export default function LandingPage() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {filteredProducts.length > 0 ? (
                 filteredProducts.map((product) => (
-                  <article key={product} className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 shadow-[0_0_25px_rgba(0,0,0,0.2)]">
-                    <div className="flex items-center justify-between">
-                      <div className="rounded-2xl bg-gradient-to-br from-cyan-500/60 to-blue-500/40 p-3 text-xs font-semibold uppercase tracking-[0.15em] text-white">
-                        {activeCategory.name.split(' ')[0].slice(0, 3)}
+                  <article key={product} className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 shadow-[0_0_25px_rgba(0,0,0,0.2)] transition-all hover:border-cyan-400/40">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="h-16 w-16 min-w-[64px] rounded-lg overflow-hidden bg-black/40">
+                        <img 
+                          src="/assets/placeholders/software.png" 
+                          alt="" 
+                          className="h-full w-full object-cover opacity-60 group-hover:opacity-100" 
+                        />
                       </div>
-                      <span className="text-[10px] uppercase tracking-[0.2em] text-gray-300">PHP 99 / 199</span>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <div className="rounded-lg bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-cyan-400">
+                            {activeCategory.name.split(' ')[0]}
+                          </div>
+                          <span className="text-[10px] uppercase tracking-[0.2em] text-emerald-400 font-bold">PHP 99+</span>
+                        </div>
+                        <h5 className="mt-2 text-sm font-semibold text-white truncate max-w-[140px]">{product}</h5>
+                      </div>
                     </div>
-                    <h5 className="text-sm font-semibold text-white">{product}</h5>
-                    <p className="text-xs text-gray-400">{`Premium ${activeCategory.name.toLowerCase()} toolkit with secure verification.`}</p>
                     <button
                       type="button"
                       onClick={() => copyAndAdd(product)}
-                      className="text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-200"
+                      className="w-full py-2 rounded-lg border border-white/5 bg-white/5 text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-300 hover:bg-cyan-500/20 hover:border-cyan-500/40 transition-all"
                     >
-                      Add to cart
+                      Copy & Add to Cart
                     </button>
                   </article>
                 ))
