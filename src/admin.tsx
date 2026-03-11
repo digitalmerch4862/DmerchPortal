@@ -2017,7 +2017,7 @@ export default function Admin() {
                 <button disabled={selectedCount === 0} onClick={applyMassCategory} className="cyber-btn cyber-btn-secondary">Mass Edit Category</button>
                 <button disabled={selectedCount === 0} onClick={deleteSelectedProducts} className="cyber-btn cyber-btn-secondary">Mass Delete</button>
               </div>
-              <div className="max-h-[420px] overflow-auto rounded-lg border border-cyan-500/20">
+              <div className="max-h-[420px] sm:max-h-[75vh] overflow-auto rounded-lg border border-cyan-500/20">
                 <table className="w-full min-w-[1100px] border-collapse text-xs">
                   <thead className="sticky top-0 z-10 bg-cyan-500/10 text-cyan-200">
                     <tr>
