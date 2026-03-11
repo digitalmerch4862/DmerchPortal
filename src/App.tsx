@@ -2480,7 +2480,7 @@ export default function App() {
                       onClick={handleClientSignOut}
                       className="cyber-btn cyber-btn-secondary border-red-400/60 text-red-200 hover:text-white"
                     >
-                      <LogOut size={15} /> Sign Out
+                      <LogOut size={15} /> Secure Download Access
                     </motion.button>
 
                     {(submitResult?.ok || paymentStatus === 'paid') && (
