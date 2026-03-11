@@ -2400,9 +2400,14 @@ export default function App() {
                           <Download size={13} /> Download file
                         </button>
                       </div>
-                      <p className="mt-2 text-xs text-gray-300 leading-relaxed">
-                        Keep this reference code for your records. Check your Inbox or Spam folder for email confirmation.
-                      </p>
+                      <div className="mt-3 rounded-md border border-amber-400/50 bg-amber-500/10 px-3 py-2">
+                        <p className="text-[11px] sm:text-xs font-black uppercase tracking-[0.14em] text-amber-300">
+                          Check your INBOX or SPAM folder now for the confirmation email.
+                        </p>
+                        <p className="mt-1 text-xs text-gray-300 leading-relaxed">
+                          Keep this reference code for your records while waiting for delivery.
+                        </p>
+                      </div>
                       <p className="mt-2 text-xs text-gray-400">
                         Sequence: {submitResult.sequenceNo} | Total: PHP {submitResult.totalAmount ?? totalAmount} | Email status: {submitResult.customerEmailStatus ?? submitResult.emailStatus}
                       </p>
