@@ -28,13 +28,16 @@ export const sanitizePromoCards = (raw: unknown): PromoCard[] => {
   return next;
 };
 
-export const readPromoCardsFromStorage = (): PromoCard[] => {
-  if (typeof window === 'undefined') return [...DEFAULT_PROMO_CARDS];
-  try {
-    const raw = window.localStorage.getItem(PROMO_CARDS_KEY);
-    if (!raw) return [...DEFAULT_PROMO_CARDS];
-    return sanitizePromoCards(JSON.parse(raw));
-  } catch {
-    return [...DEFAULT_PROMO_CARDS];
+export const resolvePromoImageUrl = (rawUrl: string): string => {
+  const input = String(rawUrl ?? '').trim();
+  if (!input) return '';
+
+  const fromFilePath = input.match(/\/file\/d\/([^/?]+)/i)?.[1];
+  const fromOpenId = input.match(/[?&]id=([^&]+)/i)?.[1];
+  const fileId = fromFilePath || fromOpenId || '';
+  if (fileId) {
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w2000`;
   }
+
+  return input;
 };

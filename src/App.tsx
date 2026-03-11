@@ -15,7 +15,7 @@ import { productCatalog, type ProductItem } from './data/products';
 import { getSupabaseBrowserClient } from './lib/supabase-browser';
 import { supabase } from './supabaseClient.js';
 import gcashQr from './gcash-qr.png';
-import { DEFAULT_PROMO_CARDS, sanitizePromoCards, type PromoCard } from './lib/promo-cards';
+import { DEFAULT_PROMO_CARDS, resolvePromoImageUrl, sanitizePromoCards, type PromoCard } from './lib/promo-cards';
 
 const ADMIN_PRODUCTS_KEY = 'dmerch_admin_products_v1';
 const ADMIN_GOOGLE_SHORTCUT_KEY = 'dmerch_admin_google_shortcut_v1';
@@ -420,7 +420,8 @@ function PromoCardGrid({ cards }: { cards: PromoCard[] }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
       {cards.map((card, index) => {
-        const hasImage = card.imageUrl.length > 0;
+        const imageSrc = resolvePromoImageUrl(card.imageUrl);
+        const hasImage = imageSrc.length > 0;
         const Wrapper: any = card.href ? 'a' : 'div';
         return (
           <Wrapper
@@ -432,7 +433,7 @@ function PromoCardGrid({ cards }: { cards: PromoCard[] }) {
           >
             <div className="relative h-28 w-full">
               {hasImage ? (
-                <img src={card.imageUrl} alt={card.title} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                <img src={imageSrc} alt={card.title} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center bg-cyan-500/5 text-[10px] font-mono uppercase tracking-[0.15em] text-cyan-300/70">
                   Add promo image in admin

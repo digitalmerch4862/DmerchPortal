@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { Archive, ArrowLeft, BarChart3, CheckCircle2, Download, Image, Inbox, PackageSearch, Pencil, ShieldAlert, Trash2, Upload, UsersRound, Plus, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { productCatalog } from './data/products';
 import { getSupabaseBrowserClient } from './lib/supabase-browser';
-import { DEFAULT_PROMO_CARDS, sanitizePromoCards, type PromoCard } from './lib/promo-cards';
+import { DEFAULT_PROMO_CARDS, resolvePromoImageUrl, sanitizePromoCards, type PromoCard } from './lib/promo-cards';
 
 type AdminProduct = {
   id: string;
@@ -2314,7 +2314,7 @@ export default function Admin() {
                   </div>
                   <div className="mt-3 h-24 overflow-hidden rounded border border-cyan-500/20 bg-cyan-500/5">
                     {card.imageUrl ? (
-                      <img src={card.imageUrl} alt={card.title || `Promo ${index + 1}`} className="h-full w-full object-cover" />
+                      <img src={resolvePromoImageUrl(card.imageUrl)} alt={card.title || `Promo ${index + 1}`} className="h-full w-full object-cover" />
                     ) : (
                       <div className="flex h-full items-center justify-center text-[10px] font-mono uppercase tracking-[0.14em] text-cyan-300/70">
                         No image
