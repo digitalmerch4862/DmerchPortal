@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { Archive, ArrowLeft, BarChart3, CheckCircle2, Download, Image, Inbox, PackageSearch, Pencil, ShieldAlert, Trash2, Upload, UsersRound, Plus, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { productCatalog } from './data/products';
 import { getSupabaseBrowserClient } from './lib/supabase-browser';
-import { DEFAULT_PROMO_CARDS, PROMO_CARDS_KEY, sanitizePromoCards, type PromoCard } from './lib/promo-cards';
+import { DEFAULT_PROMO_CARDS, sanitizePromoCards, type PromoCard } from './lib/promo-cards';
 
 type AdminProduct = {
   id: string;
@@ -428,11 +428,7 @@ export default function Admin() {
     }
 
     setCounterResetDayKey(String(window.localStorage.getItem(COUNTERS_RESET_DAY_KEY) ?? '').trim());
-    try {
-      setPromoCards(sanitizePromoCards(JSON.parse(window.localStorage.getItem(PROMO_CARDS_KEY) ?? '[]')));
-    } catch {
-      setPromoCards([...DEFAULT_PROMO_CARDS]);
-    }
+    setPromoCards([...DEFAULT_PROMO_CARDS]);
 
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
@@ -501,13 +497,42 @@ export default function Admin() {
     };
   }, [fetchSupabaseProducts, unlocked]);
 
+  const loadPromoCards = useCallback(async () => {
+    try {
+      const response = await fetch('/api/promo-cards');
+      const payload = (await response.json()) as { ok?: boolean; cards?: unknown[] };
+      if (payload?.ok) {
+        setPromoCards(sanitizePromoCards(payload.cards ?? []));
+      }
+    } catch {
+      setPromoCards([...DEFAULT_PROMO_CARDS]);
+    }
+  }, []);
+
   const updatePromoCard = (index: number, patch: Partial<PromoCard>) => {
     setPromoCards((current) => current.map((card, i) => (i === index ? { ...card, ...patch } : card)));
   };
 
-  const savePromoCards = () => {
-    window.localStorage.setItem(PROMO_CARDS_KEY, JSON.stringify(promoCards));
-    alert('Promo cards saved. Home and Secure Download cards updated.');
+  const savePromoCards = async () => {
+    if (!accessToken) {
+      alert('Admin session expired. Please log in again.');
+      return;
+    }
+    const response = await fetch('/api/promo-cards', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ cards: promoCards }),
+    });
+    const payload = (await readApiPayload(response)) as { ok?: boolean; error?: string };
+    if (!response.ok || !payload.ok) {
+      alert(payload.error ?? `Failed to save promos (HTTP ${response.status}).`);
+      return;
+    }
+    alert('Promo cards saved to Supabase.');
+    await loadPromoCards();
   };
 
   // No longer using LocalStorage for products
@@ -691,7 +716,7 @@ export default function Admin() {
   };
 
   const refreshAdminData = async () => {
-    await Promise.all([refreshInbox(), refreshCrm()]);
+    await Promise.all([refreshInbox(), refreshCrm(), loadPromoCards()]);
   };
 
   useEffect(() => {
@@ -701,7 +726,8 @@ export default function Admin() {
     }
     void refreshInbox(accessToken);
     void refreshCrm(accessToken);
-  }, [unlocked, accessToken]);
+    void loadPromoCards();
+  }, [unlocked, accessToken, loadPromoCards]);
 
   useEffect(() => {
     if (!unlocked || !accessToken || inboxAutoMappedRef.current) {

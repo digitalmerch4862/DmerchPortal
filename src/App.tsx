@@ -15,7 +15,7 @@ import { productCatalog, type ProductItem } from './data/products';
 import { getSupabaseBrowserClient } from './lib/supabase-browser';
 import { supabase } from './supabaseClient.js';
 import gcashQr from './gcash-qr.png';
-import { readPromoCardsFromStorage, type PromoCard } from './lib/promo-cards';
+import { DEFAULT_PROMO_CARDS, sanitizePromoCards, type PromoCard } from './lib/promo-cards';
 
 const ADMIN_PRODUCTS_KEY = 'dmerch_admin_products_v1';
 const ADMIN_GOOGLE_SHORTCUT_KEY = 'dmerch_admin_google_shortcut_v1';
@@ -490,7 +490,7 @@ export default function App() {
   const [productsLoading, setProductsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [paymentTimer, setPaymentTimer] = useState(60);
-  const [promoCards, setPromoCards] = useState<PromoCard[]>(() => readPromoCardsFromStorage());
+  const [promoCards, setPromoCards] = useState<PromoCard[]>([...DEFAULT_PROMO_CARDS]);
   const productPickerRef = useRef<HTMLDivElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const uploadSfxIntervalRef = useRef<number | null>(null);
@@ -503,12 +503,22 @@ export default function App() {
   const activeAvailment = FAKE_AVAILMENTS[liveAvailmentIndex % FAKE_AVAILMENTS.length];
 
   useEffect(() => {
-    const syncPromoCards = () => {
-      setPromoCards(readPromoCardsFromStorage());
+    let cancelled = false;
+    const loadPromoCards = async () => {
+      try {
+        const response = await fetch('/api/promo-cards');
+        const payload = (await response.json()) as { ok?: boolean; cards?: unknown[] };
+        if (!cancelled && payload?.ok) {
+          setPromoCards(sanitizePromoCards(payload.cards ?? []));
+        }
+      } catch {
+        // Keep defaults if API is unavailable.
+      }
     };
-    window.addEventListener('storage', syncPromoCards);
-    syncPromoCards();
-    return () => window.removeEventListener('storage', syncPromoCards);
+    void loadPromoCards();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
