@@ -205,24 +205,13 @@ function FilePreviewModal({
   const [iframeError, setIframeError] = useState(false);
   const [added, setAdded] = useState(false);
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
-  const autoMuteTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (autoMuteTimeoutRef.current !== null) {
-      window.clearTimeout(autoMuteTimeoutRef.current);
-      autoMuteTimeoutRef.current = null;
-    }
     if (isOpen) {
       setIsIframeLoading(true);
       setIframeError(false);
       setAdded(false);
     }
-    return () => {
-      if (autoMuteTimeoutRef.current !== null) {
-        window.clearTimeout(autoMuteTimeoutRef.current);
-        autoMuteTimeoutRef.current = null;
-      }
-    };
   }, [isOpen, product]);
 
   if (!isOpen || !product) return null;
@@ -250,21 +239,6 @@ function FilePreviewModal({
   const driveFileId = getDriveFileId(product.fileLink || '');
   const driveVideoUrl = driveFileId ? `https://drive.google.com/uc?export=download&id=${driveFileId}` : '';
   const previewVideoUrl = isDrivePreview && driveVideoUrl ? driveVideoUrl : (product.fileLink || '');
-
-  const scheduleAutoMute = () => {
-    if (autoMuteTimeoutRef.current !== null) {
-      window.clearTimeout(autoMuteTimeoutRef.current);
-      autoMuteTimeoutRef.current = null;
-    }
-    const video = previewVideoRef.current;
-    if (!video) return;
-    const remainingSeconds = Math.max(0, 60 - (video.currentTime || 0));
-    autoMuteTimeoutRef.current = window.setTimeout(() => {
-      if (previewVideoRef.current) {
-        previewVideoRef.current.muted = true;
-      }
-    }, remainingSeconds * 1000);
-  };
 
   const handleModalAdd = () => {
     onAdd(product);
@@ -346,7 +320,7 @@ function FilePreviewModal({
                  {/* 2. Top Right Specific Download/Open Guard */}
                  <div className="absolute top-0 right-0 w-52 h-20 z-40 bg-[#0a0a0a] pointer-events-auto" />
                  {/* 3. Center Control Guard */}
-                 <div className="absolute top-1/2 left-1/2 z-40 h-20 w-[320px] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-transparent pointer-events-auto" />
+                 <div className="absolute top-1/2 left-1/2 z-40 h-44 w-[540px] max-w-[88vw] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-black/65 pointer-events-auto" />
                </>
              )}
              
@@ -368,14 +342,13 @@ function FilePreviewModal({
                  controls
                  autoPlay
                  playsInline
-                 onLoadedData={() => {
-                   setIsIframeLoading(false);
-                   scheduleAutoMute();
-                 }}
-                 onPlay={scheduleAutoMute}
-                 onTimeUpdate={() => {
+                 muted
+                 defaultMuted
+                 controlsList="nodownload noplaybackrate"
+                 onLoadedData={() => setIsIframeLoading(false)}
+                 onPlay={() => {
                    const video = previewVideoRef.current;
-                   if (video && video.currentTime >= 60 && !video.muted) {
+                   if (video && !video.muted) {
                      video.muted = true;
                    }
                  }}
