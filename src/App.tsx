@@ -203,11 +203,13 @@ function FilePreviewModal({
 }) {
   const [isIframeLoading, setIsIframeLoading] = useState(true);
   const [iframeError, setIframeError] = useState(false);
+  const [added, setAdded] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setIsIframeLoading(true);
       setIframeError(false);
+      setAdded(false);
     }
   }, [isOpen, product]);
 
@@ -223,7 +225,6 @@ function FilePreviewModal({
   };
 
   const embedUrl = getEmbedUrl(product.fileLink || '');
-  const [added, setAdded] = useState(false);
 
   const handleModalAdd = () => {
     onAdd(product);
@@ -232,14 +233,13 @@ function FilePreviewModal({
   };
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md p-2 sm:p-4"
-        onClick={onClose}
-      >
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md p-2 sm:p-4"
+      onClick={onClose}
+    >
         <motion.div
           initial={{ scale: 0.9, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -350,9 +350,8 @@ function FilePreviewModal({
                Secure Environment Active - Protected by DMERCH Protocols
             </p>
           </div>
-        </motion.div>
       </motion.div>
-    </AnimatePresence>
+    </motion.div>
   );
 }
 
@@ -2498,15 +2497,19 @@ export default function App() {
           </p>
         </footer >
       </main >
-      <FilePreviewModal 
-        product={previewProduct} 
-        isOpen={isPreviewModalOpen} 
-        onClose={() => {
-          setIsPreviewModalOpen(false);
-          setPreviewProduct(null);
-        }} 
-        onAdd={addProductToCart}
-      />
+      <AnimatePresence>
+        {isPreviewModalOpen && (
+          <FilePreviewModal 
+            product={previewProduct} 
+            isOpen={isPreviewModalOpen} 
+            onClose={() => {
+              setIsPreviewModalOpen(false);
+              setPreviewProduct(null);
+            }} 
+            onAdd={addProductToCart}
+          />
+        )}
+      </AnimatePresence>
     </div >
   );
 }
