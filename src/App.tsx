@@ -1443,7 +1443,7 @@ export default function App() {
                             >
                               <div className="flex items-center gap-3">
                                 <CatIcon size={16} className="text-[#ff00ff] drop-shadow-[0_0_6px_rgba(255,0,255,0.5)]" />
-                                <span className="text-xs sm:text-sm font-black uppercase tracking-[0.2em] text-[#ff00ff]">{category}</span>
+                                <span className="text-sm sm:text-[18px] font-black uppercase tracking-[0.25em] text-[#ff00ff] drop-shadow-[0_0_10px_rgba(255,0,255,0.4)]">{category}</span>
                                 <span className="text-[9px] font-mono text-gray-500">{totalInCat} items</span>
                               </div>
                               {isCatOpen
@@ -1472,7 +1472,7 @@ export default function App() {
                                               ? <ChevronDown size={12} className="text-cyan-400" />
                                               : <ChevronRightIcon size={12} className="text-gray-600" />
                                             }
-                                            <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-[#ff00ff]">{sub}</span>
+                                            <span className="text-[14px] sm:text-[15px] font-bold uppercase tracking-[0.12em] text-white/90 drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]">{sub}</span>
                                           </div>
                                           <span className="text-[9px] font-mono text-gray-500">{(products as ProductItem[]).length}</span>
                                         </button>
@@ -1517,7 +1517,7 @@ export default function App() {
                       >
                         <div className="flex items-center gap-3">
                           <GraduationCap size={16} className="text-[#ff00ff] drop-shadow-[0_0_6px_rgba(255,0,255,0.5)]" />
-                          <span className="text-xs sm:text-sm font-black uppercase tracking-[0.2em] text-[#ff00ff]">COURSES</span>
+                          <span className="text-sm sm:text-[18px] font-black uppercase tracking-[0.25em] text-[#ff00ff] drop-shadow-[0_0_10px_rgba(255,0,255,0.4)]">COURSES</span>
                           <span className="text-[9px] font-mono text-gray-500">{courseCount} available</span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -1546,7 +1546,7 @@ export default function App() {
                                       ? <ChevronDown size={12} className="text-cyan-400" />
                                       : <ChevronRightIcon size={12} className="text-gray-600" />
                                     }
-                                    <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-[#ff00ff]">{sub}</span>
+                                    <span className="text-[14px] sm:text-[15px] font-bold uppercase tracking-[0.12em] text-white/90 drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]">{sub}</span>
                                   </div>
                                   <span className="text-[9px] font-mono text-gray-500">{(courses as ProductItem[]).length}</span>
                                 </button>
