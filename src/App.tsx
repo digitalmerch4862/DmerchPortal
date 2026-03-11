@@ -444,8 +444,12 @@ function PromoCardGrid({ cards }: { cards: PromoCard[] }) {
               {card.title || `Promo Slot ${index + 1}`}
             </div>
             {hasImage ? (
-              <div className="pointer-events-none absolute left-1/2 top-full z-40 mt-2 hidden w-[360px] max-w-[78vw] -translate-x-1/2 rounded-lg border border-cyan-300/70 bg-[#02070d]/95 p-2 shadow-[0_0_30px_rgba(0,243,255,0.25)] group-hover:block">
-                <img src={imageSrc} alt={`${card.title} zoom`} className="h-auto w-full rounded-md object-contain" />
+              <div className="pointer-events-none fixed inset-0 z-[70] hidden items-center justify-center bg-black/45 p-4 group-hover:flex">
+                <img
+                  src={imageSrc}
+                  alt={`${card.title} zoom`}
+                  className="max-h-[82vh] w-auto max-w-[92vw] rounded-lg border border-cyan-300/70 bg-[#02070d]/95 p-1 shadow-[0_0_35px_rgba(0,243,255,0.35)]"
+                />
               </div>
             ) : null}
           </Wrapper>
