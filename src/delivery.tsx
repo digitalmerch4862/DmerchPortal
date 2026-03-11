@@ -309,7 +309,7 @@ export default function Delivery() {
                       <img
                         src={imageSrc}
                         alt={`${card.title} zoom`}
-                        className="max-h-[82vh] w-auto max-w-[92vw] rounded-lg border border-cyan-300/70 bg-[#02070d]/95 p-1 shadow-[0_0_35px_rgba(0,243,255,0.35)]"
+                        className="h-auto w-[68vw] max-w-[620px] max-h-[58vh] rounded-lg border border-cyan-300/70 bg-[#02070d]/95 p-1 object-contain shadow-[0_0_35px_rgba(0,243,255,0.35)]"
                       />
                     </div>
                   ) : null}
