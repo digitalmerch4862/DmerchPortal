@@ -15,6 +15,7 @@ import { productCatalog, type ProductItem } from './data/products';
 import { getSupabaseBrowserClient } from './lib/supabase-browser';
 import { supabase } from './supabaseClient.js';
 import gcashQr from './gcash-qr.png';
+import { readPromoCardsFromStorage, type PromoCard } from './lib/promo-cards';
 
 const ADMIN_PRODUCTS_KEY = 'dmerch_admin_products_v1';
 const ADMIN_GOOGLE_SHORTCUT_KEY = 'dmerch_admin_google_shortcut_v1';
@@ -415,6 +416,39 @@ function FilePreviewModal({
   );
 }
 
+function PromoCardGrid({ cards }: { cards: PromoCard[] }) {
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      {cards.map((card, index) => {
+        const hasImage = card.imageUrl.length > 0;
+        const Wrapper: any = card.href ? 'a' : 'div';
+        return (
+          <Wrapper
+            key={`${card.title}-${index}`}
+            href={card.href || undefined}
+            target={card.href ? '_blank' : undefined}
+            rel={card.href ? 'noreferrer noopener' : undefined}
+            className="group overflow-hidden rounded-lg border border-cyan-500/30 bg-black/40"
+          >
+            <div className="relative h-28 w-full">
+              {hasImage ? (
+                <img src={card.imageUrl} alt={card.title} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-cyan-500/5 text-[10px] font-mono uppercase tracking-[0.15em] text-cyan-300/70">
+                  Add promo image in admin
+                </div>
+              )}
+            </div>
+            <div className="border-t border-cyan-500/20 px-2 py-2 text-[10px] font-mono uppercase tracking-[0.14em] text-cyan-100">
+              {card.title || `Promo Slot ${index + 1}`}
+            </div>
+          </Wrapper>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function App() {
   const [stage, setStage] = useState<FlowStage>(1);
   const [paymentPortalUsed, setPaymentPortalUsed] = useState<'paymongo'>('paymongo');
@@ -456,6 +490,7 @@ export default function App() {
   const [productsLoading, setProductsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [paymentTimer, setPaymentTimer] = useState(60);
+  const [promoCards, setPromoCards] = useState<PromoCard[]>(() => readPromoCardsFromStorage());
   const productPickerRef = useRef<HTMLDivElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const uploadSfxIntervalRef = useRef<number | null>(null);
@@ -466,6 +501,15 @@ export default function App() {
   const canDownloadPaymongoQr = !!(paymongoQrSrc && paymongoQrSrc.length > 5);
   const paymongoQrFilename = 'gcash-qr.png';
   const activeAvailment = FAKE_AVAILMENTS[liveAvailmentIndex % FAKE_AVAILMENTS.length];
+
+  useEffect(() => {
+    const syncPromoCards = () => {
+      setPromoCards(readPromoCardsFromStorage());
+    };
+    window.addEventListener('storage', syncPromoCards);
+    syncPromoCards();
+    return () => window.removeEventListener('storage', syncPromoCards);
+  }, []);
 
   useEffect(() => {
     const logVisit = async () => {
@@ -1920,6 +1964,10 @@ export default function App() {
 
 
                   <div className="mt-4 rounded-lg border border-cyan-500/30 bg-[#06101a]/80 p-4">
+                    <div className="mb-3">
+                      <p className="mb-2 text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-300">Promos</p>
+                      <PromoCardGrid cards={promoCards} />
+                    </div>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-300">Secure Download Access</p>
                       <button
@@ -2112,6 +2160,10 @@ export default function App() {
               className="w-full"
             >
               <CyberCard title="Client Details" icon={ShieldCheck} color="magenta">
+                <div className="mb-4 rounded-xl border border-cyan-500/30 bg-[#04111a]/70 p-3">
+                  <p className="mb-2 text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-300">Promo Highlights</p>
+                  <PromoCardGrid cards={promoCards} />
+                </div>
                 <div className="relative z-20 rounded-xl border border-cyan-500/40 bg-[#031018]/80 p-4 shadow-[0_0_35px_rgba(0,195,255,0.12)]">
                   <div className="pointer-events-none absolute left-2 top-2 h-5 w-5 border-l-2 border-t-2 border-cyan-400/70" />
                   <div className="pointer-events-none absolute bottom-2 right-2 h-5 w-5 border-b-2 border-r-2 border-cyan-400/70" />

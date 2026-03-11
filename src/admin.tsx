@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { motion } from 'motion/react';
-import { Archive, ArrowLeft, BarChart3, CheckCircle2, Download, Inbox, PackageSearch, Pencil, ShieldAlert, Trash2, Upload, UsersRound, Plus, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Archive, ArrowLeft, BarChart3, CheckCircle2, Download, Image, Inbox, PackageSearch, Pencil, ShieldAlert, Trash2, Upload, UsersRound, Plus, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { productCatalog } from './data/products';
 import { getSupabaseBrowserClient } from './lib/supabase-browser';
+import { DEFAULT_PROMO_CARDS, PROMO_CARDS_KEY, sanitizePromoCards, type PromoCard } from './lib/promo-cards';
 
 type AdminProduct = {
   id: string;
@@ -164,7 +165,7 @@ type CrmItem = {
 
 type CrmApiItem = Omit<CrmItem, 'id'>;
 
-type AdminTab = 'analytics' | 'approvals' | 'products' | 'crm' | 'manualEncode';
+type AdminTab = 'analytics' | 'approvals' | 'products' | 'crm' | 'promos' | 'manualEncode';
 
 const toPhp = (amount: number) =>
   new Intl.NumberFormat('en-PH', {
@@ -344,6 +345,7 @@ export default function Admin() {
   const [manualError, setManualError] = useState('');
   const [manualSuccess, setManualSuccess] = useState('');
   const [isManualEncodeExpanded, setIsManualEncodeExpanded] = useState(false);
+  const [promoCards, setPromoCards] = useState<PromoCard[]>([...DEFAULT_PROMO_CARDS]);
   const crmFileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchSupabaseProducts = useCallback(async () => {
@@ -426,6 +428,11 @@ export default function Admin() {
     }
 
     setCounterResetDayKey(String(window.localStorage.getItem(COUNTERS_RESET_DAY_KEY) ?? '').trim());
+    try {
+      setPromoCards(sanitizePromoCards(JSON.parse(window.localStorage.getItem(PROMO_CARDS_KEY) ?? '[]')));
+    } catch {
+      setPromoCards([...DEFAULT_PROMO_CARDS]);
+    }
 
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
@@ -493,6 +500,15 @@ export default function Admin() {
       void supabase.removeChannel(channel);
     };
   }, [fetchSupabaseProducts, unlocked]);
+
+  const updatePromoCard = (index: number, patch: Partial<PromoCard>) => {
+    setPromoCards((current) => current.map((card, i) => (i === index ? { ...card, ...patch } : card)));
+  };
+
+  const savePromoCards = () => {
+    window.localStorage.setItem(PROMO_CARDS_KEY, JSON.stringify(promoCards));
+    alert('Promo cards saved. Home and Secure Download cards updated.');
+  };
 
   // No longer using LocalStorage for products
   // useEffect(() => {
@@ -1622,6 +1638,7 @@ export default function Admin() {
     { key: 'analytics', label: 'Analytics', icon: BarChart3 },
     { key: 'approvals', label: 'Approvals', icon: Inbox },
     { key: 'products', label: 'Products', icon: PackageSearch },
+    { key: 'promos', label: 'Promos', icon: Image },
     { key: 'crm', label: 'CRM', icon: UsersRound },
   ];
 
@@ -2237,6 +2254,51 @@ export default function Admin() {
               </div>
             </section>
           </>
+        ) : null}
+
+        {activeTab === 'promos' ? (
+          <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-4 sm:p-5">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <p className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300"><Image size={14} />Promo Cards Manager</p>
+              <button onClick={savePromoCards} className="cyber-btn cyber-btn-primary">Save Promos</button>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              {promoCards.map((card, index) => (
+                <div key={`promo-${index}`} className="rounded-lg border border-cyan-500/25 bg-black/35 p-3">
+                  <p className="mb-2 text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">Slot {index + 1}</p>
+                  <div className="space-y-2">
+                    <input
+                      value={card.title}
+                      onChange={(event) => updatePromoCard(index, { title: event.target.value })}
+                      className="w-full rounded border border-cyan-500/35 bg-black/35 px-2 py-1 text-xs"
+                      placeholder="Promo title"
+                    />
+                    <input
+                      value={card.imageUrl}
+                      onChange={(event) => updatePromoCard(index, { imageUrl: event.target.value })}
+                      className="w-full rounded border border-cyan-500/35 bg-black/35 px-2 py-1 text-xs"
+                      placeholder="https://.../promo-image.jpg"
+                    />
+                    <input
+                      value={card.href}
+                      onChange={(event) => updatePromoCard(index, { href: event.target.value })}
+                      className="w-full rounded border border-cyan-500/35 bg-black/35 px-2 py-1 text-xs"
+                      placeholder="Optional click link (https://...)"
+                    />
+                  </div>
+                  <div className="mt-3 h-24 overflow-hidden rounded border border-cyan-500/20 bg-cyan-500/5">
+                    {card.imageUrl ? (
+                      <img src={card.imageUrl} alt={card.title || `Promo ${index + 1}`} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-[10px] font-mono uppercase tracking-[0.14em] text-cyan-300/70">
+                        No image
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
         ) : null}
 
         {activeTab === 'crm' ? (
