@@ -204,6 +204,7 @@ function FilePreviewModal({
   const [isIframeLoading, setIsIframeLoading] = useState(true);
   const [iframeError, setIframeError] = useState(false);
   const [added, setAdded] = useState(false);
+  const [previewBlocked, setPreviewBlocked] = useState(false);
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
@@ -211,6 +212,7 @@ function FilePreviewModal({
       setIsIframeLoading(true);
       setIframeError(false);
       setAdded(false);
+      setPreviewBlocked(false);
     }
   }, [isOpen, product]);
 
@@ -239,6 +241,29 @@ function FilePreviewModal({
   const driveFileId = getDriveFileId(product.fileLink || '');
   const driveVideoUrl = driveFileId ? `https://drive.google.com/uc?export=download&id=${driveFileId}` : '';
   const previewVideoUrl = isDrivePreview && driveVideoUrl ? driveVideoUrl : (product.fileLink || '');
+
+  useEffect(() => {
+    if (!isOpen || !isDrivePreview || isVideoPreview) return;
+
+    let isCancelled = false;
+    const probeDrivePreview = async () => {
+      try {
+        const response = await fetch(`/api/preview-probe?url=${encodeURIComponent(embedUrl)}`);
+        const payload = (await response.json()) as { ok?: boolean; previewable?: boolean };
+        if (!isCancelled && payload?.ok && payload.previewable === false) {
+          setPreviewBlocked(true);
+          setIsIframeLoading(false);
+        }
+      } catch {
+        // Keep default behavior if probe is unavailable.
+      }
+    };
+
+    void probeDrivePreview();
+    return () => {
+      isCancelled = true;
+    };
+  }, [embedUrl, isDrivePreview, isOpen, isVideoPreview]);
 
   const handleModalAdd = () => {
     onAdd(product);
@@ -310,7 +335,16 @@ function FilePreviewModal({
                </div>
              )}
 
-             {iframeError && <div className="absolute inset-0 z-50 bg-black/80" />}
+             {(iframeError || previewBlocked) && (
+               <div className="absolute inset-0 z-50 bg-black/85 flex items-center justify-center p-6">
+                 <div className="max-w-md rounded-xl border border-cyan-500/30 bg-[#05101a]/90 px-6 py-5 text-center">
+                   <p className="text-sm font-black uppercase tracking-[0.2em] text-cyan-300 mb-2">Preview Unavailable</p>
+                   <p className="text-xs text-gray-300 leading-relaxed">
+                     This source is restricted by Google Drive permissions. Set sharing to Viewer to enable in-app view-only preview.
+                   </p>
+                 </div>
+               </div>
+             )}
 
              {/* Privacy Guard Overlays - Prevent Interaction with Download Buttons */}
              {!isVideoPreview && (
@@ -357,7 +391,7 @@ function FilePreviewModal({
              ) : (
                <iframe
                  src={embedUrl}
-                 className={`w-full h-full border-none ${iframeError ? 'invisible' : ''}`}
+                 className={`w-full h-full border-none ${(iframeError || previewBlocked) ? 'invisible' : ''}`}
                  allow="autoplay"
                  sandbox={isDrivePreview ? 'allow-scripts allow-same-origin allow-forms' : undefined}
                  referrerPolicy="no-referrer"
