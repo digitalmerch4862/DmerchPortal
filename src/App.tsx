@@ -313,6 +313,8 @@ function FilePreviewModal({
              <div className="absolute top-0 right-0 left-0 h-12 z-40 bg-transparent pointer-events-auto" />
              {/* 2. Top Right Specific Download Guard */}
              <div className="absolute top-0 right-0 w-48 h-16 z-40 bg-transparent pointer-events-auto" />
+             {/* 3. Center Control Guard */}
+             <div className="absolute top-1/2 left-1/2 z-40 h-20 w-[320px] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-black/55 pointer-events-auto" />
              
              {/* Center watermark */}
              <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
@@ -325,7 +327,7 @@ function FilePreviewModal({
 
              <iframe
                src={embedUrl}
-               className="w-full h-full border-none"
+               className={`w-full h-full border-none ${iframeError ? 'invisible' : ''}`}
                allow="autoplay"
                title="File Preview"
                onLoad={() => setIsIframeLoading(false)}
