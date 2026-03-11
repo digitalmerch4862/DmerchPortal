@@ -28,6 +28,8 @@ type DownloadTicketPayload = {
   serialNo: string;
   productName: string;
   exp: number;
+  uaHash?: string;
+  ipHash?: string;
 };
 
 type DeliveryStatus = 'approved' | 'rejected';
@@ -87,6 +89,19 @@ const signDownloadTicket = (payload: DownloadTicketPayload, secret: string) => {
   const encodedPayload = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
   const signature = crypto.createHmac('sha256', secret).update(encodedPayload).digest('base64url');
   return `${encodedPayload}.${signature}`;
+};
+
+const sha256 = (value: string) => crypto.createHash('sha256').update(value).digest('hex');
+
+const getUserAgentHash = (req: any) => {
+  const raw = String(req.headers['user-agent'] ?? '').trim().toLowerCase();
+  return raw ? sha256(raw) : '';
+};
+
+const getIpHash = (req: any) => {
+  const forwarded = String(req.headers['x-forwarded-for'] ?? '').trim();
+  const ip = forwarded.split(',')[0]?.trim() || String(req.socket?.remoteAddress ?? '').trim();
+  return ip ? sha256(ip) : '';
 };
 
 const verifyTicket = (ticket: string, secret: string): DownloadTicketPayload | null => {
@@ -423,6 +438,8 @@ async function handleDownload(req: any, res: any, supabase: any, tokenSecret: st
   const expiresAt = new Date(Date.now() + 60 * 1000);
   const sourceUrl = toDirectDownloadLink(targetLink);
   const fileName = sanitizeFileName(target.name);
+  const uaHash = getUserAgentHash(req);
+  const ipHash = getIpHash(req);
 
   const insertTicket = await supabase
     .from('delivery_download_tickets')
@@ -466,6 +483,8 @@ async function handleDownload(req: any, res: any, supabase: any, tokenSecret: st
       serialNo: tokenPayload.serialNo,
       productName: target.name,
       exp: Math.floor(expiresAt.getTime() / 1000),
+      uaHash,
+      ipHash,
     },
     tokenSecret,
   );
@@ -539,6 +558,15 @@ async function handleFile(req: any, res: any, supabase: any, tokenSecret: string
     return res.status(401).send('Ticket mismatch.');
   }
 
+  const requestUaHash = getUserAgentHash(req);
+  const requestIpHash = getIpHash(req);
+  if (parsed.uaHash && requestUaHash && parsed.uaHash !== requestUaHash) {
+    return res.status(401).send('Ticket device mismatch.');
+  }
+  if (parsed.ipHash && requestIpHash && parsed.ipHash !== requestIpHash) {
+    return res.status(401).send('Ticket network mismatch.');
+  }
+
   const entitlementLookup = await supabase
     .from('buyer_entitlements')
     .select('email, approved_product_count, download_used, download_limit, is_unlimited')
@@ -587,8 +615,34 @@ async function handleFile(req: any, res: any, supabase: any, tokenSecret: string
         is_unlimited: false,
       }, { onConflict: 'email' });
   }
+  const upstream = await fetch(sourceUrl, {
+    method: 'GET',
+    redirect: 'follow',
+    headers: {
+      'user-agent': 'DMERCH-Delivery-Proxy/1.0',
+    },
+  });
 
-  res.writeHead(302, { Location: sourceUrl });
+  if (!upstream.ok || !upstream.body) {
+    return res.status(502).send('Unable to download file right now.');
+  }
+
+  const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
+  const contentLength = upstream.headers.get('content-length');
+  const fileName = sanitizeFileName(String(row.file_name ?? row.product_name ?? 'digitalmerch-download.bin'));
+
+  res.setHeader('Content-Type', contentType);
+  if (contentLength) {
+    res.setHeader('Content-Length', contentLength);
+  }
+  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+  res.setHeader('Cache-Control', 'no-store, private, max-age=0');
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+
+  const stream = (upstream.body as any);
+  for await (const chunk of stream) {
+    res.write(chunk);
+  }
   return res.end();
 }
 
