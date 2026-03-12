@@ -114,18 +114,39 @@ export default function CatalogPage() {
     }
 
     const fetchProducts = async () => {
-      const { data, error } = await supabase
-        .from('products')
-        .select('name, price, category, sub_category, file_url, image_url')
-        .order('name');
+      let allProducts: any[] = [];
+      let pageNum = 0;
+      const PAGE_SIZE = 1000;
+      let hasMore = true;
 
-      if (!mounted) return;
-      if (error || !data) {
-        setIsLoading(false);
-        return;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('products')
+          .select('name, price, category, sub_category, file_url, image_url')
+          .order('name', { ascending: true })
+          .range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
+
+        if (!mounted) return;
+
+        if (error) {
+          setIsLoading(false);
+          return;
+        }
+
+        if (data && data.length > 0) {
+          allProducts = [...allProducts, ...data];
+          if (data.length < PAGE_SIZE) {
+            hasMore = false;
+          } else {
+            pageNum++;
+          }
+        } else {
+          hasMore = false;
+        }
       }
 
-      setProducts(data.map((item) => ({
+      if (!mounted) return;
+      setProducts(allProducts.map((item) => ({
         name: String(item.name ?? '').trim(),
         amount: Number(item.price || 0),
         category: normalizeCatalogCategory(item.category),
