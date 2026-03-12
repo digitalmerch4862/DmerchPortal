@@ -15,6 +15,17 @@ const SORT_ITEMS: Array<{ id: SortKey; label: string }> = [
   { id: 'newest', label: 'Newest' },
 ];
 
+const normalizeCatalogCategory = (rawCategory: unknown) => {
+  const normalized = String(rawCategory ?? '').trim().toLowerCase();
+  if (!normalized) return 'Software';
+  if (normalized === 'game' || normalized === 'games' || normalized.includes('gaming')) return 'Games';
+  if (normalized === 'subscription' || normalized === 'subscriptions' || normalized.includes('subscript')) return 'Subscription';
+  if (normalized === 'ebook' || normalized === 'ebooks') return 'EBOOKS';
+  if (normalized === 'course' || normalized === 'courses') return 'COURSE';
+  if (normalized === 'software' || normalized === 'softwares') return 'Software';
+  return String(rawCategory ?? '').trim();
+};
+
 const getBadges = (product: ProductItem, isFeatured: boolean) => {
   const badges: string[] = [];
   if (product.category) badges.push(product.category);
@@ -117,7 +128,7 @@ export default function CatalogPage() {
       setProducts(data.map((item) => ({
         name: String(item.name ?? '').trim(),
         amount: Number(item.price || 0),
-        category: item.category || undefined,
+        category: normalizeCatalogCategory(item.category),
         sub_category: item.sub_category || undefined,
         fileLink: item.file_url || undefined,
         image_url: item.image_url || undefined,
