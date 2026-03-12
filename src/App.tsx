@@ -9,7 +9,7 @@ import {
   ShieldCheck, Facebook, Youtube, Instagram, Monitor, Smartphone, GraduationCap, PackageSearch, Package,
   ArrowRight, ArrowLeft, Home, ShoppingCart, Mail, Cpu, Gamepad2, PlayCircle, Book, Palette, Layers, 
   BookOpen, ChevronDown, ChevronRight as ChevronRightIcon, ChevronsRight, ChevronsLeft, Eye, Clock, 
-  Users, FileText, Star, LogOut, QrCode, AlertCircle, Download, Search, Check, Plus, X 
+  Users, FileText, Star, LogOut, QrCode, AlertCircle, Download, Search, Check, Plus, X, Send
 } from 'lucide-react';
 import { productCatalog, type ProductItem } from './data/products';
 import { getSupabaseBrowserClient } from './lib/supabase-browser';
@@ -455,6 +455,50 @@ function PromoCardGrid({ cards }: { cards: PromoCard[] }) {
           </Wrapper>
         );
       })}
+    </div>
+  );
+}
+
+function FloatingSocialMenu() {
+  return (
+    <div className="fixed bottom-5 right-4 z-[120] flex flex-col gap-3 sm:bottom-6 sm:right-6">
+      <motion.a
+        whileHover={{ scale: 1.08 }}
+        whileTap={{ scale: 0.94 }}
+        href="https://www.facebook.com/digitalmerch4862/#"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Facebook"
+        aria-label="Visit our Facebook page"
+        className="group flex items-center gap-2 rounded-full border border-[#1877F2]/70 bg-black/85 px-3 py-2 shadow-[0_0_18px_rgba(24,119,242,0.45)] backdrop-blur-md"
+      >
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#1877F2]">
+          <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6 fill-white">
+            <path d="M13.5 8.5V6.8c0-.7.5-.8.8-.8H16V3h-2.6C10.9 3 10 4.9 10 7v1.5H8v3h2V21h3.5v-9.5H16l.4-3h-2.9z" />
+          </svg>
+        </span>
+        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-white/90 group-hover:text-white">
+          Facebook
+        </span>
+      </motion.a>
+
+      <motion.a
+        whileHover={{ scale: 1.08 }}
+        whileTap={{ scale: 0.94 }}
+        href="https://t.me/digitalmerch1018"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Telegram @digitalmerch1018"
+        aria-label="Open Telegram @digitalmerch1018"
+        className="group flex items-center gap-2 rounded-full border border-[#229ED9]/70 bg-black/85 px-3 py-2 shadow-[0_0_18px_rgba(34,158,217,0.45)] backdrop-blur-md"
+      >
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#229ED9]">
+          <Send size={18} className="text-white" />
+        </span>
+        <span className="text-[10px] font-black uppercase tracking-[0.12em] text-white/90 group-hover:text-white">
+          @digitalmerch1018
+        </span>
+      </motion.a>
     </div>
   );
 }
@@ -2647,6 +2691,7 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+      <FloatingSocialMenu />
     </div >
   );
 }
