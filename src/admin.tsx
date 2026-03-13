@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { motion } from 'motion/react';
-import { Archive, ArrowLeft, BarChart3, CheckCircle2, Download, Image, Inbox, PackageSearch, Pencil, ShieldAlert, Trash2, Upload, UsersRound, Plus, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Archive, ArrowLeft, BarChart3, CheckCircle2, Download, Image, Inbox, LayoutDashboard, PackageSearch, Pencil, ShieldAlert, Trash2, Upload, UsersRound, Plus, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { productCatalog } from './data/products';
 import { getSupabaseBrowserClient } from './lib/supabase-browser';
 import { DEFAULT_PROMO_CARDS, resolvePromoImageUrl, sanitizePromoCards, type PromoCard } from './lib/promo-cards';
@@ -165,7 +165,37 @@ type CrmItem = {
 
 type CrmApiItem = Omit<CrmItem, 'id'>;
 
-type AdminTab = 'analytics' | 'approvals' | 'products' | 'crm' | 'promos' | 'manualEncode';
+type DashboardRange = 'today' | '7d' | '30d' | 'mtd';
+
+type DashboardData = {
+  range: DashboardRange;
+  kpis: {
+    uniqueVisitors: number;
+    totalVisits: number;
+    ordersSubmitted: number;
+    approvedPurchases: number;
+    conversionRate: number;
+    revenueApproved: number;
+    avgOrderValue: number;
+    returningVisitorRate: number;
+  };
+  trends: {
+    visitsByDay: Array<{ date: string; value: number }>;
+    purchasesByDay: Array<{ date: string; value: number }>;
+  };
+  breakdowns: {
+    topPages: Array<{ page: string; visits: number }>;
+    topProducts: Array<{ product: string; count: number; revenue: number }>;
+    statusCounts: { pending: number; approved: number; rejected: number };
+  };
+  funnel: {
+    visited: number;
+    submitted: number;
+    approved: number;
+  };
+};
+
+type AdminTab = 'dashboard' | 'analytics' | 'approvals' | 'products' | 'crm' | 'promos' | 'manualEncode';
 
 const toPhp = (amount: number) =>
   new Intl.NumberFormat('en-PH', {
@@ -316,7 +346,7 @@ export default function Admin() {
   const [lastCrmSyncAt, setLastCrmSyncAt] = useState('');
   const [inboxLastCount, setInboxLastCount] = useState(0);
   const [crmLastCount, setCrmLastCount] = useState(0);
-  const [activeTab, setActiveTab] = useState<AdminTab>('analytics');
+  const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   const [processingId, setProcessingId] = useState<string | null>(null);
   const inboxAutoMappedRef = useRef(false);
   const [counterResetDayKey, setCounterResetDayKey] = useState('');
@@ -346,6 +376,10 @@ export default function Admin() {
   const [manualSuccess, setManualSuccess] = useState('');
   const [isManualEncodeExpanded, setIsManualEncodeExpanded] = useState(false);
   const [promoCards, setPromoCards] = useState<PromoCard[]>([...DEFAULT_PROMO_CARDS]);
+  const [dashboardRange, setDashboardRange] = useState<DashboardRange>('7d');
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardError, setDashboardError] = useState('');
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const crmFileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchSupabaseProducts = useCallback(async () => {
@@ -715,8 +749,52 @@ export default function Admin() {
     }
   };
 
+  const refreshDashboard = useCallback(async (tokenOverride?: string, rangeOverride?: DashboardRange) => {
+    const token = String(tokenOverride ?? accessToken).trim();
+    if (!token) {
+      return;
+    }
+
+    const targetRange = rangeOverride ?? dashboardRange;
+    setDashboardLoading(true);
+    setDashboardError('');
+    try {
+      const response = await fetch(`/api/admin-dashboard?range=${encodeURIComponent(targetRange)}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const payload = (await readApiPayload(response)) as ({ ok?: boolean; error?: string } & DashboardData);
+
+      if (response.status === 401 || response.status === 403) {
+        const reason = payload.error ?? (response.status === 401 ? 'Admin session expired.' : 'Admin role required.');
+        await logoutForAuthFailure(reason);
+        return;
+      }
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error ?? `Dashboard sync failed (${response.status}).`);
+      }
+
+      setDashboardData({
+        range: payload.range,
+        kpis: payload.kpis,
+        trends: payload.trends,
+        breakdowns: payload.breakdowns,
+        funnel: payload.funnel,
+      });
+      setLoginError('');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not load dashboard metrics';
+      setDashboardError(message);
+      setLoginError(message);
+    } finally {
+      setDashboardLoading(false);
+    }
+  }, [accessToken, dashboardRange]);
+
   const refreshAdminData = async () => {
-    await Promise.all([refreshInbox(), refreshCrm(), loadPromoCards()]);
+    await Promise.all([refreshInbox(), refreshCrm(), loadPromoCards(), refreshDashboard()]);
   };
 
   useEffect(() => {
@@ -726,8 +804,16 @@ export default function Admin() {
     }
     void refreshInbox(accessToken);
     void refreshCrm(accessToken);
+    void refreshDashboard(accessToken, dashboardRange);
     void loadPromoCards();
-  }, [unlocked, accessToken, loadPromoCards]);
+  }, [unlocked, accessToken, loadPromoCards, refreshDashboard, dashboardRange]);
+
+  useEffect(() => {
+    if (!unlocked || !accessToken) {
+      return;
+    }
+    void refreshDashboard(accessToken, dashboardRange);
+  }, [dashboardRange, unlocked, accessToken, refreshDashboard]);
 
   useEffect(() => {
     if (!unlocked || !accessToken || inboxAutoMappedRef.current) {
@@ -1661,6 +1747,7 @@ export default function Admin() {
   };
 
   const tabItems: Array<{ key: AdminTab; label: string; icon: typeof BarChart3 }> = [
+    { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { key: 'analytics', label: 'Analytics', icon: BarChart3 },
     { key: 'approvals', label: 'Approvals', icon: Inbox },
     { key: 'products', label: 'Products', icon: PackageSearch },
@@ -1670,6 +1757,12 @@ export default function Admin() {
 
   const hiddenLoginErrors = new Set(['Admin role required.', 'Admin account is not allowlisted.']);
   const shouldShowLoginError = loginError.trim().length > 0 && !hiddenLoginErrors.has(loginError.trim());
+  const dashboardRangeLabels: Record<DashboardRange, string> = {
+    today: 'Today',
+    '7d': 'Last 7 Days',
+    '30d': 'Last 30 Days',
+    mtd: 'Month to Date',
+  };
 
   if (authChecking) {
     return (
@@ -1748,6 +1841,134 @@ export default function Admin() {
             </button>
           </div>
         </div>
+
+        {activeTab === 'dashboard' ? (
+          <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-4 sm:p-5 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300"><LayoutDashboard size={14} />Traffic Dashboard</p>
+              <div className="flex flex-wrap gap-2">
+                {(['today', '7d', '30d', 'mtd'] as const).map((rangeKey) => (
+                  <button
+                    key={rangeKey}
+                    type="button"
+                    onClick={() => setDashboardRange(rangeKey)}
+                    className={`rounded-full border px-3 py-1 text-[10px] font-mono uppercase tracking-[0.2em] ${dashboardRange === rangeKey ? 'border-cyan-400 bg-cyan-500/20 text-cyan-100' : 'border-cyan-500/20 text-cyan-300 hover:border-cyan-400/40'}`}
+                  >
+                    {dashboardRangeLabels[rangeKey]}
+                  </button>
+                ))}
+                <button onClick={() => { void refreshDashboard(); }} className="cyber-btn cyber-btn-secondary">{dashboardLoading ? 'Refreshing...' : 'Refresh'}</button>
+              </div>
+            </div>
+
+            {dashboardError ? (
+              <div className="rounded-md border border-red-400/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">{dashboardError}</div>
+            ) : null}
+
+            {dashboardData ? (
+              <>
+                <div className="grid gap-4 lg:grid-cols-4 sm:grid-cols-2">
+                  <div className="rounded-lg border border-cyan-500/20 bg-black/30 p-3">
+                    <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">Unique Visitors</p>
+                    <p className="mt-2 text-2xl font-black text-cyan-100">{dashboardData.kpis.uniqueVisitors}</p>
+                  </div>
+                  <div className="rounded-lg border border-cyan-500/20 bg-black/30 p-3">
+                    <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">Total Visits</p>
+                    <p className="mt-2 text-2xl font-black text-cyan-100">{dashboardData.kpis.totalVisits}</p>
+                  </div>
+                  <div className="rounded-lg border border-cyan-500/20 bg-black/30 p-3">
+                    <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">Approved Purchases</p>
+                    <p className="mt-2 text-2xl font-black text-cyan-100">{dashboardData.kpis.approvedPurchases}</p>
+                  </div>
+                  <div className="rounded-lg border border-cyan-500/20 bg-black/30 p-3">
+                    <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">Conversion Rate</p>
+                    <p className="mt-2 text-2xl font-black text-cyan-100">{dashboardData.kpis.conversionRate.toFixed(2)}%</p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-4 sm:grid-cols-2">
+                  <div className="rounded-lg border border-cyan-500/20 bg-black/30 p-3">
+                    <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">Approved Revenue</p>
+                    <p className="mt-2 text-xl font-black text-cyan-100">{toPhp(dashboardData.kpis.revenueApproved)}</p>
+                  </div>
+                  <div className="rounded-lg border border-cyan-500/20 bg-black/30 p-3">
+                    <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">AOV</p>
+                    <p className="mt-2 text-xl font-black text-cyan-100">{toPhp(dashboardData.kpis.avgOrderValue)}</p>
+                  </div>
+                  <div className="rounded-lg border border-cyan-500/20 bg-black/30 p-3">
+                    <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">Returning Visitors</p>
+                    <p className="mt-2 text-xl font-black text-cyan-100">{dashboardData.kpis.returningVisitorRate.toFixed(2)}%</p>
+                  </div>
+                  <div className="rounded-lg border border-cyan-500/20 bg-black/30 p-3">
+                    <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">Orders Submitted</p>
+                    <p className="mt-2 text-xl font-black text-cyan-100">{dashboardData.kpis.ordersSubmitted}</p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-3">
+                  <div className="rounded-lg border border-cyan-500/20 bg-black/30 p-4">
+                    <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">Funnel</p>
+                    <div className="mt-3 space-y-2 text-xs">
+                      <div className="flex items-center justify-between rounded border border-cyan-500/20 px-3 py-2">
+                        <span className="text-cyan-200">Visited</span>
+                        <span className="font-semibold text-cyan-100">{dashboardData.funnel.visited}</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded border border-cyan-500/20 px-3 py-2">
+                        <span className="text-cyan-200">Submitted</span>
+                        <span className="font-semibold text-cyan-100">{dashboardData.funnel.submitted}</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded border border-cyan-500/20 px-3 py-2">
+                        <span className="text-cyan-200">Approved</span>
+                        <span className="font-semibold text-cyan-100">{dashboardData.funnel.approved}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-cyan-500/20 bg-black/30 p-4 lg:col-span-2">
+                    <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">Daily Trend</p>
+                    <div className="mt-3 space-y-2">
+                      {dashboardData.trends.visitsByDay.map((row) => {
+                        const purchaseCount = dashboardData.trends.purchasesByDay.find((entry) => entry.date === row.date)?.value ?? 0;
+                        return (
+                          <div key={row.date} className="flex items-center justify-between rounded border border-cyan-500/15 px-3 py-2 text-xs">
+                            <span className="text-cyan-200">{row.date}</span>
+                            <span className="text-cyan-100">Visits: {row.value} | Purchases: {purchaseCount}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-lg border border-cyan-500/20 bg-black/30 p-4">
+                    <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">Top Pages</p>
+                    <div className="mt-3 space-y-2">
+                      {dashboardData.breakdowns.topPages.map((item) => (
+                        <div key={item.page} className="flex items-center justify-between rounded border border-cyan-500/15 px-3 py-2 text-xs">
+                          <span className="text-cyan-100">{item.page}</span>
+                          <span className="text-cyan-200">{item.visits} visits</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-cyan-500/20 bg-black/30 p-4">
+                    <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300">Top Products</p>
+                    <div className="mt-3 space-y-2">
+                      {dashboardData.breakdowns.topProducts.map((item) => (
+                        <div key={item.product} className="flex items-center justify-between rounded border border-cyan-500/15 px-3 py-2 text-xs">
+                          <span className="text-cyan-100">{item.product}</span>
+                          <span className="text-cyan-200">{item.count}x | {toPhp(item.revenue)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-cyan-200">{dashboardLoading ? 'Loading dashboard metrics...' : 'No dashboard data yet.'}</p>
+            )}
+          </section>
+        ) : null}
 
         {activeTab === 'analytics' ? (
           <section className="rounded-xl border border-cyan-500/30 bg-[#041019]/80 p-4 sm:p-5 space-y-4">
