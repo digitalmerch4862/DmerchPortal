@@ -459,62 +459,7 @@ function PromoCardGrid({ cards }: { cards: PromoCard[] }) {
   );
 }
 
-function FloatingSocialMenu() {
-  return (
-    <div className="fixed bottom-5 right-4 z-[120] flex flex-col gap-3 sm:bottom-6 sm:right-6">
-      <motion.a
-        whileHover={{ scale: 1.03 }}
-        whileTap={{ scale: 0.98 }}
-        href="https://www.facebook.com/digitalmerch4862/#"
-        target="_blank"
-        rel="noopener noreferrer"
-        title="Facebook"
-        aria-label="Visit our Facebook page"
-        className="group flex h-[66px] w-[66px] items-center justify-center rounded-full border border-[#0b8fff] bg-black/90 shadow-[0_0_18px_rgba(11,143,255,0.65)] backdrop-blur-md"
-      >
-        <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#1877F2]">
-          <svg viewBox="0 0 24 24" aria-hidden="true" className="h-7 w-7 fill-white">
-            <path d="M13.5 8.5V6.8c0-.7.5-.8.8-.8H16V3h-2.6C10.9 3 10 4.9 10 7v1.5H8v3h2V21h3.5v-9.5H16l.4-3h-2.9z" />
-          </svg>
-        </span>
-      </motion.a>
 
-      <motion.a
-        whileHover={{ scale: 1.03 }}
-        whileTap={{ scale: 0.98 }}
-        href="https://t.me/digitalmerch1018"
-        target="_blank"
-        rel="noopener noreferrer"
-        title="Telegram @digitalmerch1018"
-        aria-label="Open Telegram @digitalmerch1018"
-        className="group flex h-[66px] w-[66px] items-center justify-center rounded-full border border-[#0b8fff] bg-black/90 shadow-[0_0_18px_rgba(11,143,255,0.65)] backdrop-blur-md"
-      >
-        <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#2AABEE]">
-          <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6 fill-white">
-            <path d="M22 3.8L2.7 11.5c-1.3.5-1.2 2.4.2 2.8l4.9 1.5 1.9 5.9c.4 1.2 2 1.4 2.8.3l2.7-3.6 4.8 3.5c1 .7 2.4.2 2.6-1L24 5.7C24.2 4.6 23.1 3.4 22 3.8zM9 15.3l8.9-7.2-6.9 8.5-.2 2.3-1.8-3.6z" />
-          </svg>
-        </span>
-      </motion.a>
-
-      <motion.a
-        whileHover={{ scale: 1.03 }}
-        whileTap={{ scale: 0.98 }}
-        href="https://m.me/digitalmerch4862"
-        target="_blank"
-        rel="noopener noreferrer"
-        title="Messenger"
-        aria-label="Open Messenger"
-        className="group flex h-[66px] w-[66px] items-center justify-center rounded-full border border-[#0b8fff] bg-black/90 shadow-[0_0_18px_rgba(11,143,255,0.65)] backdrop-blur-md"
-      >
-        <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#0084FF]">
-          <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6 fill-white">
-            <path d="M12 2.2C6.7 2.2 2.4 6.2 2.4 11c0 2.7 1.4 5.2 3.7 6.9v3.9l3.8-2.1c.7.2 1.4.2 2.1.2 5.3 0 9.6-4 9.6-8.8s-4.3-8.9-9.6-8.9zm1 11.6l-2.5-2.7-4.8 2.7 5.2-5.5 2.6 2.7 4.6-2.7-5.1 5.5z" />
-          </svg>
-        </span>
-      </motion.a>
-    </div>
-  );
-}
 
 export default function App() {
   const [stage, setStage] = useState<FlowStage>(1);
@@ -2704,7 +2649,7 @@ export default function App() {
           />
         )}
       </AnimatePresence>
-      <FloatingSocialMenu />
+
     </div >
   );
 }
