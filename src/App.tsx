@@ -17,13 +17,6 @@ import { supabase } from './supabaseClient.js';
 import gcashQr from './gcash-qr.png';
 import { DEFAULT_PROMO_CARDS, resolvePromoImageUrl, sanitizePromoCards, type PromoCard } from './lib/promo-cards';
 
-declare global {
-  interface Window {
-    VC_WIDGET?: { open: () => void; close: () => void };
-    LC_API?: { open_chat: () => void; close_chat: () => void };
-  }
-}
-
 const ADMIN_PRODUCTS_KEY = 'dmerch_admin_products_v1';
 const ADMIN_GOOGLE_SHORTCUT_KEY = 'dmerch_admin_google_shortcut_v1';
 const CHECKOUT_DRAFT_KEY = 'dmerch_checkout_draft_v1';
@@ -2656,26 +2649,6 @@ export default function App() {
           />
         )}
       </AnimatePresence>
-
-      <button
-        onClick={() => {
-          if (window.VC_WIDGET) {
-            window.VC_WIDGET.open();
-          } else if (window.LC_API) {
-            window.LC_API.open_chat();
-          } else {
-            const btn = document.querySelector('[class*="chat-widget"], .tl-embed-button') as HTMLButtonElement;
-            if (btn) btn.click();
-          }
-        }}
-        className="fixed bottom-6 right-6 z-[9999] flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#00f3ff] bg-black/80 shadow-[0_0_20px_rgba(0,243,255,0.6),0_0_40px_rgba(0,243,255,0.3)] backdrop-blur-md transition-all duration-300 hover:scale-110 hover:shadow-[0_0_30px_rgba(0,243,255,0.8),0_0_60px_rgba(0,243,255,0.5)]"
-        style={{ background: 'rgba(5,5,5,0.9)' }}
-        aria-label="Open Chat"
-      >
-        <svg viewBox="0 0 24 24" className="h-7 w-7 text-[#00f3ff]" fill="currentColor">
-          <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
-        </svg>
-      </button>
 
     </div >
   );
