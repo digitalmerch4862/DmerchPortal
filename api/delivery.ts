@@ -35,14 +35,35 @@ type DownloadTicketPayload = {
 type DeliveryStatus = 'approved' | 'rejected';
 
 const readBody = async (req: any) => {
-  if (typeof req.body === 'string') {
-    return JSON.parse(req.body);
-  }
   if (req.body && typeof req.body === 'object') {
     return req.body;
   }
+  if (typeof req.body === 'string') {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      return {};
+    }
+  }
+  if (typeof req.on === 'function') {
+    try {
+      const raw = await new Promise<string>((resolve, reject) => {
+        let data = '';
+        req.on('data', (chunk: any) => {
+          data += chunk.toString();
+        });
+        req.on('end', () => resolve(data));
+        req.on('error', reject);
+      });
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }
   return {};
 };
+
+const normalizeForMatch = (name: string) => name.trim().toLowerCase().replace(/\s+/g, ' ');
 
 const base64UrlEncode = (value: string) => Buffer.from(value, 'utf8').toString('base64url');
 const base64UrlDecode = (value: string) => Buffer.from(value, 'base64url').toString('utf8');
@@ -459,14 +480,60 @@ async function handleDownload(req: any, res: any, supabase: any, tokenSecret: st
     return res.status(403).json({ ok: false, error: 'Download limit reached. Please contact support.', code: 'DOWNLOAD_LIMIT_REACHED' });
   }
 
-  const target = products.find((item) => item.status === 'approved' && String(item.name).trim().toLowerCase() === productName.toLowerCase());
+  const normalizedProductName = normalizeForMatch(productName);
+  const target = products.find((item) => {
+    const itemStatus = String(item.status ?? '').toLowerCase();
+    return itemStatus === 'approved' && normalizeForMatch(item.name) === normalizedProductName;
+  });
+
   if (!target) {
-    console.error('[delivery-download] product not found in approved list', { productName, available: products.map(p => p.name) });
+    console.error('[delivery-download] product not found in approved list', { 
+      productName, 
+      normalizedProductName,
+      available: products.map(p => p.name) 
+    });
     return res.status(404).json({ ok: false, error: 'Selected product is not found in your approved orders.' });
   }
 
-  const targetLink = String(target.fileLink ?? '').trim();
+  let targetLink = String(target.fileLink ?? '').trim();
   if (!targetLink) {
+    // Try exact ilike match first
+    const { data: globalProduct } = await supabase
+      .from('products')
+      .select('file_url')
+      .ilike('name', productName)
+      .limit(1)
+      .maybeSingle();
+      
+    if (globalProduct?.file_url) {
+      console.log(`[delivery-download] Fallback link (exact ilike) used for ${productName}`);
+      targetLink = String(globalProduct.file_url).trim();
+    } else {
+      // If exact ilike failed (maybe due to spacing), try a broader search or fetch all to match locally
+      // Given we only have 5k products and we are in a serverless function, fetching all is too much.
+      // Let's try matching with a trimmed/normalized string if it's feasible or just log it.
+      console.log(`[delivery-download] No exact link found for ${productName}, trying normalized match...`);
+      
+      // We can use a trick: search for a product name that contains a significant part of our string
+      const partialName = productName.split('(')[0].trim(); // Take part before OS if any
+      const { data: possibleProducts } = await supabase
+        .from('products')
+        .select('name, file_url')
+        .ilike('name', `%${partialName}%`)
+        .limit(10);
+      
+      if (possibleProducts && possibleProducts.length > 0) {
+        const bestMatch = possibleProducts.find(p => normalizeForMatch(p.name) === normalizedProductName);
+        if (bestMatch?.file_url) {
+          console.log(`[delivery-download] Fallback link (normalized match) found for ${productName} via partial search`);
+          targetLink = String(bestMatch.file_url).trim();
+        }
+      }
+    }
+  }
+
+  if (!targetLink) {
+    console.error('[delivery-download] No link found after fallbacks for', productName);
     return res.status(400).json({ ok: false, error: 'No delivery link configured yet for this product.' });
   }
 

@@ -28,11 +28,30 @@ const getBearerToken = (req: any) => {
 };
 
 const readBody = async (req: any) => {
-  if (typeof req.body === 'string') {
-    return JSON.parse(req.body);
-  }
   if (req.body && typeof req.body === 'object') {
     return req.body;
+  }
+  if (typeof req.body === 'string') {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      return {};
+    }
+  }
+  if (typeof req.on === 'function') {
+    try {
+      const raw = await new Promise<string>((resolve, reject) => {
+        let data = '';
+        req.on('data', (chunk: any) => {
+          data += chunk.toString();
+        });
+        req.on('end', () => resolve(data));
+        req.on('error', reject);
+      });
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
   }
   return {};
 };
