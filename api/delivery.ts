@@ -236,6 +236,14 @@ const extensionFromContentType = (raw: string) => {
     'application/pdf': '.pdf',
     'application/zip': '.zip',
     'application/x-zip-compressed': '.zip',
+    'application/x-compressed': '.zip',
+    'application/x-rar-compressed': '.rar',
+    'application/x-7z-compressed': '.7z',
+    'application/octet-stream': '.bin',
+    'application/vnd.android.package-archive': '.apk',
+    'application/x-msdownload': '.exe',
+    'application/x-msi': '.msi',
+    'application/x-iso9660-image': '.iso',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
     'application/msword': '.doc',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
@@ -243,14 +251,28 @@ const extensionFromContentType = (raw: string) => {
     'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
     'application/vnd.ms-powerpoint': '.ppt',
     'text/plain': '.txt',
+    'text/html': '.html',
     'image/jpeg': '.jpg',
     'image/png': '.png',
     'image/webp': '.webp',
+    'image/gif': '.gif',
     'video/mp4': '.mp4',
+    'video/x-matroska': '.mkv',
     'audio/mpeg': '.mp3',
     'application/epub+zip': '.epub',
   };
   return map[ct] ?? '';
+};
+
+const guessExtensionFromUrl = (url: string) => {
+  try {
+    const path = new URL(url).pathname;
+    const match = path.match(/\.([a-z0-9]+)$/i);
+    return match ? `.${match[1]}` : '';
+  } catch {
+    const match = url.match(/\.([a-z0-9]+)(\?.*)?$/i);
+    return match ? `.${match[1]}` : '';
+  }
 };
 
 const isMissingTicketTableError = (error: { code?: string; message?: string; details?: string; hint?: string } | null | undefined) => {
@@ -718,13 +740,37 @@ async function handleFile(req: any, res: any, supabase: any, tokenSecret: string
         is_unlimited: false,
       }, { onConflict: 'email' });
   }
-  const upstream = await fetch(sourceUrl, {
+  let upstream = await fetch(sourceUrl, {
     method: 'GET',
     redirect: 'follow',
     headers: {
-      'user-agent': 'DMERCH-Delivery-Proxy/1.0',
+      'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     },
   });
+
+  // Handle Google Drive Large File Confirmation
+  const initialContentType = upstream.headers.get('content-type') || '';
+  if (sourceUrl.includes('drive.google.com') && initialContentType.includes('text/html')) {
+    const htmlText = await upstream.text();
+    const confirmMatch = htmlText.match(/confirm=([a-zA-Z0-9_-]+)/);
+    if (confirmMatch?.[1]) {
+      const confirmedUrl = `${sourceUrl}&confirm=${confirmMatch[1]}`;
+      console.log(`[delivery-file] Google Drive large file detected, retrying with confirm token`);
+      upstream = await fetch(confirmedUrl, {
+        method: 'GET',
+        redirect: 'follow',
+        headers: {
+          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+      });
+    } else {
+      // Re-create the streamable response if no confirm token found (maybe it's just a small HTML file)
+      upstream = new Response(htmlText, {
+        status: upstream.status,
+        headers: upstream.headers,
+      });
+    }
+  }
 
   if (!upstream.ok || !upstream.body) {
     return res.status(502).send('Unable to download file right now.');
@@ -734,9 +780,28 @@ async function handleFile(req: any, res: any, supabase: any, tokenSecret: string
   const contentLength = upstream.headers.get('content-length');
   const upstreamDisposition = upstream.headers.get('content-disposition') || '';
   const dispositionName = extractFilenameFromContentDisposition(upstreamDisposition);
+  
   const baseName = sanitizeFileName(String(dispositionName || row.file_name || row.product_name || 'digitalmerch-download'));
   const hasExtension = /\.[a-z0-9]{2,8}$/i.test(baseName);
-  const fileName = hasExtension ? baseName : `${baseName}${extensionFromContentType(contentType) || '.bin'}`;
+  
+  let fileName = baseName;
+  if (!hasExtension) {
+    const extFromCt = extensionFromContentType(contentType);
+    const extFromUrl = guessExtensionFromUrl(sourceUrl);
+    
+    if (extFromCt && extFromCt !== '.bin') {
+      fileName = `${baseName}${extFromCt}`;
+    } else if (extFromUrl) {
+      fileName = `${baseName}${extFromUrl}`;
+    } else {
+      const pName = normalizeForMatch(String(row.product_name || ''));
+      if (pName.includes('cracked') || pName.includes('setup') || pName.includes('office')) {
+        fileName = `${baseName}.zip`;
+      } else {
+        fileName = `${baseName}.zip`; // Default to .zip instead of .bin
+      }
+    }
+  }
 
   res.setHeader('Content-Type', contentType);
   if (contentLength) {
