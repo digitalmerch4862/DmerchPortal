@@ -3,6 +3,17 @@ import { Download, ShieldCheck, ExternalLink } from 'lucide-react';
 import { DEFAULT_PROMO_CARDS, resolvePromoImageUrl, sanitizePromoCards, type PromoCard } from './lib/promo-cards';
 
 const APP_BASE_URL = (import.meta.env.VITE_APP_BASE_URL || 'https://paymentportal.digitalmerchs.store').replace(/\/+$/, '');
+const FALLBACK_API_BASE_URLS = [
+  APP_BASE_URL,
+  'https://paymentportal.digitalmerchs.store',
+  'https://dmerchportal.digitalmerchs.store',
+  'https://digitalmerchs.store',
+].map((value) => value.replace(/\/+$/, ''));
+
+const getCandidateApiBaseUrls = () => {
+  const currentOrigin = window.location.origin.replace(/\/+$/, '');
+  return Array.from(new Set([currentOrigin, ...FALLBACK_API_BASE_URLS]));
+};
 
 type DeliveryProduct = {
   name: string;
@@ -45,7 +56,49 @@ export default function Delivery() {
   const [downloadSuccess, setDownloadSuccess] = useState<Record<string, string>>({});
   const [downloadErrors, setDownloadErrors] = useState<Record<string, string>>({});
   const [apiUnreachable, setApiUnreachable] = useState(false);
+  const [apiBaseUrl, setApiBaseUrl] = useState(() => window.location.origin.replace(/\/+$/, ''));
   const [promoCards, setPromoCards] = useState<PromoCard[]>([...DEFAULT_PROMO_CARDS]);
+
+  const requestDeliveryApi = useCallback(async (path: 'auth' | 'download', body: Record<string, unknown>) => {
+    const origins = [apiBaseUrl, ...getCandidateApiBaseUrls()].filter(Boolean);
+    const uniqueOrigins = Array.from(new Set(origins));
+    let lastResponse: Response | null = null;
+    let lastPayload: any = null;
+    let lastError: unknown = null;
+
+    for (const origin of uniqueOrigins) {
+      try {
+        const response = await fetch(`${origin}/api/delivery?path=${path}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+
+        lastResponse = response;
+        let payload: any = null;
+        try {
+          payload = await response.json();
+        } catch {
+          payload = null;
+        }
+
+        if (response.status === 404) {
+          continue;
+        }
+
+        setApiBaseUrl(origin);
+        return { response, payload, origin };
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (lastResponse) {
+      return { response: lastResponse, payload: lastPayload, origin: apiBaseUrl };
+    }
+
+    throw lastError ?? new Error('Delivery API is unreachable.');
+  }, [apiBaseUrl]);
 
   // On mount: if on wrong domain, auto-redirect preserving the access token
   useEffect(() => {
@@ -69,30 +122,26 @@ export default function Delivery() {
       setLoading(true);
       setError('');
       try {
-        const response = await fetch(`${APP_BASE_URL}/api/delivery?path=auth`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token }),
-        });
-        let payload: DeliveryAuthResponse;
-        try {
-          payload = (await response.json()) as DeliveryAuthResponse;
-        } catch {
+        const { response, payload } = await requestDeliveryApi('auth', { token });
+        const typedPayload = payload as DeliveryAuthResponse | null;
+        if (!typedPayload) {
           setError(`Server returned an invalid response (HTTP ${response.status}). Please try verifying manually.`);
           setToken('');
           return;
         }
-        if (!response.ok || !payload.ok || !payload.token) {
-          setError(payload.error ?? 'Access link is invalid. Please verify manually.');
+        if (!response.ok || !typedPayload.ok || !typedPayload.token) {
+          setError(typedPayload.error ?? 'Access link is invalid. Please verify manually.');
           setToken('');
           return;
         }
-        setToken(payload.token);
-        setSerialNo(payload.serialNo ?? '');
-        setProducts(payload.products ?? []);
+        setToken(typedPayload.token);
+        setSerialNo(typedPayload.serialNo ?? '');
+        setProducts(typedPayload.products ?? []);
         setStatus('Access granted. You may now download your purchased products.');
+        setApiUnreachable(false);
       } catch (err) {
         setError(`Could not validate access link: ${err instanceof Error ? err.message : 'network error'}. Please try verifying manually below.`);
+        setApiUnreachable(true);
         setToken('');
       } finally {
         setLoading(false);
@@ -142,31 +191,26 @@ export default function Delivery() {
     setStatus('Verifying your order details...');
 
     try {
-      const response = await fetch(`${APP_BASE_URL}/api/delivery?path=auth`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, serialNo }),
-      });
-
-      let payload: DeliveryAuthResponse;
-      try {
-        payload = (await response.json()) as DeliveryAuthResponse;
-      } catch {
+      const { response, payload } = await requestDeliveryApi('auth', { email, serialNo });
+      const typedPayload = payload as DeliveryAuthResponse | null;
+      if (!typedPayload) {
         setError(`Server returned an invalid response (HTTP ${response.status}).`);
         setStatus('Authentication failed.');
         return;
       }
 
-      if (!response.ok || !payload.ok || !payload.token) {
-        setError(payload.error ?? 'Invalid email or serial number. Please double-check and try again.');
+      if (!response.ok || !typedPayload.ok || !typedPayload.token) {
+        setError(typedPayload.error ?? 'Invalid email or serial number. Please double-check and try again.');
         setStatus('Authentication failed.');
         return;
       }
-      setToken(payload.token);
-      setProducts(payload.products ?? []);
+      setToken(typedPayload.token);
+      setProducts(typedPayload.products ?? []);
       setStatus('Access granted. You may now download your purchased products.');
+      setApiUnreachable(false);
     } catch {
       setError('Unable to verify order right now. Please retry.');
+      setApiUnreachable(true);
       setStatus('Authentication failed.');
     } finally {
       setLoading(false);
@@ -178,25 +222,29 @@ export default function Delivery() {
     setDownloadingProduct(productName);
 
     try {
-      const response = await fetch(`${APP_BASE_URL}/api/delivery?path=download`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, productName }),
-      });
-      const payload = (await response.json()) as { ok: boolean; downloadTicket?: string; error?: string; products?: DeliveryProduct[] };
+      const { response, payload } = await requestDeliveryApi('download', { token, productName });
+      const typedPayload = payload as { ok: boolean; downloadTicket?: string; error?: string; products?: DeliveryProduct[] } | null;
 
-      if (!payload.ok || !payload.downloadTicket) {
+      if (!typedPayload) {
         setDownloadErrors((prev) => ({
           ...prev,
-          [productName]: payload.error ?? 'Download is not available right now. Please try again.',
+          [productName]: `Server returned an invalid response (HTTP ${response.status}).`,
         }));
-        if (payload.products) setProducts(payload.products);
         return;
       }
 
-      if (payload.products) setProducts(payload.products);
+      if (!typedPayload.ok || !typedPayload.downloadTicket) {
+        setDownloadErrors((prev) => ({
+          ...prev,
+          [productName]: typedPayload.error ?? 'Download is not available right now. Please try again.',
+        }));
+        if (typedPayload.products) setProducts(typedPayload.products);
+        return;
+      }
 
-      const downloadUrl = `${APP_BASE_URL}/api/delivery?path=file&ticket=${encodeURIComponent(payload.downloadTicket)}&cb=${Date.now()}`;
+      if (typedPayload.products) setProducts(typedPayload.products);
+
+      const downloadUrl = `${apiBaseUrl}/api/delivery?path=file&ticket=${encodeURIComponent(typedPayload.downloadTicket)}&cb=${Date.now()}`;
       window.open(downloadUrl, '_blank');
 
       setDownloadSuccess((prev) => ({ ...prev, [productName]: 'Downloading... Check your browser tray.' }));
@@ -207,10 +255,11 @@ export default function Delivery() {
         ...prev,
         [productName]: 'Download connection failed. Please check your internet and try again.',
       }));
+      setApiUnreachable(true);
     } finally {
       setDownloadingProduct('');
     }
-  }, [token]);
+  }, [apiBaseUrl, requestDeliveryApi, token]);
 
   // Build the correct delivery URL on the new domain for this session
   const newDomainUrl = `${APP_BASE_URL}/delivery${window.location.search}`;
