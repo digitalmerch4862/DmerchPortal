@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  dmerch-portal:
+    build: .
+    container_name: dmerch-portal
+    ports:
+      - "8080:8080" # Map host port (Synology NAS) to container port 8080
+    restart: always
+    env_file:
+      - .env # Ensure a .env file is present in the same directory
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - APP_BASE_URL=http://localhost:8080 # Change this to your NAS IP address or domain
+
+    # Optional: Volume for persistent data if any (e.g., local sqlite DB)
+    # volumes:
+    #   - ./db:/app/db
+
+networks:
+  default:
+    name: dmerch-network

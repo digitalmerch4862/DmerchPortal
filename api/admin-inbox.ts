@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 const ALLOWED_ADMIN_EMAILS = new Set(['digitalmerch4862@gmail.com']);
 
 const resolveCorsOrigin = (req: any) => {
-  const appBase = process.env.APP_BASE_URL ?? 'https://paymentportal.digitalmerchs.store';
+  const appBase = process.env.APP_BASE_URL ?? 'https://dmerchportal.digitalmerchs.store';
   const allowed = new Set([appBase, 'http://localhost:3000', 'http://127.0.0.1:3000']);
   const incoming = String(req.headers.origin ?? '').trim();
   return allowed.has(incoming) ? incoming : appBase;
