@@ -696,7 +696,7 @@ export default async function handler(req: any, res: any) {
     let customerSubject = subject;
 
     const tokenSecret = process.env.DELIVERY_TOKEN_SECRET ?? supabaseServiceRoleKey;
-    const appBaseUrl = process.env.APP_BASE_URL ?? 'https://digitalmerchs.store';
+    const appBaseUrl = process.env.APP_BASE_URL ?? 'https://paymentportal.digitalmerchs.store';
 
     if (isAutoApproved) {
       const token = createToken({ email, serialNo }, tokenSecret);

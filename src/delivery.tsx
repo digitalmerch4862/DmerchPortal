@@ -2,7 +2,7 @@ import React, { FormEvent, useEffect, useMemo, useState, useCallback } from 'rea
 import { Download, ShieldCheck, ExternalLink } from 'lucide-react';
 import { DEFAULT_PROMO_CARDS, resolvePromoImageUrl, sanitizePromoCards, type PromoCard } from './lib/promo-cards';
 
-const NEW_DOMAIN = 'https://digitalmerchs.store';
+const APP_BASE_URL = (import.meta.env.VITE_APP_BASE_URL || 'https://paymentportal.digitalmerchs.store').replace(/\/+$/, '');
 
 type DeliveryProduct = {
   name: string;
@@ -23,7 +23,7 @@ type DeliveryAuthResponse = {
 // Check if we're on the wrong/old domain and redirect if so
 const checkAndRedirect = () => {
   const currentOrigin = window.location.origin;
-  const newOrigin = NEW_DOMAIN;
+  const newOrigin = APP_BASE_URL;
   if (currentOrigin !== newOrigin) {
     const newUrl = newOrigin + window.location.pathname + window.location.search;
     window.location.replace(newUrl);
@@ -69,7 +69,7 @@ export default function Delivery() {
       setLoading(true);
       setError('');
       try {
-        const response = await fetch(`${NEW_DOMAIN}/api/delivery?path=auth`, {
+        const response = await fetch(`${APP_BASE_URL}/api/delivery?path=auth`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token }),
@@ -142,7 +142,7 @@ export default function Delivery() {
     setStatus('Verifying your order details...');
 
     try {
-      const response = await fetch(`${NEW_DOMAIN}/api/delivery?path=auth`, {
+      const response = await fetch(`${APP_BASE_URL}/api/delivery?path=auth`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, serialNo }),
@@ -178,7 +178,7 @@ export default function Delivery() {
     setDownloadingProduct(productName);
 
     try {
-      const response = await fetch(`${NEW_DOMAIN}/api/delivery?path=download`, {
+      const response = await fetch(`${APP_BASE_URL}/api/delivery?path=download`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, productName }),
@@ -196,7 +196,7 @@ export default function Delivery() {
 
       if (payload.products) setProducts(payload.products);
 
-      const downloadUrl = `${NEW_DOMAIN}/api/delivery?path=file&ticket=${encodeURIComponent(payload.downloadTicket)}&cb=${Date.now()}`;
+      const downloadUrl = `${APP_BASE_URL}/api/delivery?path=file&ticket=${encodeURIComponent(payload.downloadTicket)}&cb=${Date.now()}`;
       window.open(downloadUrl, '_blank');
 
       setDownloadSuccess((prev) => ({ ...prev, [productName]: 'Downloading... Check your browser tray.' }));
@@ -213,7 +213,7 @@ export default function Delivery() {
   }, [token]);
 
   // Build the correct delivery URL on the new domain for this session
-  const newDomainUrl = `${NEW_DOMAIN}/delivery${window.location.search}`;
+  const newDomainUrl = `${APP_BASE_URL}/delivery${window.location.search}`;
 
   if (redirecting) {
     return (
@@ -258,12 +258,12 @@ export default function Delivery() {
           <p className="mt-2 text-xs text-amber-100/90 leading-relaxed">
             Visit us at{' '}
             <a
-              href="https://digitalmerchs.store"
+              href={APP_BASE_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="font-semibold text-amber-300 underline decoration-amber-400/70 underline-offset-2 hover:text-amber-200"
             >
-              digitalmerchs.store
+              {APP_BASE_URL.replace(/^https?:\/\//, '')}
             </a>{' '}
             or on{' '}
             <a

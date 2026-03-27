@@ -5,7 +5,7 @@ import { Resend } from 'resend';
 const ALLOWED_ADMIN_EMAILS = new Set(['digitalmerch4862@gmail.com']);
 
 const resolveCorsOrigin = (req: any) => {
-  const appBase = process.env.APP_BASE_URL ?? 'https://digitalmerchs.store';
+  const appBase = process.env.APP_BASE_URL ?? 'https://paymentportal.digitalmerchs.store';
   const allowed = new Set([appBase, 'http://localhost:3000', 'http://127.0.0.1:3000']);
   const incoming = String(req.headers.origin ?? '').trim();
   return allowed.has(incoming) ? incoming : appBase;
@@ -176,7 +176,7 @@ export default async function handler(req: any, res: any) {
   const resendApiKey = process.env.RESEND_API_KEY;
   const resendFromEmail = process.env.RESEND_FROM_EMAIL;
   const tokenSecret = process.env.DELIVERY_TOKEN_SECRET ?? supabaseServiceRoleKey;
-  const appBaseUrl = process.env.APP_BASE_URL ?? 'https://digitalmerchs.store';
+  const appBaseUrl = process.env.APP_BASE_URL ?? 'https://paymentportal.digitalmerchs.store';
 
   if (!supabaseUrl || !supabaseServiceRoleKey || !resendApiKey || !resendFromEmail || !tokenSecret) {
     return res.status(500).json({ ok: false, error: 'Missing server configuration.' });
